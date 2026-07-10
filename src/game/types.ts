@@ -144,9 +144,9 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'harvest', label: 'Harvest', key: '2', desc: 'Mark trees, boulders and iron veins for your crew to harvest. Click again to unmark.' },
   { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder tile. Smallhands can climb ladders — but never while carrying goods!', cost: { log: 1 } },
   { id: 'platform', label: 'Platform', key: '4', desc: 'Build a wooden platform to walk across gaps.', cost: { plank: 1 } },
-  { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks (1 log → 2 planks). Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
+  { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
   { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
-  { id: 'forge', label: 'Forge', key: '7', desc: 'Forges spears from planks and iron (1+1 → 1). Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
+  { id: 'forge', label: 'Forge', key: '7', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
   { id: 'demolish', label: 'Demolish', key: '8', desc: 'Remove a ladder, platform or building. Refunds half the cost.' },
 ];
 

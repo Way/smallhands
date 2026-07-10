@@ -1,13 +1,14 @@
 import {
   ITEM_NAMES,
   ITEM_TYPES,
+  RECIPES,
   ROLE_COLORS,
   ROLE_NAMES,
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
 } from './types';
-import type { ItemType, Role, Tool } from './types';
+import type { BuildingKind, ItemType, Role, Tool } from './types';
 import { drawIconTo } from '../engine/sprites';
 import type { Game } from './sim';
 
@@ -193,6 +194,25 @@ export class Hud {
     title.innerHTML = `<b>${def.label}</b>`;
     const desc = el('div', 'tt-desc', tip);
     desc.textContent = def.desc;
+    const recipe = RECIPES[def.id as BuildingKind];
+    if (recipe) {
+      const rec = el('div', 'tt-recipe', tip);
+      const side = (label: string, items: Partial<Record<ItemType, number>>) => {
+        const col = el('div', 'tt-side', rec);
+        el('div', 'tt-side-label', col).textContent = label;
+        const row = el('div', 'tt-side-items', col);
+        for (const [k, v] of Object.entries(items)) {
+          const s = el('span', undefined, row);
+          icon(ITEM_ICON[k as ItemType], 14, s);
+          el('b', undefined, s).textContent = String(v);
+        }
+      };
+      side('Uses', recipe.inputs);
+      el('div', 'tt-arrow', rec).textContent = '→';
+      side('Makes', recipe.outputs);
+      const time = el('div', 'tt-time', tip);
+      time.textContent = `⏱ ${recipe.time}s per batch`;
+    }
     if (def.thLevel && this.game.thLevel < def.thLevel) {
       const req = el('div', undefined, tip);
       req.innerHTML = `<span class="insufficient">Requires Town Hall level ${def.thLevel}</span>`;
