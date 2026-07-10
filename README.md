@@ -1,0 +1,74 @@
+# Smallhands — Tiny Workers, Big Plans
+
+A browser-based puzzle-strategy builder about **indirect control and visible logistics**,
+inspired by the classic 90s problem-solving strategy genre (Lemmings-style creature
+management crossed with The Settlers-style production chains).
+
+You never control the smallhands directly. You shape the world — ladders, platforms,
+cargo lifts, workshops — and your tiny autonomous crew gathers, hauls, builds and
+crafts on its own. Every level is a delivery puzzle: route the right goods to the goal.
+
+**100% hand-built for the web**: TypeScript + Canvas 2D, zero runtime dependencies,
+procedurally generated pixel art and WebAudio sound. The production build is a
+self-contained static site (~22 kB gzipped).
+
+## Core mechanics
+
+- **Indirect control** — smallhands pick their own jobs based on their role
+  (hauler / builder / woodcutter / miner). You set role counts, mark resources,
+  and place buildings; they do the rest.
+- **The ladder rule** — a smallhand carrying goods *refuses ladders*. Empty hands
+  climb anywhere; cargo needs another way up.
+- **Cargo lifts** — hoist a loaded worker straight up a cliff face. Up only!
+- **One-way falls** — empty workers hop down up to 5 tiles, loaded ones only 2.
+  Getting down is easy; the puzzle is getting things back up.
+- **Production chains** — trees → logs → sawmill → planks; boulders → stone;
+  iron veins → forge (plank + iron → spear).
+- **Town Hall progression** — upgrade to unlock the forge and cargo lift and to
+  grow your crew.
+- **Four handcrafted levels** — from a gentle tutorial to a three-terrace summit
+  supply line, each verified completable end-to-end.
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| Left click | Use selected tool / place |
+| Drag / WASD / arrows | Pan camera |
+| Mouse wheel | Zoom (pixel-perfect steps) |
+| `1`–`8` | Select tool |
+| `Space` | Pause / resume |
+| `Esc` | Back to inspect tool |
+
+## Development
+
+```bash
+npm install
+npm run dev      # dev server with HMR
+npm run build    # typecheck + production build into dist/
+npm run preview  # serve the production build locally
+```
+
+## End-to-end smoke test
+
+With a preview server running on port 4173, this drives a real browser through
+levels 1 and 2 (harvesting, sawmill production, goal deliveries, cargo lift and
+ladder logistics) and fails if the levels can't be completed:
+
+```bash
+npm run build && npm run preview &   # serve dist on :4173
+node tests/e2e.mjs
+```
+
+## Hosting
+
+The build output in `dist/` is a fully static site with relative asset paths —
+host it anywhere (GitHub Pages, itch.io, Netlify, any static file server).
+A GitHub Actions workflow (`.github/workflows/deploy.yml`) is included that
+builds and publishes to GitHub Pages on every push to `main` — enable
+**Settings → Pages → Source: GitHub Actions** in the repository to activate it.
+
+## Credits
+
+An original homage to the genre. All code, pixel art (generated from in-repo
+string maps) and audio (WebAudio synthesis) are original to this project.
