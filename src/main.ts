@@ -633,10 +633,13 @@ function handleEvent(e: GameEvent): void {
     case 'built':
       audio.built();
       break;
-    case 'upgraded':
+    case 'upgraded': {
       audio.upgraded();
       h.toast(`<b>Town Hall level ${e.level}!</b> New buildings unlocked and a bigger crew.`, false, 6);
+      const th = game!.townhall;
+      renderer.addUpgradeEffect((th.x + 2) * TILE, th.y * TILE + 4, e.level);
       break;
+    }
     case 'produce':
       break;
     case 'spawn':

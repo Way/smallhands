@@ -1,4 +1,4 @@
-import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS } from './types';
+import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash } from '../engine/sprites';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceBuilding } from './world';
@@ -35,6 +35,9 @@ export class Renderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private cloudSeeds: { x: number; y: number; s: number; v: number }[] = [];
+  // transient celebration effects (e.g. town-hall upgrade), timed off the render clock
+  private effects: { x: number; y: number; start: number; from: number; to: number }[] = [];
+  private lastT = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -74,6 +77,7 @@ export class Renderer {
     const W = this.canvas.width;
     const H = this.canvas.height;
     ctx.imageSmoothingEnabled = false;
+    this.lastT = timeSec;
 
     this.drawSky(W, H, timeSec, cam);
 
@@ -88,6 +92,7 @@ export class Renderer {
     this.drawGroundItems(game, timeSec);
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
+    this.drawEffects(timeSec);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
     overlay?.(ctx);
 
@@ -276,12 +281,16 @@ export class Renderer {
           ctx.arc(px + fw - 8, py - 3 - puff, 2.5 + puff * 0.3, 0, Math.PI * 2);
           ctx.fill();
         }
-        if (b.kind === 'townhall' && game.thUpgrade) {
-          const up = game.thUpgrade;
-          ctx.fillStyle = 'rgba(0,0,0,0.4)';
-          ctx.fillRect(px + 2, py - 6, fw - 4, 3);
-          ctx.fillStyle = '#6fd66f';
-          ctx.fillRect(px + 2, py - 6, (fw - 4) * Math.min(1, up.progress / up.time), 3);
+        if (b.kind === 'townhall') {
+          this.drawTownhallDecor(b, game.thLevel, t);
+          this.drawTownhallBadge(b, game.thLevel);
+          if (game.thUpgrade) {
+            const up = game.thUpgrade;
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(px + 2, py - 6, fw - 4, 3);
+            ctx.fillStyle = '#6fd66f';
+            ctx.fillRect(px + 2, py - 6, (fw - 4) * Math.min(1, up.progress / up.time), 3);
+          }
         }
       }
       // input/output pips on production buildings
@@ -311,6 +320,196 @@ export class Renderer {
         ctx.fillRect(px + 2, py - 6, (fw - 4) * (total ? done / total : 0), 4);
       }
     }
+  }
+
+  // Level-based decorations drawn over the base town-hall sprite (footprint unchanged).
+  private drawTownhallDecor(b: Building, level: number, t: number): void {
+    if (level < 2) return;
+    const { ctx } = this;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    const fw = footprintW(b) * TILE;
+    const fh = footprintH(b) * TILE;
+    const cx = px + fw / 2;
+    const peakY = py + Math.round(fh * 0.18);
+    const eaveY = py + Math.round(fh * 0.46);
+    const gold = level >= 3;
+    const flagCol = gold ? '#ffd94d' : '#c05a44';
+    const buntA = gold ? '#ffe07a' : '#f0e4c8'; // festive alternating cloth
+    const buntB = gold ? '#e0a92e' : '#c8503c';
+    const wave = (phase: number) => Math.sin(t * 3 + phase) * 1.5;
+
+    // L3: golden roof glow over the roof triangle
+    if (gold) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#ffe07a';
+      ctx.beginPath();
+      ctx.moveTo(cx, py + Math.round(fh * 0.12));
+      ctx.lineTo(px + 3, eaveY);
+      ctx.lineTo(px + fw - 3, eaveY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#fff3c0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, peakY);
+      ctx.lineTo(px + 7, eaveY - 1);
+      ctx.moveTo(cx, peakY);
+      ctx.lineTo(px + fw - 7, eaveY - 1);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // bunting garland hung along the eave
+    const buntN = 6;
+    const bx0 = px + 6;
+    const bx1 = px + fw - 6;
+    const sagAt = (i: number) => Math.sin((Math.PI * i) / buntN) * 2;
+    ctx.strokeStyle = gold ? '#e0a92e' : '#6b4a26';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= buntN; i++) {
+      const fx = bx0 + ((bx1 - bx0) * i) / buntN;
+      const y = eaveY - 2 + sagAt(i);
+      if (i === 0) ctx.moveTo(fx, y);
+      else ctx.lineTo(fx, y);
+    }
+    ctx.stroke();
+    for (let i = 0; i < buntN; i++) {
+      const fx = bx0 + ((bx1 - bx0) * (i + 0.5)) / buntN;
+      const top = eaveY - 2 + sagAt(i + 0.5);
+      ctx.fillStyle = i % 2 === 0 ? buntA : buntB;
+      ctx.beginPath();
+      ctx.moveTo(fx - 2, top);
+      ctx.lineTo(fx + 2, top);
+      ctx.lineTo(fx, top + 4);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // waving flags on short poles at the roof corners
+    const flag = (fx: number, dir: number, phase: number) => {
+      const top = peakY + 1;
+      const bot = eaveY - 1;
+      ctx.strokeStyle = '#5f3c1b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(fx, top - 5);
+      ctx.lineTo(fx, bot);
+      ctx.stroke();
+      const w = wave(phase);
+      ctx.fillStyle = flagCol;
+      ctx.beginPath();
+      ctx.moveTo(fx, top - 5);
+      ctx.lineTo(fx + dir * 6, top - 3 + w);
+      ctx.lineTo(fx, top - 1);
+      ctx.closePath();
+      ctx.fill();
+    };
+    flag(px + 6, 1, 0);
+    flag(px + fw - 6, -1, Math.PI);
+
+    // L3: gold finial atop the sprite's flagpole (~col 15 of 32 → px+30)
+    if (gold) {
+      const fxp = px + 30;
+      const fyp = py + 1;
+      ctx.fillStyle = '#fff3c0';
+      ctx.beginPath();
+      ctx.moveTo(fxp, fyp - 3);
+      ctx.lineTo(fxp + 2, fyp);
+      ctx.lineTo(fxp, fyp + 3);
+      ctx.lineTo(fxp - 2, fyp);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Always-on level indicator: filled pips = current level, floating above the hall.
+  private drawTownhallBadge(b: Building, level: number): void {
+    const { ctx } = this;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    const fw = footprintW(b) * TILE;
+    const cx = px + fw / 2;
+    const total = TH_LEVELS.length;
+    const gap = 7;
+    const span = (total - 1) * gap;
+    const by = py - 10;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(cx - span / 2 - 5, by - 4, span + 10, 8);
+    for (let i = 0; i < total; i++) {
+      const dx = cx - span / 2 + i * gap;
+      ctx.beginPath();
+      ctx.moveTo(dx, by - 3);
+      ctx.lineTo(dx + 3, by);
+      ctx.lineTo(dx, by + 3);
+      ctx.lineTo(dx - 3, by);
+      ctx.closePath();
+      if (i < level) {
+        ctx.fillStyle = '#ffd94d';
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = '#8a6a10';
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Spawn a celebration burst + "Crew N → M" cue over the town hall on upgrade.
+  addUpgradeEffect(worldX: number, worldY: number, newLevel: number): void {
+    const from = TH_LEVELS[Math.max(0, newLevel - 2)].maxWorkers;
+    const to = TH_LEVELS[newLevel - 1].maxWorkers;
+    this.effects.push({ x: worldX, y: worldY, start: this.lastT, from, to });
+  }
+
+  private drawEffects(t: number): void {
+    const { ctx } = this;
+    const DUR = 2.0;
+    for (let i = this.effects.length - 1; i >= 0; i--) {
+      const e = this.effects[i];
+      const age = t - e.start;
+      if (age < 0 || age > DUR) {
+        this.effects.splice(i, 1);
+        continue;
+      }
+      const p = age / DUR;
+      // sparkle burst
+      const N = 12;
+      for (let k = 0; k < N; k++) {
+        const ang = (k / N) * Math.PI * 2 + e.start * 3;
+        const spd = 12 + (k % 3) * 7;
+        const dist = spd * age;
+        const sx = e.x + Math.cos(ang) * dist;
+        const sy = e.y + Math.sin(ang) * dist - age * 6;
+        const a = Math.max(0, 1 - p);
+        if (a <= 0) continue;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = k % 2 ? '#ffe89a' : '#ffffff';
+        const s = 1.6 * (1 - p);
+        ctx.fillRect(sx - s, sy - s, s * 2, s * 2);
+      }
+      // floating crew-cap cue
+      const ty = e.y - 6 - age * 12;
+      ctx.globalAlpha = Math.max(0, 1 - p);
+      ctx.font = '7px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillStyle = '#ffd94d';
+      const txt = `Crew ${e.from} → ${e.to}`;
+      ctx.strokeText(txt, e.x, ty);
+      ctx.fillText(txt, e.x, ty);
+      ctx.textAlign = 'left';
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawLift(b: Building): void {
