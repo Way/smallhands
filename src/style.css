@@ -298,6 +298,27 @@ html, body {
 }
 .toast.warn { border-color: var(--danger); }
 
+/* interactive town-hall toast */
+.th-toast { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.th-toast .th-toast-body { color: var(--text-dim); font-size: 13px; }
+.th-toast .th-toast-cost { display: flex; gap: 10px; }
+.th-toast .cost-item { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; }
+.th-toast canvas { width: 16px; height: 16px; image-rendering: pixelated; }
+.th-toast .insufficient { color: var(--danger); }
+.th-toast .th-mini {
+  padding: 5px 16px;
+  border: 1px solid var(--panel-border-light);
+  border-radius: 6px;
+  background: linear-gradient(#2e3c55, #253148);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.th-toast .th-mini:hover:not(:disabled) { border-color: var(--accent); }
+.th-toast .th-mini:disabled { opacity: 0.45; cursor: default; }
+.th-toast .dismiss { margin-left: 0; }
+
 /* ---- overlays (title, level select, win) ---- */
 .overlay {
   position: absolute;
@@ -451,7 +472,9 @@ html, body {
 .tooltip .tt-time { margin-top: 4px; font-size: 11px; color: var(--text-dim); text-align: center; }
 
 @media (max-width: 860px) {
-  .crew { display: none; }
+  .topbar { flex-wrap: wrap; }
+  .spacer { display: none; }
+  .crew { min-width: 150px; }
   .objectives { max-width: 200px; }
   .tool-btn { width: 46px; height: 46px; }
 }

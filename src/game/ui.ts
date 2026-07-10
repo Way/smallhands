@@ -76,6 +76,8 @@ export class Hud {
   private speedBtns = new Map<number, HTMLButtonElement>();
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
+  private hint: HTMLElement | null = null;
+  private hintSig = '';
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -248,6 +250,97 @@ export class Hud {
     d.textContent = 'dismiss';
     d.onclick = () => t.remove();
     if (autoDismiss > 0) setTimeout(() => t.remove(), autoDismiss * 1000);
+  }
+
+  // Interactive town-hall panel shown when the building is tapped with Select.
+  showTownhall(): void {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
+    const t = el('div', 'toast th-toast', this.toastWrap);
+    const build = (): void => {
+      t.innerHTML = '';
+      const head = el('div', undefined, t);
+      head.innerHTML = `<b>Town Hall</b> · Level ${g.thLevel} · ${g.workers.length}/${g.maxWorkers} crew`;
+      if (g.thUpgrade) {
+        el('div', 'th-toast-body', t).textContent =
+          `Upgrading… ${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100)}% — a builder is on the way.`;
+      } else if (!lvl.upgradeCost) {
+        el('div', 'th-toast-body', t).textContent = 'Fully upgraded — max crew reached.';
+      } else {
+        el('div', 'th-toast-body', t).textContent =
+          `Upgrade → Level ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+        const cost = el('div', 'th-toast-cost', t);
+        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+          const s = el('span', 'cost-item', cost);
+          icon(ITEM_ICON[k as ItemType], 16, s);
+          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+          n.textContent = String(v);
+        }
+        const btn = el('button', 'th-mini', t);
+        btn.textContent = 'Upgrade';
+        btn.disabled = !g.canAfford(lvl.upgradeCost);
+        btn.onclick = () => {
+          this.cbs.onUpgrade();
+          build(); // re-render to reflect the in-progress state
+        };
+      }
+      const d = el('span', 'dismiss', t);
+      d.textContent = 'dismiss';
+      d.onclick = () => t.remove();
+    };
+    build();
+  }
+
+  // Hover hint for the town hall on the canvas (desktop discoverability).
+  showBuildingHint(clientX: number, clientY: number): void {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    const up = g.thUpgrade;
+    const sig = [
+      g.thLevel,
+      g.workers.length,
+      g.maxWorkers,
+      up ? Math.floor((up.progress / up.time) * 20) : 'x',
+      lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
+    ].join('|');
+    if (!this.hint) {
+      this.hint = el('div', 'tooltip', this.root);
+      this.hintSig = '';
+    }
+    const tip = this.hint;
+    if (sig !== this.hintSig) {
+      this.hintSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>Town Hall</b> · Lv ${g.thLevel}`;
+      el('div', 'tt-desc', tip).textContent = `Crew ${g.workers.length}/${g.maxWorkers}`;
+      if (up) {
+        el('div', 'tt-desc', tip).textContent =
+          `Upgrading… ${Math.floor((up.progress / up.time) * 100)}%`;
+      } else if (lvl.upgradeCost) {
+        el('div', undefined, tip).textContent =
+          `Click: upgrade → Lv ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+        const cost = el('div', 'tt-cost', tip);
+        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+          const s = el('span', undefined, cost);
+          icon(ITEM_ICON[k as ItemType], 14, s);
+          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+          n.textContent = String(v);
+        }
+      } else {
+        el('div', 'tt-desc', tip).textContent = 'Max level';
+      }
+    }
+    // follow the cursor, clamped to stay on screen
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hideBuildingHint(): void {
+    this.hint?.remove();
+    this.hint = null;
+    this.hintSig = '';
   }
 
   flashResource(item: ItemType): void {

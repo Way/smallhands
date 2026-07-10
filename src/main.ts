@@ -741,11 +741,17 @@ canvas.addEventListener('pointermove', (e) => {
   hover.tx = t.x;
   hover.ty = t.y;
   hover.visible = true;
+
+  // hover hint for the town hall (Select tool, not while panning)
+  const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
+  if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
+  else hud?.hideBuildingHint();
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
 canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
+  hud?.hideBuildingHint();
   editor.setHover(0, 0, false);
 });
 
@@ -890,7 +896,11 @@ function applyTool(tx: number, ty: number): void {
           4
         );
       } else if (b) {
-        hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
+        if (b.kind === 'townhall') {
+          hud!.showTownhall();
+        } else {
+          hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
+        }
       }
       break;
     }
