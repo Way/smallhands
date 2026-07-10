@@ -34,6 +34,7 @@ let game: Game | null = null;
 let hud: Hud | null = null;
 let currentLevelIdx = 0;
 let speed = 1;
+let prevSpeed = 1; // speed to restore when resuming from the level-select overlay
 let running = false;
 
 const hover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
@@ -70,6 +71,60 @@ function showTitle(): void {
   drawIdleBackdrop();
 }
 
+// Is there a running level whose progress would be lost?
+function gameInProgress(): boolean {
+  return game !== null && !game.won && game.time > 3;
+}
+
+// Small confirmation dialog stacked on top of whatever overlay is open.
+function showConfirm(message: string, confirmLabel: string, onYes: () => void): void {
+  const ov = document.createElement('div');
+  ov.className = 'overlay confirm-overlay';
+  const box = document.createElement('div');
+  box.className = 'panel confirm-box';
+  const msg = document.createElement('div');
+  msg.className = 'confirm-msg';
+  msg.textContent = message;
+  box.appendChild(msg);
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  const yes = document.createElement('button');
+  yes.className = 'big-btn danger';
+  yes.textContent = confirmLabel;
+  yes.onclick = () => {
+    ov.remove();
+    onYes();
+  };
+  row.appendChild(yes);
+  const no = document.createElement('button');
+  no.className = 'big-btn secondary';
+  no.textContent = 'Cancel';
+  no.autofocus = true;
+  no.onclick = () => {
+    audio.click();
+    ov.remove();
+  };
+  row.appendChild(no);
+  box.appendChild(row);
+  ov.appendChild(box);
+  ov.addEventListener('pointerdown', (e) => {
+    if (e.target === ov) ov.remove();
+  });
+  uiRoot.appendChild(ov);
+  no.focus();
+}
+
+function confirmIfInProgress(message: string, confirmLabel: string, action: () => void): void {
+  if (gameInProgress()) showConfirm(message, confirmLabel, action);
+  else action();
+}
+
+function resumeGame(): void {
+  clearOverlay();
+  running = true;
+  setSpeed(prevSpeed > 0 ? prevSpeed : 1);
+}
+
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
@@ -96,7 +151,11 @@ function showLevelSelect(): void {
     if (unlocked) {
       card.onclick = () => {
         audio.click();
-        startLevel(i);
+        confirmIfInProgress(
+          `Abandon "${game?.level.name}"? Progress in the current level will be lost.`,
+          'Abandon level',
+          () => startLevel(i)
+        );
       };
     }
     grid.appendChild(card);
@@ -104,6 +163,16 @@ function showLevelSelect(): void {
   ov.appendChild(grid);
   const row = document.createElement('div');
   row.className = 'btn-row';
+  if (gameInProgress()) {
+    const resume = document.createElement('button');
+    resume.className = 'big-btn';
+    resume.textContent = `▶ Resume ${game!.level.name}`;
+    resume.onclick = () => {
+      audio.click();
+      resumeGame();
+    };
+    row.appendChild(resume);
+  }
   const back = document.createElement('button');
   back.className = 'big-btn secondary';
   back.textContent = 'Title';
@@ -187,10 +256,16 @@ function startLevel(idx: number): void {
     },
     onUpgrade: () => game!.startThUpgrade(),
     onMenu: () => {
+      prevSpeed = speed;
       setSpeed(0);
       showLevelSelect();
     },
-    onRestart: () => startLevel(currentLevelIdx),
+    onRestart: () =>
+      confirmIfInProgress(
+        `Restart "${game!.level.name}"? Progress in the current level will be lost.`,
+        'Restart level',
+        () => startLevel(currentLevelIdx)
+      ),
   });
   setTool('select');
   hud.setSpeed(speed);
@@ -339,14 +414,64 @@ canvas.addEventListener('pointerup', (e) => {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+// Wheel handling: trackpads fire dozens of small-delta events per gesture and
+// also emit horizontal deltas while two-finger panning. Pan on the dominant
+// axis; only step the zoom once a full notch of vertical delta accumulates,
+// with a short cooldown so one gesture ≈ one zoom step.
+let wheelAcc = 0;
+let wheelAccAt = 0;
+let wheelConsumed = false;
+let lastZoomAt = 0;
+
 canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
-    if (!game) return;
+    if (!game || !running) return;
     const dpr = canvas.width / canvas.clientWidth;
+
+    // dominant horizontal movement = pan sideways, never zoom
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      cam.x += e.deltaX * dpr;
+      cam.clamp(game, renderer.viewW, renderer.viewH);
+      return;
+    }
+
+    // pinch gestures arrive as ctrl+wheel — treat them as zoom immediately;
+    // shift+wheel is the classic "scroll sideways" convention
+    if (e.shiftKey && !e.ctrlKey) {
+      cam.x += e.deltaY * dpr;
+      cam.clamp(game, renderer.viewW, renderer.viewH);
+      return;
+    }
+
+    const now = performance.now();
+    if (now - wheelAccAt > 250) {
+      // 250ms without wheel events = the previous gesture ended
+      wheelAcc = 0;
+      wheelConsumed = false;
+    }
+    wheelAccAt = now;
+
+    let dir: number;
+    if (Math.abs(e.deltaY) >= 80 && !e.ctrlKey) {
+      // discrete mouse-wheel notch: step per notch, lightly rate-limited
+      if (now - lastZoomAt < 120) return;
+      dir = e.deltaY < 0 ? 1 : -1;
+    } else {
+      // trackpad stream (or pinch): accumulate, then one step per gesture
+      if (wheelConsumed) return;
+      wheelAcc += e.deltaY;
+      const threshold = e.ctrlKey ? 25 : 60;
+      if (Math.abs(wheelAcc) < threshold) return;
+      dir = wheelAcc < 0 ? 1 : -1;
+      wheelAcc = 0;
+      wheelConsumed = true;
+    }
+    lastZoomAt = now;
+
     const oldZoom = cam.zoom;
-    const next = e.deltaY < 0 ? Math.min(4, cam.zoom + 1) : Math.max(1, cam.zoom - 1);
+    const next = Math.max(1, Math.min(4, oldZoom + dir));
     if (next === oldZoom) return;
     // zoom toward the cursor
     const mx = e.clientX * dpr;
@@ -364,6 +489,18 @@ canvas.addEventListener(
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   keys.add(e.key.toLowerCase());
+  if (e.key === 'Escape' && !running) {
+    // close a confirm dialog first; otherwise resume the paused level
+    const confirm = document.querySelector('.confirm-overlay');
+    if (confirm) {
+      confirm.remove();
+      return;
+    }
+    if (gameInProgress() && document.querySelector('.overlay')) {
+      resumeGame();
+      return;
+    }
+  }
   if (!game || !running) return;
   const def = TOOL_DEFS.find((d) => d.key === e.key);
   if (def && (!game.level.allowedTools || game.level.allowedTools.includes(def.id))) {

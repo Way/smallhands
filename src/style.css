@@ -377,6 +377,25 @@ html, body {
 .level-card.locked { opacity: 0.45; cursor: default; }
 .level-card.locked .lv-num { color: var(--text-dim); }
 
+.big-btn.danger {
+  background: linear-gradient(#ff8f80, #e0554a);
+  color: #4a0e08;
+  box-shadow: 0 5px 0 #8f2c22, 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+.big-btn.danger:hover { box-shadow: 0 7px 0 #8f2c22, 0 11px 22px rgba(0, 0, 0, 0.45); }
+.big-btn.danger:active { box-shadow: 0 2px 0 #8f2c22; }
+
+.confirm-overlay { background: rgba(10, 14, 22, 0.6); z-index: 20; }
+.confirm-box {
+  padding: 26px 30px;
+  max-width: min(440px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-color: var(--danger);
+}
+.confirm-msg { font-size: 16px; line-height: 1.5; text-align: center; }
+
 .win-stats { font-size: 14px; color: var(--text-dim); text-align: center; line-height: 1.7; }
 .win-title { font-size: 42px; font-weight: 900; color: var(--accent2); text-shadow: 0 3px 0 #1d5c1d, 0 6px 18px rgba(0,0,0,0.6); }
 
