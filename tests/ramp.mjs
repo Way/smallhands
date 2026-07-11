@@ -11,6 +11,9 @@ const res = await build({
       export { findPath } from './src/game/nav.ts';
       export { T } from './src/game/types.ts';
       export { canPlaceRamp, rampRunCells, bridgeRunCells } from './src/game/world.ts';
+      export { Game } from './src/game/sim.ts';
+      export { LEVELS } from './src/game/levels.ts';
+      export { TOOL_DEFS } from './src/game/types.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -18,7 +21,7 @@ const res = await build({
   bundle: true, format: 'esm', platform: 'node', write: false,
 });
 const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -84,6 +87,30 @@ function stepWorld() {
   // bridge: horizontal run along a row anchored to the ledge edge
   const br = bridgeRunCells(w, stepX, surfaceY - 3, stepX + 3, surfaceY - 3);
   check('bridgeRunCells is horizontal', br.length >= 1 && br.every((c) => c.y === surfaceY - 3));
+}
+
+// --- Task 3: tool defs + sim placers ---
+{
+  const ramp = TOOL_DEFS.find((t) => t.id === 'ramp');
+  const bridge = TOOL_DEFS.find((t) => t.id === 'platform');
+  check('ramp tool defined, 1 plank', !!ramp && ramp.cost && ramp.cost.plank === 1);
+  check('platform tool relabelled Bridge', !!bridge && bridge.label === 'Bridge');
+
+  // placeRampRun charges a plank per placed tile and lays RAMP tiles.
+  // Columns 12-29 of Level 1 are one flat run, so pick a safe column there.
+  const g = new Game(LEVELS[0]);
+  g.stock.plank = 10;
+  const col = 20;
+  const sfc = (() => { for (let y = 0; y < g.world.h; y++) if (g.world.isSolid(col, y)) return y - 1; return 0; })();
+  const placed = g.placeRampRun(col, sfc, col + 3, sfc - 3);
+  check('placeRampRun places >=2 tiles', placed >= 2);
+  check('placeRampRun laid RAMP tiles', g.world.get(col, sfc) === T.RAMP);
+  check('placeRampRun charged planks', g.stock.plank === 10 - placed);
+
+  // demolish removes a ramp and refunds like a platform
+  const before = g.stock.plank;
+  check('demolish ramp ok', g.demolish(col, sfc) === true && g.world.get(col, sfc) === T.AIR);
+  check('demolish ramp refunds a plank', g.stock.plank === before + 1);
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');

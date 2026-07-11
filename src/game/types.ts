@@ -131,6 +131,7 @@ export type Tool =
   | 'harvest'
   | 'ladder'
   | 'platform'
+  | 'ramp'
   | 'sawmill'
   | 'forge'
   | 'lift'
@@ -150,7 +151,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'select', label: 'Inspect', key: '1', desc: 'Inspect things. Drag or use WASD to pan, scroll to zoom.' },
   { id: 'harvest', label: 'Harvest', key: '2', desc: 'Mark trees, boulders and iron veins for your crew to harvest. Click again to unmark.' },
   { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder tile from 1 log — or a plank if you have no logs. Smallhands climb ladders, but never while carrying goods!', cost: { log: 1 } },
-  { id: 'platform', label: 'Platform', key: '4', desc: 'Build a wooden platform to walk across gaps.', cost: { plank: 1 } },
+  { id: 'platform', label: 'Bridge', key: '4', desc: 'Build a wooden bridge to span a gap or hole — drag to lay a run.', cost: { plank: 1 } },
+  { id: 'ramp', label: 'Ramp', key: '0', desc: 'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands can walk it (unlike ladders).', cost: { plank: 1 } },
   { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
   { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
   { id: 'rope', label: 'Rope Anchor', key: '7', desc: 'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!', cost: { log: 2, plank: 1 } },

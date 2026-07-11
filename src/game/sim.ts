@@ -27,7 +27,7 @@ import type {
   Role,
   Tool,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -279,6 +279,34 @@ export class Game {
     return true;
   }
 
+  placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
+    const cost = TOOL_DEFS.find((t) => t.id === 'ramp')!.cost!;
+    const cells = rampRunCells(this.world, ax, ay, tx, ty);
+    let placed = 0;
+    for (const c of cells) {
+      if (!this.canAfford(cost)) break;
+      this.payCost(cost);
+      this.world.set(c.x, c.y, T.RAMP);
+      placed++;
+    }
+    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
+    return placed;
+  }
+
+  placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
+    const cost = TOOL_DEFS.find((t) => t.id === 'platform')!.cost!;
+    const cells = bridgeRunCells(this.world, ax, ay, tx, ty);
+    let placed = 0;
+    for (const c of cells) {
+      if (!this.canAfford(cost)) break;
+      this.payCost(cost);
+      this.world.set(c.x, c.y, T.PLATFORM);
+      placed++;
+    }
+    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
+    return placed;
+  }
+
   placeBuilding(kind: 'sawmill' | 'forge', x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === kind)!;
     const fp = FOOTPRINTS[kind];
@@ -334,7 +362,7 @@ export class Game {
 
   demolish(x: number, y: number): boolean {
     const t = this.world.get(x, y);
-    if (t === T.LADDER || t === T.PLATFORM) {
+    if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
       this.world.set(x, y, T.AIR);
       // Refund in planks even for ladders (which may have been paid in logs):
       // refunding a log would let plank→ladder→demolish→log→sawmill mint free
