@@ -27,7 +27,7 @@ import type {
   Role,
   Tool,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -267,44 +267,27 @@ export class Game {
     return true;
   }
 
-  placePlatform(x: number, y: number): boolean {
-    const cost = TOOL_DEFS.find((t) => t.id === 'platform')!.cost!;
-    if (!canPlacePlatform(this.world, x, y) || !this.canAfford(cost)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
+  // Lay a drag-run of tiles, charging the tool's cost per tile and stopping when
+  // the player can no longer afford the next one. Shared by Ramp and Bridge.
+  private placeRun(toolId: Tool, cells: { x: number; y: number }[], tile: T): number {
+    const cost = TOOL_DEFS.find((t) => t.id === toolId)!.cost!;
+    let placed = 0;
+    for (const c of cells) {
+      if (!this.canAfford(cost)) break;
+      this.payCost(cost);
+      this.world.set(c.x, c.y, tile);
+      placed++;
     }
-    this.payCost(cost);
-    this.world.set(x, y, T.PLATFORM);
-    this.onEvent({ type: 'place' });
-    return true;
+    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
+    return placed;
   }
 
   placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
-    const cost = TOOL_DEFS.find((t) => t.id === 'ramp')!.cost!;
-    const cells = rampRunCells(this.world, ax, ay, tx, ty);
-    let placed = 0;
-    for (const c of cells) {
-      if (!this.canAfford(cost)) break;
-      this.payCost(cost);
-      this.world.set(c.x, c.y, T.RAMP);
-      placed++;
-    }
-    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
-    return placed;
+    return this.placeRun('ramp', rampRunCells(this.world, ax, ay, tx, ty), T.RAMP);
   }
 
   placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
-    const cost = TOOL_DEFS.find((t) => t.id === 'platform')!.cost!;
-    const cells = bridgeRunCells(this.world, ax, ay, tx, ty);
-    let placed = 0;
-    for (const c of cells) {
-      if (!this.canAfford(cost)) break;
-      this.payCost(cost);
-      this.world.set(c.x, c.y, T.PLATFORM);
-      placed++;
-    }
-    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
-    return placed;
+    return this.placeRun('platform', bridgeRunCells(this.world, ax, ay, tx, ty), T.PLATFORM);
   }
 
   placeBuilding(kind: 'sawmill' | 'forge', x: number, y: number): boolean {
