@@ -783,12 +783,17 @@ canvas.addEventListener('pointermove', (e) => {
   const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
   if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
   else hud?.hideBuildingHint();
+  // cursor cost badge: while placing a cost-bearing tool, spell out which
+  // resource is short so a red ghost isn't a mystery (no-op when affordable)
+  if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
+  else hud?.hidePlacementNeeds();
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
 canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
   hud?.hideBuildingHint();
+  hud?.hidePlacementNeeds();
   editor.setHover(0, 0, false);
 });
 
