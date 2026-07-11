@@ -515,7 +515,7 @@ git commit -m "feat(levels): offer the Ramp on Level 4 with a teaching hint"
 - [ ] **Step 1: Add the failing check** — extend the bundle exports in `tests/ramp.mjs`:
 
 ```javascript
-      export { verifyLevel, blankLevelData, encodeTiles } from './src/game/leveldata.ts';
+      export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
 ```
 
 update the destructure to include them, then append:
@@ -537,8 +537,9 @@ update the destructure to include them, then append:
   decoded[airIdx] = T.RAMP;
   data.tiles = encodeTiles(decoded);
   const report = verifyLevel(data);
-  check('verifyLevel runs with ramp tiles (no crash)', Array.isArray(report.problems));
-  check('ramp byte round-trips through decode/encode', report.problems.length === 0 || Array.isArray(report.warnings));
+  const roundTrip = decodeTiles(data.tiles, data.width * data.height);
+  check('ramp byte round-trips through encode/decode', roundTrip[airIdx] === T.RAMP);
+  check('stray ramp adds no solvability problem', report.problems.length === 0);
 }
 ```
 
