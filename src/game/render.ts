@@ -1,7 +1,7 @@
 import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash } from '../engine/sprites';
-import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceBuilding } from './world';
+import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 
 export class Camera {
@@ -219,9 +219,12 @@ export class Renderer {
             break;
         }
         if (name === 'tile_ramp') {
-          // face the slope toward the higher neighbour: if the ramp continues
-          // up to the left (a RAMP tile up-left), mirror the default up-right art
-          const upLeft = world.get(x - 1, y - 1) === T.RAMP || world.get(x - 1, y) === T.RAMP;
+          // face the slope toward the higher neighbour. The run climbs to the
+          // left when a ramp sits up-left OR down-right of this tile — checking
+          // both ends means the top cap of an up-left run mirrors correctly too
+          // (its only ramp neighbour is the tile below-right). Default art climbs
+          // right, so only up-left runs get mirrored.
+          const upLeft = world.get(x - 1, y - 1) === T.RAMP || world.get(x + 1, y + 1) === T.RAMP;
           const spr = sprite('tile_ramp').canvas;
           if (upLeft) {
             ctx.save();
@@ -795,6 +798,15 @@ export class Renderer {
         const ok = canPlacePlatform(game.world, tx, ty) && game.canAfford({ plank: 1 });
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_platform').canvas, px, py);
+        ctx.globalAlpha = 1;
+        outline(ok);
+        break;
+      }
+      case 'ramp': {
+        // at-rest preview of the anchor tile (a drag then previews the full run)
+        const ok = canPlaceRamp(game.world, tx, ty, null) && game.canAfford({ plank: 1 });
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(sprite('tile_ramp').canvas, px, py);
         ctx.globalAlpha = 1;
         outline(ok);
         break;
