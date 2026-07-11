@@ -48,7 +48,7 @@ export class World {
   isSupport(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return true; // world edge acts as floor
     const t = this.get(x, y);
-    if (t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK || t === T.PLATFORM || t === T.LADDER) return true;
+    if (t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK || t === T.PLATFORM || t === T.LADDER || t === T.RAMP) return true;
     return this.extraSupport.has(this.idx(x, y));
   }
 

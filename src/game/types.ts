@@ -11,6 +11,7 @@ export const enum T {
   BEDROCK = 4,
   PLATFORM = 5, // player-built wooden floor
   LADDER = 6, // player-built ladder
+  RAMP = 7, // player-built diagonal climb tile (support, like PLATFORM)
 }
 
 export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear';
