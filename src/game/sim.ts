@@ -238,13 +238,22 @@ export class Game {
 
   // ---- player actions ------------------------------------------------------
 
+  // A ladder is 1 unit of wood: spend a log if we have one, otherwise a plank.
+  // Prefer logs so refined planks stay free for the goal and platforms, but
+  // never dead-end the player when every log has been sawn into planks.
+  ladderWood(): ItemType | null {
+    if (this.stock.log >= 1) return 'log';
+    if (this.stock.plank >= 1) return 'plank';
+    return null;
+  }
+
   placeLadder(x: number, y: number): boolean {
-    const cost = TOOL_DEFS.find((t) => t.id === 'ladder')!.cost!;
-    if (!canPlaceLadder(this.world, x, y) || !this.canAfford(cost)) {
+    const wood = this.ladderWood();
+    if (!canPlaceLadder(this.world, x, y) || wood === null) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
-    this.payCost(cost);
+    this.stock[wood] -= 1;
     this.world.set(x, y, T.LADDER);
     this.onEvent({ type: 'place' });
     return true;
@@ -319,7 +328,10 @@ export class Game {
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM) {
       this.world.set(x, y, T.AIR);
-      this.refund(t === T.LADDER ? { log: 1 } : { plank: 1 }, 0.5);
+      // Refund in planks even for ladders (which may have been paid in logs):
+      // refunding a log would let plank→ladder→demolish→log→sawmill mint free
+      // planks. Planks never convert back to logs, so a plank refund can't loop.
+      this.refund({ plank: 1 }, 0.5);
       this.onEvent({ type: 'demolish' });
       return true;
     }

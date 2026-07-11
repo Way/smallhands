@@ -677,7 +677,7 @@ export class Renderer {
         break;
       }
       case 'ladder': {
-        const ok = canPlaceLadder(game.world, tx, ty) && game.canAfford({ log: 1 });
+        const ok = canPlaceLadder(game.world, tx, ty) && game.ladderWood() !== null;
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_ladder').canvas, px, py);
         ctx.globalAlpha = 1;
