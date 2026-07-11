@@ -157,7 +157,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
   { id: 'rope', label: 'Rope Anchor', key: '7', desc: 'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!', cost: { log: 2, plank: 1 } },
   { id: 'forge', label: 'Forge', key: '8', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
-  { id: 'demolish', label: 'Demolish', key: '9', desc: 'Remove a ladder, platform or building. Refunds half the cost.' },
+  { id: 'demolish', label: 'Demolish', key: '9', desc: 'Remove a ladder, bridge, ramp or building. Refunds half the cost.' },
 ];
 
 // Town hall levels. Index 0 = level 1.

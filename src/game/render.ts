@@ -851,7 +851,7 @@ export class Renderer {
       case 'demolish': {
         const t2 = game.world.get(tx, ty);
         const b = game.buildingAt(tx, ty);
-        const ok = t2 === T.LADDER || t2 === T.PLATFORM || (!!b && b.kind !== 'townhall' && b.kind !== 'goal');
+        const ok = t2 === T.LADDER || t2 === T.PLATFORM || t2 === T.RAMP || (!!b && b.kind !== 'townhall' && b.kind !== 'goal');
         outline(ok);
         break;
       }
