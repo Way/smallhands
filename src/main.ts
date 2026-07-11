@@ -721,6 +721,7 @@ function setTool(t: Tool): void {
   }
   hover.tool = t;
   hud.setActiveTool(t);
+  runAnchor = null;
   applyToolCursor();
   audio.click();
 }
@@ -740,7 +741,7 @@ let painting = false; // editor drag-paint stroke in progress
 let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
-let runAnchor: { x: number; y: number } | null = null; // build-run start tile
+let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
 const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform';
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -758,7 +759,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!editor.active && e.button === 0 && game && running && isRunTool(hover.tool)) {
     const dpr = canvas.width / canvas.clientWidth;
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
-    runAnchor = { x: t.x, y: t.y };
+    runAnchor = { x: t.x, y: t.y, tool: hover.tool };
   }
 });
 
@@ -799,6 +800,12 @@ canvas.addEventListener('pointerleave', () => {
   editor.setHover(0, 0, false);
 });
 
+canvas.addEventListener('pointercancel', () => {
+  dragging = false;
+  runAnchor = null;
+  applyToolCursor();
+});
+
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
   applyToolCursor(); // drop the grabbing hand back to the tool cursor
@@ -813,7 +820,7 @@ canvas.addEventListener('pointerup', (e) => {
     const dpr = canvas.width / canvas.clientWidth;
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     if (game && running) {
-      if (hover.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
+      if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
       else game.placeBridgeRun(a.x, a.y, t.x, t.y);
     }
     return;
@@ -1027,10 +1034,10 @@ let acc = 0;
 const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!runAnchor || !game) return;
   const cells =
-    hover.tool === 'ramp'
+    runAnchor.tool === 'ramp'
       ? rampRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty)
       : bridgeRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
-  const name = hover.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
+  const name = runAnchor.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
   ctx.globalAlpha = 0.6;
   for (const c of cells) ctx.drawImage(sprite(name).canvas, c.x * TILE, c.y * TILE);
   ctx.globalAlpha = 1;
