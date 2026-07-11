@@ -455,3 +455,154 @@ html, body {
   .objectives { max-width: 200px; }
   .tool-btn { width: 46px; height: 46px; }
 }
+
+/* ---- level select: workshop section ---- */
+.overlay.level-select {
+  justify-content: flex-start;
+  padding: 40px 16px 60px;
+  overflow-y: auto;
+}
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+.workshop-grid { max-width: 900px; }
+.level-card { position: relative; }
+div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inherit; }
+.level-card.daily .lv-num,
+.level-card.action .lv-num { font-size: 22px; }
+.level-card.custom .lv-num { color: var(--accent2); }
+.lv-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.lv-action-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--panel-border-light);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+}
+.lv-action-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ---- generate dialog ---- */
+.gen-box { border-color: var(--panel-border-light); }
+.gen-row { display: flex; align-items: center; gap: 8px; justify-content: center; }
+.gen-row span { font-size: 13px; color: var(--text-dim); }
+
+/* ---- level editor ---- */
+.editor-toolbar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  transform: none;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+}
+.editor-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 264px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+}
+.editor-panel h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+}
+.ed-section {
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 3px;
+}
+.ed-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.ed-row label { color: var(--text-dim); }
+.ed-row.ed-wrap { flex-wrap: wrap; }
+.ed-grow { flex: 1; }
+.ed-x { color: var(--text-dim); }
+.ed-input {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--panel-border-light);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 7px;
+  min-width: 0;
+  flex: 1;
+}
+.ed-input:focus { outline: none; border-color: var(--accent); }
+.ed-num { flex: 0 0 52px; width: 52px; }
+.ed-select { flex: 0 0 auto; width: auto; }
+.ed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.ed-chip canvas { width: 14px; height: 14px; image-rendering: pixelated; }
+.ed-chip .ed-num { flex: 0 0 40px; width: 40px; border: none; background: transparent; padding: 2px; }
+.ed-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--panel-border-light);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ed-btn:hover { border-color: var(--accent); }
+.ed-btn.primary {
+  background: linear-gradient(#ffd76e, #f0a92e);
+  color: #4a3208;
+  font-weight: 700;
+  border-color: #a06f14;
+}
+.ed-btn.danger { color: var(--danger); }
+.ed-btn.danger:hover { border-color: var(--danger); }
+.ed-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ed-actions .ed-btn { flex: 1 1 45%; }
+.ed-msg {
+  min-height: 16px;
+  font-size: 11px;
+  color: var(--danger);
+  line-height: 1.35;
+  opacity: 0;
+}
+.ed-msg.good { color: var(--accent2); }
+.ed-msg.show { opacity: 1; animation: fadein 0.2s; }
+.ed-report { display: flex; flex-direction: column; gap: 4px; font-size: 11px; line-height: 1.4; }
+.ed-report-line { padding: 4px 6px; border-radius: 5px; background: rgba(0, 0, 0, 0.25); }
+.ed-report-line.bad { color: var(--danger); border-left: 2px solid var(--danger); }
+.ed-report-line.warn { color: var(--accent); border-left: 2px solid var(--accent); }
+.ed-report-line.good { color: var(--accent2); border-left: 2px solid var(--accent2); }
+.editor-panel canvas { image-rendering: pixelated; }

@@ -1,7 +1,7 @@
 import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash } from '../engine/sprites';
-import { footprintH, footprintW, liftTopFor, canPlaceLadder, canPlacePlatform, canPlaceBuilding } from './world';
+import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 
 export class Camera {
@@ -63,7 +63,13 @@ export class Renderer {
     return this.canvas.height;
   }
 
-  draw(game: Game, cam: Camera, hover: HoverState, timeSec: number): void {
+  draw(
+    game: Game,
+    cam: Camera,
+    hover: HoverState,
+    timeSec: number,
+    overlay?: (ctx: CanvasRenderingContext2D) => void
+  ): void {
     const { ctx } = this;
     const W = this.canvas.width;
     const H = this.canvas.height;
@@ -83,6 +89,7 @@ export class Renderer {
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
+    overlay?.(ctx);
 
     ctx.restore();
   }
@@ -236,6 +243,10 @@ export class Renderer {
         this.drawLift(b);
         continue;
       }
+      if (b.kind === 'rope') {
+        this.drawRope(b, t);
+        continue;
+      }
       const fw = footprintW(b) * TILE;
       const fh = footprintH(b) * TILE;
       const px = b.x * TILE;
@@ -324,6 +335,41 @@ export class Renderer {
     }
   }
 
+  private drawRope(b: Building, t: number): void {
+    const { ctx } = this;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    ctx.globalAlpha = b.state === 'blueprint' ? 0.45 : 1;
+    ctx.drawImage(sprite('rope_anchor').canvas, px, py);
+    // rope: from the post top, over the edge, hanging down the drop column
+    const rx = (b.x + b.ropeSide) * TILE + TILE / 2;
+    const sway = b.state === 'ready' ? Math.sin(t * 1.6 + b.id) * 1.2 : 0;
+    const botY = (b.ropeBottomY + 1) * TILE - 3;
+    ctx.strokeStyle = '#d8b271';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + 5, py + 3);
+    ctx.lineTo(rx, py + 7);
+    ctx.quadraticCurveTo(rx + sway, (py + botY) / 2, rx + sway * 0.4, botY);
+    ctx.stroke();
+    // knots so climbing hands (and eyes) find purchase
+    ctx.fillStyle = '#c09a55';
+    const span = Math.max(1, b.ropeBottomY - b.y);
+    for (let y = b.y + 1; y <= b.ropeBottomY; y += 2) {
+      const f = (y - b.y) / span;
+      const kx = rx + sway * (f < 0.5 ? f * 2 : (1 - f) * 2 + 0.4 * (2 * f - 1));
+      ctx.fillRect(kx - 1, y * TILE + 5, 3, 2);
+    }
+    ctx.globalAlpha = 1;
+    if (b.state === 'blueprint') {
+      const need = BUILD_TIME.rope ?? 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(px, py - 5, TILE, 3);
+      ctx.fillStyle = '#ffc94d';
+      ctx.fillRect(px, py - 5, TILE * Math.min(1, b.progress / need), 3);
+    }
+  }
+
   private drawStockpile(game: Game): void {
     const { ctx } = this;
     const th = game.townhall;
@@ -364,7 +410,7 @@ export class Renderer {
       let body = 'ling_walk_a';
       if (w.working) {
         body = Math.sin(w.animT * 10) > 0 ? 'ling_work' : 'ling_walk_a';
-      } else if (step?.kind === 'climb' || step?.kind === 'lift') {
+      } else if (step?.kind === 'climb' || step?.kind === 'lift' || step?.kind === 'slide') {
         body = 'ling_climb_a';
       } else if (step) {
         body = Math.sin(w.animT * 14) > 0 ? 'ling_walk_a' : 'ling_walk_b';
@@ -474,6 +520,23 @@ export class Renderer {
           ctx.globalAlpha = 1;
           ctx.strokeStyle = ok ? `rgba(111,214,111,${pulse + 0.3})` : `rgba(255,122,107,${pulse + 0.3})`;
           ctx.strokeRect(px + 0.5, topY * TILE + 0.5, TILE - 1, (ty - topY + 1) * TILE - 1);
+        } else {
+          outline(false);
+        }
+        break;
+      }
+      case 'rope': {
+        const drop = ropeDropFor(game.world, tx, ty);
+        const ropeCost = TOOL_DEFS.find((d) => d.id === 'rope')?.cost ?? {};
+        const ok = drop !== null && game.canAfford(ropeCost) && game.toolUnlocked('rope');
+        if (drop !== null) {
+          ctx.globalAlpha = 0.6;
+          ctx.drawImage(sprite('rope_anchor').canvas, px, py);
+          ctx.globalAlpha = 1;
+          const gx = (tx + drop.side) * TILE;
+          ctx.strokeStyle = ok ? `rgba(111,214,111,${pulse + 0.3})` : `rgba(255,122,107,${pulse + 0.3})`;
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+          ctx.strokeRect(gx + 0.5, py + 0.5, TILE - 1, (drop.bottomY - ty + 1) * TILE - 1);
         } else {
           outline(false);
         }

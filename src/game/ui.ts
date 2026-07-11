@@ -30,6 +30,7 @@ const TOOL_ICON: Partial<Record<Tool, string>> = {
   sawmill: 'sawmill',
   forge: 'forge',
   lift: 'lift_car',
+  rope: 'rope_anchor',
   demolish: 'icon_demolish',
 };
 

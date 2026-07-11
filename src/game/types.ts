@@ -66,7 +66,7 @@ export const NODE_ROLE: Record<NodeKind, Role> = {
   vein: 'miner',
 };
 
-export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'goal';
+export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'goal';
 
 export type BuildingState = 'blueprint' | 'ready';
 
@@ -91,6 +91,7 @@ export const FOOTPRINTS: Record<BuildingKind, Footprint> = {
   sawmill: { w: 3, h: 2 },
   forge: { w: 3, h: 2 },
   lift: { w: 1, h: 1 }, // base cell; the mast extends upward separately
+  rope: { w: 1, h: 1 }, // anchor cell; the rope hangs down beside it
   goal: { w: 4, h: 3 },
 };
 
@@ -112,12 +113,16 @@ export interface Building {
   liftCarY: number; // current car position in tile coords (render/anim)
   liftBusy: boolean;
   liftRiderId: number | null;
+  // rope anchor only
+  ropeSide: number; // -1 or 1: which side of the anchor the rope hangs over
+  ropeBottomY: number; // tile y of the bottom landing (ropeBottomY > y)
 }
 
 export const BUILD_TIME: Partial<Record<BuildingKind, number>> = {
   sawmill: 6,
   forge: 8,
   lift: 7,
+  rope: 4,
 };
 
 export type Tool =
@@ -128,6 +133,7 @@ export type Tool =
   | 'sawmill'
   | 'forge'
   | 'lift'
+  | 'rope'
   | 'demolish';
 
 export interface ToolDef {
@@ -146,8 +152,9 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'platform', label: 'Platform', key: '4', desc: 'Build a wooden platform to walk across gaps.', cost: { plank: 1 } },
   { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
   { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
-  { id: 'forge', label: 'Forge', key: '7', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
-  { id: 'demolish', label: 'Demolish', key: '8', desc: 'Remove a ladder, platform or building. Refunds half the cost.' },
+  { id: 'rope', label: 'Rope Anchor', key: '7', desc: 'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!', cost: { log: 2, plank: 1 } },
+  { id: 'forge', label: 'Forge', key: '8', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
+  { id: 'demolish', label: 'Demolish', key: '9', desc: 'Remove a ladder, platform or building. Refunds half the cost.' },
 ];
 
 // Town hall levels. Index 0 = level 1.
@@ -168,6 +175,7 @@ export const WALK_SPEED = 2.6;
 export const CLIMB_SPEED = 1.7;
 export const FALL_SPEED = 7.5;
 export const LIFT_SPEED = 2.2;
+export const SLIDE_SPEED = 5.5; // rope descent — gravity does the work
 export const MAX_FALL = 5; // tiles a smallhand may drop when not carrying
 export const MAX_FALL_CARRY = 2; // tiles a smallhand may drop while carrying
 
@@ -185,7 +193,7 @@ export interface GroundItem {
 
 export type WorkerState = 'idle' | 'walking' | 'working';
 
-export type StepKind = 'walk' | 'climb' | 'fall' | 'lift';
+export type StepKind = 'walk' | 'climb' | 'fall' | 'lift' | 'slide';
 
 export interface PathStep {
   x: number;

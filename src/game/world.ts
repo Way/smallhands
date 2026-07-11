@@ -147,6 +147,31 @@ export function liftTopFor(world: World, x: number, y: number): number | null {
   return null;
 }
 
+// A rope anchor sits on a standable cliff-edge cell and hangs its rope over
+// the side into the adjacent air column, down to the first landing. Only
+// worth building when the drop is too far to simply hop down with cargo.
+// Returns the hanging side and bottom landing y, or null if invalid.
+export function ropeDropFor(world: World, x: number, y: number): { side: number; bottomY: number } | null {
+  if (!world.isStandable(x, y) || world.get(x, y) === T.LADDER) return null;
+  for (const side of [-1, 1]) {
+    const dx = x + side;
+    // the drop column starts as open air you would fall into
+    if (!world.isPassable(dx, y) || world.isStandable(dx, y)) continue;
+    let fy = y;
+    let ok = true;
+    while (!world.isStandable(dx, fy)) {
+      fy++;
+      if (fy >= world.h || !world.isPassable(dx, fy)) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+    if (fy - y >= 3) return { side, bottomY: fy }; // short drops don't need a rope
+  }
+  return null;
+}
+
 export function tileToWorld(t: number): number {
   return t * TILE;
 }
