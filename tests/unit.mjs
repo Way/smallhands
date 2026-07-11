@@ -147,5 +147,42 @@ function findLadderCells(g, count) {
   check('reserve hint gone after the upgrade', hint.when(g) === false);
 }
 
+// ---- placementShortfall: what's missing to place a cost-bearing tool -------
+// Drives the cursor cost badge. Returns the required resources (with have/need
+// and a `short` flag) ONLY when at least one is short; an empty array means
+// "you can afford it" → no badge.
+{
+  const g = new Game(LEVELS[0]);
+
+  // A tool with no cost never has a shortfall.
+  check('no-cost tool (select) returns no rows', g.placementShortfall('select').length === 0);
+
+  // Forge needs plank 4 + stone 4. Plenty of planks, not enough stone.
+  g.stock = { log: 0, plank: 5, stone: 1, iron: 0, spear: 0 };
+  const forge = g.placementShortfall('forge');
+  check('forge lists every required resource for context', forge.length === 2);
+  const plankRow = forge.find((r) => r.item === 'plank');
+  const stoneRow = forge.find((r) => r.item === 'stone');
+  check('forge: satisfied plank row carries have/need, not short',
+    !!plankRow && plankRow.have === 5 && plankRow.need === 4 && plankRow.short === false);
+  check('forge: the missing stone row is flagged short',
+    !!stoneRow && stoneRow.have === 1 && stoneRow.need === 4 && stoneRow.short === true);
+
+  // Enough of everything → nothing missing → no badge.
+  g.stock = { log: 0, plank: 4, stone: 4, iron: 0, spear: 0 };
+  check('forge fully affordable returns no rows', g.placementShortfall('forge').length === 0);
+
+  // Ladder spends 1 log OR 1 plank, so it's only short when you have neither.
+  g.stock = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
+  const ladder = g.placementShortfall('ladder');
+  check('ladder with no wood shows one short log row',
+    ladder.length === 1 && ladder[0].item === 'log' && ladder[0].have === 0 &&
+    ladder[0].need === 1 && ladder[0].short === true);
+  g.stock = { log: 0, plank: 2, stone: 0, iron: 0, spear: 0 };
+  check('ladder affordable via the plank fallback shows nothing', g.placementShortfall('ladder').length === 0);
+  g.stock = { log: 3, plank: 0, stone: 0, iron: 0, spear: 0 };
+  check('ladder affordable via logs shows nothing', g.placementShortfall('ladder').length === 0);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

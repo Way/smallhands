@@ -205,3 +205,12 @@ export interface ObjectiveReq {
   item: ItemType;
   amount: number;
 }
+
+// One required resource for a placement, annotated with what you have vs need.
+// `short` marks the resource that's blocking the build (have < need).
+export interface ShortfallRow {
+  item: ItemType;
+  have: number;
+  need: number;
+  short: boolean;
+}

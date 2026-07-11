@@ -79,6 +79,8 @@ export class Hud {
   private tooltip: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
   private hintSig = '';
+  private needs: HTMLElement | null = null;
+  private needsSig = '';
   private keepBadges = new Map<ItemType, HTMLElement>();
   private lastKeep: Record<string, number> = {};
   private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
@@ -425,6 +427,45 @@ export class Hud {
     this.hintSig = '';
   }
 
+  // While a cost-bearing tool is held and you hover the map, show WHY the ghost
+  // is red: the tool's required resources, with the missing ones in red. Nothing
+  // to show when you can afford it — the green outline already says "go".
+  showPlacementNeeds(clientX: number, clientY: number, tool: Tool): void {
+    const rows = this.game.placementShortfall(tool);
+    if (rows.length === 0) {
+      this.hidePlacementNeeds();
+      return;
+    }
+    const label = TOOL_DEFS.find((t) => t.id === tool)?.label ?? '';
+    const sig = tool + rows.map((r) => `|${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`).join('');
+    if (!this.needs) {
+      this.needs = el('div', 'tooltip', this.root);
+      this.needsSig = '';
+    }
+    const tip = this.needs;
+    if (sig !== this.needsSig) {
+      this.needsSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${label}</b> needs`;
+      const cost = el('div', 'tt-cost', tip);
+      for (const r of rows) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[r.item], 14, s);
+        el('b', r.short ? 'insufficient' : '', s).textContent = `${r.have}/${r.need}`;
+      }
+    }
+    // follow the cursor, clamped to stay on screen (same as showBuildingHint)
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hidePlacementNeeds(): void {
+    this.needs?.remove();
+    this.needs = null;
+    this.needsSig = '';
+  }
+
   flashResource(item: ItemType): void {
     const chip = this.resChips.get(item);
     if (!chip) return;
@@ -436,6 +477,7 @@ export class Hud {
   setActiveTool(t: Tool): void {
     this.activeTool = t;
     for (const [id, btn] of this.toolBtns) btn.classList.toggle('active', id === t);
+    this.hidePlacementNeeds(); // stale badge from the previous tool; re-shows on next hover
   }
 
   setSpeed(s: number): void {

@@ -25,6 +25,7 @@ import type {
   PathStep,
   ResourceNode,
   Role,
+  ShortfallRow,
   Tool,
 } from './types';
 import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
@@ -232,6 +233,32 @@ export class Game {
       if (this.stock[k as ItemType] < (v as number)) return false;
     }
     return true;
+  }
+
+  // What's missing to place a cost-bearing tool right now, for the cursor cost
+  // badge. Returns every required resource (with have/need + a `short` flag) ONLY
+  // when at least one is short — an empty array means "affordable", so no badge.
+  // Compares against raw `stock`, exactly like canAfford/payCost.
+  placementShortfall(tool: Tool): ShortfallRow[] {
+    // Ladder spends 1 log, or 1 plank when no logs remain (see ladderWood), so
+    // it's short only when you have neither. Show a single log row in that case
+    // rather than TOOL_DEFS' nominal { log: 1 }, which would misread a plank.
+    if (tool === 'ladder') {
+      if (this.ladderWood() !== null) return [];
+      return [{ item: 'log', have: 0, need: 1, short: true }];
+    }
+    const cost = TOOL_DEFS.find((t) => t.id === tool)?.cost;
+    if (!cost) return [];
+    const rows: ShortfallRow[] = [];
+    let anyShort = false;
+    for (const [k, need] of Object.entries(cost)) {
+      const item = k as ItemType;
+      const have = this.stock[item];
+      const short = have < (need as number);
+      if (short) anyShort = true;
+      rows.push({ item, have, need: need as number, short });
+    }
+    return anyShort ? rows : [];
   }
 
   private payCost(cost: Partial<Record<ItemType, number>>): void {
