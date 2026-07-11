@@ -1,0 +1,818 @@
+<title>Smallhands · Medaillen-Konzepte</title>
+<style>
+  /* Design plan
+     Ground:  Smallhands' eigene UI-Welt — bewusst nur dunkel (In-Game-Look).
+     Farben:  bg #10141d · panel #181e2a · border #3b4a63/#55688a
+              text #e8eef7 · dim #9db0c9 · gold #ffc94d · grün #6fd66f
+              Metalle: Gold #ffd76e/#a06f14 · Silber #dfe7f2/#6d7a90 · Bronze #e0a06a/#7a4a22
+     Typo:    Georgia (Display, wie das Spiel-Logo) + Segoe UI (HUD/Body) —
+              exakt die Systemschriften, die das Spiel selbst nutzt.
+     Layout:  Drei Konzept-Bühnen in Folge, jede als "Screen im Screen"
+              (Spielhimmel + dunkler Overlay-Schleier wie im echten Spiel),
+              darunter deutsche Annotationen. Abschluss: Vergleich + Empfehlung. */
+  :root {
+    --bg: #10141d;
+    --panel: rgba(24, 30, 42, 0.94);
+    --panel-solid: #181e2a;
+    --border: #3b4a63;
+    --border-light: #55688a;
+    --text: #e8eef7;
+    --dim: #9db0c9;
+    --gold: #ffc94d;
+    --green: #6fd66f;
+    --red: #ff7a6b;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --display: Georgia, 'Times New Roman', serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.55;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+  canvas.px { image-rendering: pixelated; display: block; }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---- header ---- */
+  header.intro { padding: 56px 0 30px; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--dim);
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(34px, 5.5vw, 56px);
+    font-weight: 900; letter-spacing: 1px; color: var(--gold);
+    text-shadow: 0 4px 0 #7a5a10, 0 8px 24px rgba(0, 0, 0, 0.6);
+    text-wrap: balance;
+    margin: 8px 0 14px;
+  }
+  .lede { max-width: 62ch; color: var(--dim); font-size: 15.5px; }
+  .lede b { color: var(--text); }
+
+  nav.jump {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(16, 20, 29, 0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.jump .wrap { display: flex; gap: 8px; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
+  nav.jump a {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid var(--border-light);
+    color: var(--dim); text-decoration: none; font-size: 13px; font-weight: 600;
+  }
+  nav.jump a:hover, nav.jump a:focus-visible { color: var(--text); border-color: var(--gold); outline: none; }
+  nav.jump a .tag {
+    font-family: var(--display); font-weight: 900; color: var(--gold); font-size: 14px;
+  }
+
+  /* ---- concept sections ---- */
+  section.concept { padding: 52px 0 8px; }
+  .c-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .c-letter {
+    font-family: var(--display); font-size: 30px; font-weight: 900; color: #10141d;
+    background: linear-gradient(#ffd76e, #f0a92e);
+    border-radius: 10px; padding: 2px 14px;
+    box-shadow: 0 4px 0 #a06f14;
+  }
+  h2 { font-family: var(--display); font-size: clamp(24px, 3.4vw, 34px); letter-spacing: 0.5px; text-wrap: balance; }
+  .thesis { color: var(--dim); font-size: 15px; max-width: 70ch; margin-bottom: 22px; }
+  .thesis b { color: var(--gold); font-weight: 600; }
+
+  /* the fake game screen */
+  .screen {
+    position: relative; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--border-light);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    background:
+      radial-gradient(120% 90% at 18% 118%, #4f8a68 0 34%, transparent 34.5%),
+      radial-gradient(130% 80% at 88% 122%, #3f7757 0 30%, transparent 30.5%),
+      linear-gradient(#7ec4e8 0%, #a8dcf0 55%, #d8f0e8 100%);
+  }
+  .screen::before { /* dirt ground strip, like the world's soil line */
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34px;
+    background: linear-gradient(#5cb14e 0 6px, #8a5a35 6px);
+    opacity: 0.9;
+  }
+  .veil { /* the game's dark overlay veil */
+    position: relative;
+    background: rgba(10, 14, 22, 0.74);
+    padding: 34px 30px 46px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ---- shared in-game bits ---- */
+  .g-title { /* "Choose a level" style */
+    font-family: var(--display); font-weight: 900; letter-spacing: 2px;
+    color: var(--gold); text-shadow: 0 3px 0 #7a5a10, 0 5px 16px rgba(0,0,0,0.55);
+  }
+  .medal-row { display: flex; align-items: flex-end; gap: 5px; }
+  .slot {
+    width: 40px; height: 50px; border-radius: 7px;
+    border: 1px dashed #3b4a63; background: rgba(0, 0, 0, 0.25);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .slot.filled { border-style: solid; border-color: #55688a; background: rgba(0, 0, 0, 0.35); }
+
+  /* ---- Concept A: level select shelf ---- */
+  .shelf {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 12px 22px; margin-top: 2px;
+    background: linear-gradient(#9a7040, #7c5830);
+    border: 2px solid #5f3c1b; border-bottom-width: 6px; border-radius: 10px;
+    box-shadow: 0 6px 0 #3d2712, 0 10px 24px rgba(0, 0, 0, 0.5);
+  }
+  .shelf .count { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: #fff3d9; text-shadow: 0 1px 0 #3d2712; font-variant-numeric: tabular-nums; }
+  .shelf .sep { width: 2px; height: 30px; background: #5f3c1b; border-radius: 2px; }
+  .shelf .pct { font-size: 12px; color: #e8cfa0; }
+  .shelf .pct b { color: #fff; font-size: 15px; }
+
+  .lv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; width: 100%; max-width: 860px; }
+  .lv-card {
+    position: relative; padding: 12px 12px 10px; text-align: left;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .lv-card .num { font-size: 22px; font-weight: 900; color: var(--gold); font-family: var(--display); }
+  .lv-card .nm { font-size: 13px; font-weight: 600; }
+  .lv-card .bt { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .lv-card .bt b { color: var(--green); }
+  .lv-card .foot { display: flex; align-items: flex-end; justify-content: space-between; margin-top: auto; padding-top: 6px; }
+  .lv-card .next-goal {
+    background: #232c3d; border: 1px solid var(--gold); border-radius: 7px;
+    padding: 6px 9px; font-size: 11px; color: var(--text); line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    margin-top: 2px;
+  }
+  .lv-card .next-goal b { color: var(--gold); }
+  .lv-card.spotlight { border: 1px solid var(--gold); }
+
+  /* ---- Concept B: hall of fame ---- */
+  .hall { width: 100%; max-width: 900px; padding: 0 0 24px; overflow: hidden; }
+  .hall-banner {
+    text-align: center; padding: 18px 16px 14px;
+    background:
+      linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.25)),
+      repeating-linear-gradient(90deg, #232c3d 0 42px, #1c2432 42px 84px);
+    border-bottom: 2px solid #5f3c1b;
+  }
+  .hall-banner .g-title { font-size: 30px; }
+  .hall-banner .sub { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+  .hall-body { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; padding: 20px 22px 0; }
+  @media (max-width: 720px) { .hall-body { grid-template-columns: 1fr; } }
+  .hall h4 {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
+    border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 10px;
+  }
+  .chapter-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .chapter-row .cn { flex: 1; font-size: 13px; }
+  .chapter-row .cn small { color: var(--dim); display: block; font-size: 11px; }
+  .pedestals { display: flex; gap: 18px; align-items: flex-end; justify-content: center; padding: 8px 0 4px; }
+  .pedestal { text-align: center; }
+  .pedestal .cap { font-size: 10px; color: var(--dim); margin-top: 6px; max-width: 90px; }
+  .pedestal.locked { opacity: 0.38; filter: grayscale(0.8); }
+  .rec-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .rec-table td { padding: 5px 4px; border-bottom: 1px solid #232c3d; }
+  .rec-table td:last-child { text-align: right; color: var(--green); font-weight: 700; }
+  .rec-table td:first-child { color: var(--dim); }
+  .streak { display: flex; align-items: center; gap: 12px; padding: 10px 0 2px; }
+  .streak .flame { font-size: 30px; filter: drop-shadow(0 0 10px rgba(255, 154, 61, 0.6)); }
+  .streak b { font-size: 22px; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .streak span { font-size: 12px; color: var(--dim); }
+  .prestige {
+    margin: 20px 22px 0; padding: 14px 16px; border-radius: 10px;
+    border: 1px solid var(--border-light);
+    background: linear-gradient(135deg, #1c2432, #232c3d);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .prestige .card-mini {
+    flex: 1; min-width: 220px; font-size: 12px; color: var(--dim);
+  }
+  .prestige .card-mini b { color: var(--text); }
+  .btn {
+    display: inline-block; padding: 9px 20px; border-radius: 9px; cursor: pointer;
+    background: linear-gradient(#ffd76e, #f0a92e); color: #4a3208;
+    font-weight: 800; font-size: 13.5px; border: none; font-family: var(--font);
+    box-shadow: 0 4px 0 #a06f14, 0 7px 16px rgba(0, 0, 0, 0.4);
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #a06f14; }
+  .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .btn.ghost {
+    background: linear-gradient(#3b4a63, #2a3549); color: var(--text);
+    box-shadow: 0 4px 0 #1b2537, 0 7px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ---- Concept C: win ceremony ---- */
+  .win-title {
+    font-family: var(--display); font-size: 38px; font-weight: 900; color: var(--green);
+    text-shadow: 0 3px 0 #1d5c1d, 0 6px 18px rgba(0, 0, 0, 0.6);
+  }
+  .ceremony { width: 100%; max-width: 560px; padding: 20px 24px 22px; text-align: center; position: relative; }
+  .ceremony .lvl { font-size: 13px; color: var(--dim); }
+  .ceremony .lvl b { color: var(--text); }
+  .big-medal { display: flex; justify-content: center; margin: 6px 0 2px; min-height: 118px; align-items: center; }
+  .stamp { animation: stamp 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  @keyframes stamp {
+    0% { transform: scale(3) rotate(-14deg); opacity: 0; }
+    60% { transform: scale(0.92) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .medal-name { font-family: var(--display); font-size: 21px; font-weight: 900; color: var(--gold); letter-spacing: 1px; }
+  .newrec {
+    display: inline-block; margin: 6px 0 2px; padding: 3px 12px; border-radius: 6px;
+    background: rgba(111, 214, 111, 0.15); border: 1px solid var(--green);
+    color: var(--green); font-size: 11.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: 0 0 14px rgba(111, 214, 111, 0.45); } }
+  .gauge { margin: 14px 6px 4px; }
+  .gauge .bar {
+    position: relative; height: 14px; border-radius: 7px;
+    background: linear-gradient(90deg, #ffd76e 0 34%, #dfe7f2 34% 62%, #e0a06a 62% 86%, #3b4a63 86%);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+  }
+  .gauge .tick { position: absolute; top: -4px; bottom: -4px; width: 2px; background: rgba(16, 20, 29, 0.85); }
+  .gauge .you {
+    position: absolute; top: -9px; width: 0; height: 0; left: 27%;
+    border-left: 7px solid transparent; border-right: 7px solid transparent;
+    border-top: 10px solid var(--text);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
+  }
+  .gauge .labels { display: flex; font-size: 10.5px; color: var(--dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .gauge .labels span b { color: var(--text); }
+  .feats { display: flex; justify-content: center; gap: 10px; margin: 14px 0 4px; flex-wrap: wrap; }
+  .feat {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 9px;
+    background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-light); font-size: 12px;
+  }
+  .feat.got { border-color: var(--gold); }
+  .feat.miss { opacity: 0.45; }
+  .feat small { display: block; color: var(--dim); font-size: 10.5px; }
+  .btn-row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .confetti { position: absolute; width: 6px; height: 6px; top: 20px; pointer-events: none; animation: fall 1.8s linear infinite; }
+  @keyframes fall {
+    0% { transform: translateY(-10px) rotate(0); opacity: 1; }
+    100% { transform: translateY(220px) rotate(540deg); opacity: 0; }
+  }
+
+  /* ---- annotations ---- */
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 22px 0 10px; }
+  .note { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--panel-solid); }
+  .note h5 { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .note.pro h5 { color: var(--green); }
+  .note.con h5 { color: var(--red); }
+  .note.cost h5 { color: var(--gold); }
+  .note ul { list-style: none; }
+  .note li { font-size: 13px; color: var(--dim); padding: 3px 0 3px 16px; position: relative; }
+  .note li::before { content: '▸'; position: absolute; left: 0; color: var(--border-light); }
+  .note li b { color: var(--text); font-weight: 600; }
+  .costbar { display: flex; gap: 4px; margin: 4px 0 10px; }
+  .costbar i { width: 26px; height: 10px; border-radius: 3px; background: #232c3d; border: 1px solid var(--border); }
+  .costbar i.on { background: linear-gradient(#ffd76e, #f0a92e); border-color: #a06f14; }
+
+  /* ---- verdict ---- */
+  section.verdict { padding: 56px 0 80px; }
+  .verdict h2 { color: var(--gold); margin-bottom: 6px; }
+  .verdict .lede { margin-bottom: 24px; }
+  .matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  table.matrix { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  table.matrix th, table.matrix td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #232c3d; }
+  table.matrix thead th {
+    font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim);
+    background: #141a26;
+  }
+  table.matrix td:first-child { color: var(--dim); }
+  table.matrix .dots { color: var(--gold); letter-spacing: 2px; }
+  table.matrix .win { color: var(--green); font-weight: 700; }
+  .phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 26px; }
+  .phase { border: 1px solid var(--border-light); border-radius: 12px; padding: 16px 18px; background: var(--panel-solid); }
+  .phase .ph { font-family: var(--display); font-weight: 900; color: var(--gold); font-size: 17px; margin-bottom: 6px; }
+  .phase p { font-size: 13px; color: var(--dim); }
+  .phase p b { color: var(--text); }
+  footer { padding: 0 0 60px; color: var(--dim); font-size: 12px; }
+</style>
+
+<header class="intro">
+  <div class="wrap">
+    <div class="eyebrow">Smallhands · Design-Exploration · Juli 2026</div>
+    <h1>Medaillen, Bestzeiten &amp; Prestige</h1>
+    <p class="lede">
+      Drei Konzepte, wie Medaillen im Spiel <b>verdient, gezeigt und gefeiert</b> werden können —
+      gebaut im echten UI-Look von Smallhands (Panels, Gold, Pixel-Art), damit wir am visuellen
+      Eindruck entscheiden. Die Konzepte schließen sich nicht aus: Am Ende steht ein
+      Phasen-Vorschlag, der sie kombiniert.
+    </p>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Konzepte">
+  <div class="wrap">
+    <a href="#a"><span class="tag">A</span> Trophäenregal</a>
+    <a href="#b"><span class="tag">B</span> Ruhmeshalle</a>
+    <a href="#c"><span class="tag">C</span> Sieg-Zeremonie</a>
+    <a href="#verdict"><span class="tag">→</span> Vergleich &amp; Empfehlung</a>
+  </div>
+</nav>
+
+<!-- ================= CONCEPT A ================= -->
+<section class="concept" id="a">
+  <div class="wrap">
+    <div class="c-head"><span class="c-letter">A</span><h2>Das Trophäenregal</h2></div>
+    <p class="thesis">
+      Medaillen wohnen dort, wo man Levels auswählt. Jede Level-Karte trägt ihre
+      <b>Zeit-Medaille + zwei Feat-Pins</b>, ein Holzregal über dem Grid summiert die Sammlung.
+      Der Blick „da fehlt noch Gold“ ist der Replay-Trigger — ohne einen einzigen neuen Screen.
+    </p>
+
+    <div class="screen" aria-label="Mockup: Level-Auswahl mit Trophäenregal">
+      <div class="veil">
+        <div class="g-title" style="font-size: 30px;">Choose a level</div>
+
+        <div class="shelf">
+          <span class="count"><canvas class="px" data-medal="gold" data-s="2" width="32" height="38"></canvas> × 2</span>
+          <span class="count"><canvas class="px" data-medal="silver" data-s="2" width="32" height="38"></canvas> × 1</span>
+          <span class="count"><canvas class="px" data-medal="bronze" data-s="2" width="32" height="38"></canvas> × 1</span>
+          <span class="sep"></span>
+          <span class="count"><canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas> × 3</span>
+          <span class="sep"></span>
+          <span class="pct"><b>33&nbsp;%</b> der Trophäen gesammelt</span>
+        </div>
+
+        <div class="lv-grid">
+          <div class="lv-card panel">
+            <div class="num">1</div>
+            <div class="nm">First Steps</div>
+            <div class="bt">Bestzeit <b>2:21</b> · Gold 2:30</div>
+            <div class="foot">
+              <div class="medal-row">
+                <span class="slot filled"><canvas class="px" data-medal="gold" data-s="1" width="16" height="19"></canvas></span>
+                <span class="slot filled"><canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas></span>
+                <span class="slot filled"><canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas></span>
+              </div>
+            </div>
+          </div>
+          <div class="lv-card panel spotlight">
+            <div class="num">2</div>
+            <div class="nm">The Cliff Shrine</div>
+            <div class="bt">Bestzeit <b>4:58</b> · Gold 4:30</div>
+            <div class="next-goal"><b>Silber → Gold:</b> unter 4:30 bleiben. Tipp: Sägewerk näher an den Wald.</div>
+            <div class="foot">
+              <div class="medal-row">
+                <span class="slot filled"><canvas class="px" data-medal="silver" data-s="1" width="16" height="19"></canvas></span>
+                <span class="slot filled"><canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas></span>
+                <span class="slot"></span>
+              </div>
+            </div>
+          </div>
+          <div class="lv-card panel">
+            <div class="num">3</div>
+            <div class="nm">Iron in the Deep</div>
+            <div class="bt">Bestzeit <b>7:44</b> · Gold 6:00</div>
+            <div class="foot">
+              <div class="medal-row">
+                <span class="slot filled"><canvas class="px" data-medal="bronze" data-s="1" width="16" height="19"></canvas></span>
+                <span class="slot"></span>
+                <span class="slot"></span>
+              </div>
+            </div>
+          </div>
+          <div class="lv-card panel">
+            <div class="num">4</div>
+            <div class="nm">The Summit Beacon</div>
+            <div class="bt">Noch keine Bestzeit</div>
+            <div class="foot">
+              <div class="medal-row">
+                <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note pro">
+        <h5>Warum es funktioniert</h5>
+        <ul>
+          <li><b>Immer sichtbar</b> — jede Session beginnt mit dem Blick aufs Regal.</li>
+          <li>Leere Slots sind ein natürlicher <b>Replay-Magnet</b>, das „Nächstes Ziel“-Tooltip macht ihn konkret.</li>
+          <li>Kein neuer Screen, keine neue Navigation.</li>
+        </ul>
+      </div>
+      <div class="note con">
+        <h5>Risiken</h5>
+        <ul>
+          <li>Wenig <b>Inszenierung</b> — der Moment des Verdienens findet hier nicht statt.</li>
+          <li>Kartenfläche ist knapp: mehr als 3 Slots pro Level wird eng.</li>
+          <li>Prestige bleibt privat — nichts zum Herzeigen.</li>
+        </ul>
+      </div>
+      <div class="note cost">
+        <h5>Aufwand</h5>
+        <div class="costbar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <ul>
+          <li>Bestzeiten + Medaillen in <b>SaveData</b>, Schwellwerte pro Level.</li>
+          <li>Karten-Erweiterung + Regal-Panel im bestehenden Level-Select.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONCEPT B ================= -->
+<section class="concept" id="b">
+  <div class="wrap">
+    <div class="c-head"><span class="c-letter">B</span><h2>Die Ruhmeshalle</h2></div>
+    <p class="thesis">
+      Ein eigener Ort fürs Prestige: eine Gildenhalle mit <b>Medaillenwand, Statuen-Podesten,
+      Rekordtafel und Daily-Streak</b>. Meilensteine werden zu goldenen Smallhand-Statuen; die
+      <b>Prestige-Karte</b> exportiert die Sammlung als Bild/Code zum Teilen — passend zu den Share-Codes.
+    </p>
+
+    <div class="screen" aria-label="Mockup: Ruhmeshalle">
+      <div class="veil">
+        <div class="hall panel">
+          <div class="hall-banner">
+            <div class="g-title">HALL&nbsp;OF&nbsp;FAME</div>
+            <div class="sub">The Guild of Small Plans</div>
+          </div>
+          <div class="hall-body">
+            <div>
+              <h4>Medaillenwand · Kampagne</h4>
+              <div class="chapter-row">
+                <canvas class="px" data-medal="gold" data-s="2" width="32" height="38"></canvas>
+                <div class="cn">The Valley <small>4 / 4 Level · alle Gold-fähig</small></div>
+                <div class="medal-row">
+                  <span class="slot filled"><canvas class="px" data-medal="gold" data-s="1" width="16" height="19"></canvas></span>
+                  <span class="slot filled"><canvas class="px" data-medal="gold" data-s="1" width="16" height="19"></canvas></span>
+                  <span class="slot filled"><canvas class="px" data-medal="silver" data-s="1" width="16" height="19"></canvas></span>
+                  <span class="slot filled"><canvas class="px" data-medal="bronze" data-s="1" width="16" height="19"></canvas></span>
+                </div>
+              </div>
+              <div class="chapter-row" style="opacity: 0.45;">
+                <canvas class="px" data-medal="bronze" data-s="2" width="32" height="38"></canvas>
+                <div class="cn">Mistwood <small>Kapitel folgt — Wand wächst mit</small></div>
+                <div class="medal-row">
+                  <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
+                </div>
+              </div>
+
+              <h4 style="margin-top: 18px;">Statuen · Meilensteine</h4>
+              <div class="pedestals">
+                <div class="pedestal">
+                  <canvas class="px" data-statue="1" data-s="4" width="48" height="72"></canvas>
+                  <div class="cap">„Erste Karawane“ — Kampagne beendet</div>
+                </div>
+                <div class="pedestal">
+                  <canvas class="px" data-statue="1" data-s="4" width="48" height="72"></canvas>
+                  <div class="cap">„Frühaufsteher“ — 7 Dailys in Folge</div>
+                </div>
+                <div class="pedestal locked">
+                  <canvas class="px" data-statue="1" data-s="4" width="48" height="72"></canvas>
+                  <div class="cap">??? — 10× Gold</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4>Rekordtafel</h4>
+              <table class="rec-table">
+                <tr><td>First Steps</td><td>2:21</td></tr>
+                <tr><td>The Cliff Shrine</td><td>4:58</td></tr>
+                <tr><td>Iron in the Deep</td><td>7:44</td></tr>
+                <tr><td>Daily · 2026-07-10</td><td>9:02</td></tr>
+              </table>
+
+              <h4 style="margin-top: 18px;">Daily-Streak</h4>
+              <div class="streak">
+                <span class="flame">🔥</span>
+                <div><b>6 Tage</b><br /><span>Rekord: 11 · heute noch offen</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="prestige">
+            <div class="card-mini">
+              <b>Prestige-Karte teilen</b><br />
+              Exportiert Medaillen, Streak &amp; Bestzeiten als Bild oder <code>SMH-P.</code>-Code —
+              gleiche Mechanik wie Level-Share-Codes, kein Server nötig.
+            </div>
+            <button class="btn" type="button">⧉ Karte exportieren</button>
+            <button class="btn ghost" type="button">In Zwischenablage</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note pro">
+        <h5>Warum es funktioniert</h5>
+        <ul>
+          <li>Maximale <b>Wertigkeit</b>: Prestige bekommt Architektur, nicht nur Icons.</li>
+          <li><b>Erweiterbar</b>: Statuen, Titel, Streaks, spätere Kapitel — die Wand wächst mit dem Spiel.</li>
+          <li>Prestige-Karte = <b>Show-off ohne Server</b>, konsistent mit Share-Codes.</li>
+        </ul>
+      </div>
+      <div class="note con">
+        <h5>Risiken</h5>
+        <ul>
+          <li>Teuerste Option — eigener Screen, eigene Pixel-Assets, Pflege.</li>
+          <li>Gefahr „<b>Museum ohne Besucher</b>“: braucht Verlinkung aus Win-Screen &amp; Level-Select.</li>
+          <li>Wirkt leer, solange es wenig zu zeigen gibt → erst mit Medaillen-Grundsystem sinnvoll.</li>
+        </ul>
+      </div>
+      <div class="note cost">
+        <h5>Aufwand</h5>
+        <div class="costbar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        <ul>
+          <li>Neue Szene + Pixel-Assets (Statuen, Banner, Podeste).</li>
+          <li>Canvas-Export für die Prestige-Karte.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONCEPT C ================= -->
+<section class="concept" id="c">
+  <div class="wrap">
+    <div class="c-head"><span class="c-letter">C</span><h2>Die Sieg-Zeremonie</h2></div>
+    <p class="thesis">
+      Die Medaille wird im <b>emotionalen Moment</b> verliehen: Auf dem Win-Screen stempelt sie mit
+      Wucht ein, die <b>Zeit-Skala</b> zeigt ehrlich, wie weit Gold entfernt war, Feats klappen einzeln
+      auf. Ein „Neuer Rekord“-Puls und Konfetti machen den Sieg körperlich spürbar.
+    </p>
+
+    <div class="screen" aria-label="Mockup: Win-Screen mit Medaillen-Zeremonie">
+      <div class="veil">
+        <div class="win-title">Level complete!</div>
+        <div class="ceremony panel" id="ceremony">
+          <div class="lvl"><b>The Cliff Shrine</b> · 4:58 · Crew 8 · Town Hall 2</div>
+          <div class="big-medal">
+            <canvas class="px stamp" id="bigMedal" data-medal="silver" data-s="6" width="96" height="114"></canvas>
+          </div>
+          <div class="medal-name">SILBER-MEDAILLE</div>
+          <div><span class="newrec">★ Neuer Rekord</span></div>
+
+          <div class="gauge" aria-label="Zeitskala mit Medaillen-Schwellen">
+            <div class="bar">
+              <span class="tick" style="left: 34%;"></span>
+              <span class="tick" style="left: 62%;"></span>
+              <span class="tick" style="left: 86%;"></span>
+              <span class="you" style="left: 46%;"></span>
+            </div>
+            <div class="labels">
+              <span style="width: 34%;"><b>Gold</b> 4:30</span>
+              <span style="width: 28%;"><b>Silber</b> 5:30</span>
+              <span style="width: 24%;"><b>Bronze</b> 7:00</span>
+              <span>—</span>
+            </div>
+          </div>
+
+          <div class="feats">
+            <div class="feat got">
+              <canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas>
+              <div>Kein Abriss<small>nichts demolished — geschafft!</small></div>
+            </div>
+            <div class="feat miss">
+              <canvas class="px" data-pin="1" data-s="2" width="24" height="24"></canvas>
+              <div>Kleine Crew<small>mit ≤ 6 Smallhands gewinnen</small></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn" type="button">Next: Iron in the Deep →</button>
+            <button class="btn ghost" type="button" id="replay">↺ Zeremonie ansehen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note pro">
+        <h5>Warum es funktioniert</h5>
+        <ul>
+          <li>Belohnung genau im <b>Dopamin-Moment</b> — Animation trägt die Wertigkeit.</li>
+          <li>Die Zeit-Skala macht das nächste Ziel <b>fühlbar knapp</b> („nur 28 s zu Gold!“).</li>
+          <li>Verpasste Feats werden gezeigt, nicht versteckt → sofortiger Retry-Impuls.</li>
+        </ul>
+      </div>
+      <div class="note con">
+        <h5>Risiken</h5>
+        <ul>
+          <li><b>Flüchtig</b>: Ohne dauerhaftes Zuhause (A oder B) verpufft das Prestige.</li>
+          <li>Animationstiming muss sitzen — billig wirkende Zeremonie wäre schlimmer als keine.</li>
+          <li>Darf den „Weiter!“-Flow nicht blockieren (überspringbar halten).</li>
+        </ul>
+      </div>
+      <div class="note cost">
+        <h5>Aufwand</h5>
+        <div class="costbar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <ul>
+          <li>Win-Screen-Umbau + Stempel/Skala/Feat-Animationen.</li>
+          <li>Gleiche Datengrundlage wie A (Zeiten, Schwellen, Feats).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VERDICT ================= -->
+<section class="verdict" id="verdict">
+  <div class="wrap">
+    <h2>Vergleich &amp; Empfehlung</h2>
+    <p class="lede">
+      Die drei Konzepte beantworten unterschiedliche Fragen: <b>C</b> erzeugt die Emotion,
+      <b>A</b> hält sie täglich sichtbar, <b>B</b> macht sie zum Statussymbol. Eine Medaille braucht
+      beides — den Moment <i>und</i> das Zuhause.
+    </p>
+
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead>
+          <tr><th>Kriterium</th><th>A · Trophäenregal</th><th>B · Ruhmeshalle</th><th>C · Zeremonie</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Emotion beim Verdienen</td><td class="dots">●○○</td><td class="dots">●○○</td><td class="win">●●● stärkste</td></tr>
+          <tr><td>Dauerhafte Sichtbarkeit</td><td class="win">●●● jede Session</td><td class="dots">●●○</td><td class="dots">●○○</td></tr>
+          <tr><td>Prestige / Show-off</td><td class="dots">●○○</td><td class="win">●●● Statuen + Karte</td><td class="dots">●●○</td></tr>
+          <tr><td>Replay-Trigger</td><td class="win">●●● leere Slots</td><td class="dots">●●○</td><td class="dots">●●○ Zeit-Skala</td></tr>
+          <tr><td>Aufwand</td><td class="win">gering</td><td>hoch</td><td class="win">gering–mittel</td></tr>
+          <tr><td>Braucht andere Konzepte?</td><td>nein</td><td>ja — A/C als Zulieferer</td><td>ja — A oder B als Zuhause</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="phases">
+      <div class="phase">
+        <div class="ph">Phase 1 — C + A zusammen</div>
+        <p>Zeremonie <b>und</b> Regal teilen sich dieselben Daten (Bestzeit, Schwellen, Feats in
+        <b>SaveData</b>). C liefert den Moment, A die tägliche Erinnerung. Zusammen ~1 Slice,
+        weil die Datengrundlage identisch ist.</p>
+      </div>
+      <div class="phase">
+        <div class="ph">Phase 2 — B als Ausbau</div>
+        <p>Sobald Medaillen fließen, bekommt das Prestige seine Halle: Statuen für Meilensteine,
+        Rekordtafel, Daily-Streak, <b>Prestige-Karte</b> als teilbarer Export. Erst dann wirkt die
+        Halle voll statt leer.</p>
+      </div>
+      <div class="phase">
+        <div class="ph">Offene Design-Fragen</div>
+        <p>1&nbsp;·&nbsp;Gold-Schwellen: handgesetzt pro Level oder aus Testläufen abgeleitet?<br />
+        2&nbsp;·&nbsp;Feats pro Level fix (2) oder Kapitel-Themen-Feats?<br />
+        3&nbsp;·&nbsp;Prestige-Karte: Bild-Export, Code oder beides?</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Smallhands · interne Design-Exploration · Mockups nutzen Spiel-Palette &amp; -Typografie, Daten sind Beispielwerte.</div>
+</footer>
+
+<script>
+  // ---- pixel art, wie im Spiel: Zeichen-Maps → Canvas -------------------------
+  function drawMap(canvas, rows, palette, scale) {
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < rows.length; y++) {
+      for (let x = 0; x < rows[y].length; x++) {
+        const col = palette[rows[y][x]];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+  }
+
+  // Die Glut (f/F) ist auf allen Stufen bernsteinfarben — das Emblem der Ember Road.
+  const MEDAL_MAP = [
+    '..rr........rr..',
+    '..rRr......rRr..',
+    '..rRRr....rRRr..',
+    '...rRRr..rRRr...',
+    '...rRRRrrRRRr...',
+    '....rRRRRRRr....',
+    '.....kkkkkk.....',
+    '...kkGGGGGGkk...',
+    '..kGGGGGGGGGGk..',
+    '..kGGGGGGGGGGk..',
+    '.kGGGGGffGGGGGk.',
+    '.kGGGGfffFGGGGk.',
+    '.kGGGGffFFGGGGk.',
+    '.kGGGgfFFfgGGGk.',
+    '..kGGGgffgGGGk..',
+    '..kGGggggggGGk..',
+    '...kGgggggggk...',
+    '....kkggggkk....',
+    '......kkkk......',
+  ];
+  const EMBER = { f: '#ffe094', F: '#ff8a3d' };
+  const METALS = {
+    gold:   { k: '#a06f14', G: '#ffd76e', g: '#f0a92e', r: '#a03028', R: '#e0554a', ...EMBER },
+    silver: { k: '#6d7a90', G: '#dfe7f2', g: '#aebccf', r: '#37699c', R: '#5aa2e8', ...EMBER },
+    bronze: { k: '#7a4a22', G: '#e0a06a', g: '#b87840', r: '#3f8f43', R: '#6fd66f', ...EMBER },
+  };
+
+  const PIN_MAP = [
+    '.kkkkkkkkkk.',
+    'kSSSSSSSSSSk',
+    'kSSSSwwSSSSk',
+    'kSSSwwwwSSSk',
+    'kSwwwwwwwwSk',
+    'kSSwwwwwwSSk',
+    'kSSSwwwwSSSk',
+    'kSSwwSSwwSSk',
+    '.kSSSSSSSSk.',
+    '..kSSSSSSk..',
+    '...kSSSSk...',
+    '....kkkk....',
+  ];
+  const PIN_PAL = { k: '#a06f14', S: '#5aa2e8', w: '#ffd76e' };
+
+  const STATUE_MAP = [
+    '....kkkk....',
+    '...kGGGGk...',
+    '...kGgGGk...',
+    '....kGGk....',
+    '...kGGGGk...',
+    '..kGGGGGGk..',
+    '..kGgGGgGk..',
+    '..kGGGGGGk..',
+    '...kGGGGk...',
+    '...kG.GGk...',
+    '...kG.GGk...',
+    '..ppppppppp.',
+    '..pPPPPPPPp.',
+    '..ppppppppp.',
+    '.pPPPPPPPPPp',
+    '.pppppppppp.',
+    'pPPPPPPPPPPp',
+    'pppppppppppp',
+  ];
+  const STATUE_PAL = { k: '#a06f14', G: '#ffd76e', g: '#f0a92e', p: '#55688a', P: '#7e93b5' };
+
+  document.querySelectorAll('canvas[data-medal]').forEach((c) => {
+    drawMap(c, MEDAL_MAP, METALS[c.dataset.medal], Number(c.dataset.s));
+  });
+  document.querySelectorAll('canvas[data-pin]').forEach((c) => {
+    drawMap(c, PIN_MAP, PIN_PAL, Number(c.dataset.s));
+  });
+  document.querySelectorAll('canvas[data-statue]').forEach((c) => {
+    drawMap(c, STATUE_MAP, STATUE_PAL, Number(c.dataset.s));
+  });
+
+  // ---- Zeremonie: Stempel-Replay + Konfetti -----------------------------------
+  const ceremony = document.getElementById('ceremony');
+  const bigMedal = document.getElementById('bigMedal');
+  const colors = ['#ffc94d', '#a878c8', '#6fd66f', '#5aa2e8'];
+  let confettiTimer = null;
+
+  function burstConfetti() {
+    ceremony.querySelectorAll('.confetti').forEach((e) => e.remove());
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (let i = 0; i < 26; i++) {
+      const p = document.createElement('span');
+      p.className = 'confetti';
+      p.style.left = 8 + Math.random() * 84 + '%';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = Math.random() * 0.9 + 's';
+      p.style.animationDuration = 1.3 + Math.random() * 0.9 + 's';
+      ceremony.appendChild(p);
+    }
+    clearTimeout(confettiTimer);
+    confettiTimer = setTimeout(() => ceremony.querySelectorAll('.confetti').forEach((e) => e.remove()), 3200);
+  }
+
+  function replayStamp() {
+    bigMedal.classList.remove('stamp');
+    void bigMedal.offsetWidth;
+    bigMedal.classList.add('stamp');
+    burstConfetti();
+  }
+  document.getElementById('replay').addEventListener('click', replayStamp);
+
+  // beim ersten Scroll in den Blick: Zeremonie einmal abspielen
+  new IntersectionObserver((entries, obs) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      replayStamp();
+      obs.disconnect();
+    }
+  }, { threshold: 0.5 }).observe(ceremony);
+</script>
