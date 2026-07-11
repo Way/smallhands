@@ -113,5 +113,17 @@ function stepWorld() {
   check('demolish ramp refunds a plank', g.stock.plank === before + 1);
 }
 
+// --- Task 3 (fix): placeRampRun stops when planks run out ---
+{
+  const g = new Game(LEVELS[0]);
+  g.stock.plank = 2; // only enough for 2 of a 4-tile run
+  const col = 20;
+  const sfc = (() => { for (let y = 0; y < g.world.h; y++) if (g.world.isSolid(col, y)) return y - 1; return 0; })();
+  const placed = g.placeRampRun(col, sfc, col + 3, sfc - 3);
+  check('placeRampRun stops at unaffordable: places only 2', placed === 2);
+  check('placeRampRun stops at unaffordable: spends exactly 2 planks', g.stock.plank === 0);
+  check('placeRampRun stops at unaffordable: 3rd cell not placed', g.world.get(col + 2, sfc - 2) === T.AIR);
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
 process.exit(failures ? 1 : 0);
