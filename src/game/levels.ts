@@ -235,6 +235,11 @@ export const LEVELS: LevelDef[] = [
         when: () => true,
       },
       {
+        id: 'reserve',
+        text: 'Stone fills the order <b>and</b> builds your Cargo Lift and Forge. Click the <b>stone counter</b> up top to <b>keep some back</b> before it all ships out.',
+        when: (g) => g.stock.stone >= 2 && g.thLevel < 2,
+      },
+      {
         id: 'th2',
         text: 'The <b>Forge</b> and <b>Cargo Lift</b> need Town Hall level 2. Stockpile planks and stone, then press <b>Upgrade</b> in the crew panel.',
         when: (g) => g.stock.plank >= 6,

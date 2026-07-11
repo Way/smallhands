@@ -134,5 +134,18 @@ function findLadderCells(g, count) {
   check('stock drops to the remainder (10-8=2)', g.stock.stone === 2);
 }
 
+// ---- Level 3 teaches the reserve exactly when stone is contested -----------
+{
+  const g = new Game(LEVELS[2]);
+  const hint = (g.level.hints ?? []).find((h) => h.id === 'reserve');
+  check('level 3 has the reserve hint', !!hint);
+  g.stock.stone = 0; g.thLevel = 1;
+  check('reserve hint hidden with no stone', hint.when(g) === false);
+  g.stock.stone = 2;
+  check('reserve hint fires once stone is on hand', hint.when(g) === true);
+  g.thLevel = 2;
+  check('reserve hint gone after the upgrade', hint.when(g) === false);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
