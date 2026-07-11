@@ -10,6 +10,7 @@ const res = await build({
       export { World } from './src/game/world.ts';
       export { findPath } from './src/game/nav.ts';
       export { T } from './src/game/types.ts';
+      export { canPlaceRamp, rampRunCells, bridgeRunCells } from './src/game/world.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -17,7 +18,7 @@ const res = await build({
   bundle: true, format: 'esm', platform: 'node', write: false,
 });
 const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
-const { World, findPath, T } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -58,6 +59,31 @@ function stepWorld() {
   w.set(stepX - 1, surfaceY - 2, T.RAMP); // (9,12) -> stand (9,11)
   const withRamp = findPath(w, [], stepX - 3, surfaceY - 1, start, true);
   check('ramp staircase: carry path exists', withRamp !== null);
+}
+
+// --- Task 2: placement logic ---
+{
+  const { w, surfaceY, stepX } = stepWorld();
+  // anchor on the ground (solid below) is valid; floating anchor is not
+  check('anchor on ground valid', canPlaceRamp(w, stepX - 2, surfaceY - 1, null) === true);
+  check('floating anchor invalid', canPlaceRamp(w, stepX - 2, surfaceY - 5, null) === false);
+  // a diagonal chain step from a previous ramp tile is valid; a straight step is not
+  check('diagonal chain valid', canPlaceRamp(w, stepX - 1, surfaceY - 2, { x: stepX - 2, y: surfaceY - 1 }) === true);
+  check('non-diagonal chain invalid', canPlaceRamp(w, stepX - 1, surfaceY - 1, { x: stepX - 2, y: surfaceY - 1 }) === false);
+
+  // an ascending 45° run of length 2 into the ledge
+  const up = rampRunCells(w, stepX - 2, surfaceY - 1, stepX, surfaceY - 3);
+  check('rampRunCells ascends 45 for 3 cells', up.length === 3 &&
+    up[0].x === stepX - 2 && up[0].y === surfaceY - 1 &&
+    up[1].x === stepX - 1 && up[1].y === surfaceY - 2 &&
+    up[2].x === stepX && up[2].y === surfaceY - 3);
+  // run stops at the first solid cell: dragging down-left off the ledge into the
+  // terrace body places only the anchor before the next cell hits grass
+  check('rampRunCells stops at solid', rampRunCells(w, stepX + 1, surfaceY - 3, stepX - 2, surfaceY).length === 1);
+
+  // bridge: horizontal run along a row anchored to the ledge edge
+  const br = bridgeRunCells(w, stepX, surfaceY - 3, stepX + 3, surfaceY - 3);
+  check('bridgeRunCells is horizontal', br.length >= 1 && br.every((c) => c.y === surfaceY - 3));
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');

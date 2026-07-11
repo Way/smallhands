@@ -87,6 +87,78 @@ export function canPlacePlatform(world: World, x: number, y: number): boolean {
   );
 }
 
+// A ramp tile is a support tile placed either with solid contact (the anchor of
+// a run) or diagonally adjacent to the previous ramp tile in the run. It always
+// needs clear headroom (the cell above, where a worker stands, must be passable).
+export function canPlaceRamp(
+  world: World,
+  x: number,
+  y: number,
+  prev: { x: number; y: number } | null
+): boolean {
+  if (world.get(x, y) !== T.AIR) return false; // never overwrite terrain/other tiles
+  if (!world.isPassable(x, y - 1)) return false; // headroom for the worker standing on top
+  if (!prev) {
+    // anchor: must touch something solid so the run isn't floating
+    return (
+      world.isSolid(x - 1, y) ||
+      world.isSolid(x + 1, y) ||
+      world.isSupport(x, y + 1) ||
+      world.get(x - 1, y) === T.RAMP ||
+      world.get(x + 1, y) === T.RAMP
+    );
+  }
+  // chain step: exactly one diagonal from the previous ramp tile (fixed 45deg pitch)
+  return Math.abs(x - prev.x) === 1 && Math.abs(y - prev.y) === 1;
+}
+
+// The buildable 45deg ramp chain from anchor (ax,ay) toward (tx,ty). Snaps to the
+// shorter axis so it stays 1:1, and stops at the first cell that fails validation.
+export function rampRunCells(
+  world: World,
+  ax: number,
+  ay: number,
+  tx: number,
+  ty: number
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  const dx = Math.sign(tx - ax);
+  const sy = Math.sign(ty - ay);
+  if (dx === 0 || sy === 0) {
+    if (canPlaceRamp(world, ax, ay, null)) cells.push({ x: ax, y: ay });
+    return cells;
+  }
+  const n = Math.min(Math.abs(tx - ax), Math.abs(ty - ay));
+  let prev: { x: number; y: number } | null = null;
+  for (let i = 0; i <= n; i++) {
+    const cx = ax + i * dx;
+    const cy = ay + i * sy;
+    if (!canPlaceRamp(world, cx, cy, prev)) break;
+    cells.push({ x: cx, y: cy });
+    prev = { x: cx, y: cy };
+  }
+  return cells;
+}
+
+// The buildable horizontal bridge run at row ay from ax toward tx.
+export function bridgeRunCells(
+  world: World,
+  ax: number,
+  ay: number,
+  tx: number,
+  _ty: number
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  const dx = Math.sign(tx - ax) || 1;
+  const n = Math.abs(tx - ax);
+  for (let i = 0; i <= n; i++) {
+    const cx = ax + i * dx;
+    if (!canPlacePlatform(world, cx, ay)) break;
+    cells.push({ x: cx, y: ay });
+  }
+  return cells;
+}
+
 export function canPlaceBuilding(
   world: World,
   buildings: Building[],
