@@ -83,5 +83,56 @@ function findLadderCells(g, count) {
   check('the tile stays empty when refused', g.world.get(cellC.x, cellC.y) !== T.LADDER);
 }
 
+// ---- setKeep clamps to a sane integer range --------------------------------
+{
+  const g = new Game(LEVELS[0]);
+  g.setKeep('stone', -5);
+  check('setKeep floors negatives at 0', g.keep.stone === 0);
+  g.setKeep('stone', 250);
+  check('setKeep caps at 99', g.keep.stone === 99);
+  g.setKeep('stone', 3.7);
+  check('setKeep truncates to an integer', g.keep.stone === 3);
+}
+
+// ---- Reserve: haulers ship only the surplus above the floor ----------------
+// Level 1's only haul work is delivering planks to the caravan (no marked
+// nodes, no buildings), so plank deliveries are a clean probe of the gate.
+{
+  const g = new Game(LEVELS[0]); // objective: plank 8
+  const plankObj = () => g.objectives.find((o) => o.item === 'plank');
+
+  // floor at or above stock → no caravan haul is ever created
+  g.stock.plank = 3;
+  g.setKeep('plank', 5);
+  for (let i = 0; i < 60 * 12; i++) g.tick(1 / 60); // 12s
+  check('nothing ships while stock <= keep', plankObj().inbound + plankObj().delivered === 0);
+  check('the reserved stock is untouched', g.stock.plank === 3);
+
+  // drop the floor → the surplus (3 - 1) ships, and stock never dips below it
+  g.setKeep('plank', 1);
+  for (let i = 0; i < 60 * 25; i++) g.tick(1 / 60); // 25s
+  check('surplus ships once the floor drops', plankObj().inbound + plankObj().delivered === 2);
+  check('stock never falls below the floor', g.stock.plank >= 1);
+}
+
+// ---- Level 3 shape: stone is both the order and the build material ---------
+{
+  const g = new Game(LEVELS[2]); // objectives include stone 8; goal at west edge
+  const stoneObj = () => g.objectives.find((o) => o.item === 'stone');
+
+  // bank 6 stone (the TH Lv2 upgrade cost); only the surplus of a 10 stock ships
+  g.stock.stone = 10;
+  g.setKeep('stone', 6);
+  for (let i = 0; i < 60 * 30; i++) g.tick(1 / 60); // 30s
+  check('order stalls at the floor (ships 10-6=4)', stoneObj().delivered === 4);
+  check('6 stone stay banked for building', g.stock.stone === 6);
+
+  // release the floor → the order finishes (up to the 8 required)
+  g.setKeep('stone', 0);
+  for (let i = 0; i < 60 * 30; i++) g.tick(1 / 60); // 30s
+  check('lowering the floor lets the order finish', stoneObj().delivered === 8);
+  check('stock drops to the remainder (10-8=2)', g.stock.stone === 2);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

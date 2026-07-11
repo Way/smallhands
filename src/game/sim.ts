@@ -108,6 +108,10 @@ export class Game {
   stock: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
   stockReserved: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
 
+  // Player-set floor per item: haulers deliver only stock ABOVE this to the
+  // caravan, so resources can be banked for construction. 0 = ship everything.
+  keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
+
   desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0 };
 
   thLevel = 1;
@@ -211,6 +215,10 @@ export class Game {
 
   available(item: ItemType): number {
     return this.stock[item] - this.stockReserved[item];
+  }
+
+  setKeep(item: ItemType, n: number): void {
+    this.keep[item] = Math.max(0, Math.min(99, Math.floor(n)));
   }
 
   toolUnlocked(tool: Tool): boolean {
@@ -619,7 +627,7 @@ export class Game {
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
-        if (this.available(o.item) <= 0) continue;
+        if (this.available(o.item) - this.keep[o.item] <= 0) continue;
         cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
       }
     }
