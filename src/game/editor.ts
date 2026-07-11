@@ -188,6 +188,14 @@ export class Editor {
     return EDITOR_TOOLS.find((t) => t.id === this.tool)!;
   }
 
+  // CSS px to reserve on the right so the settings panel never sits over map
+  // details: the panel's span from the viewport edge plus a breathing gap.
+  panelRightInset(): number {
+    if (!this.panel) return 0;
+    const r = this.panel.getBoundingClientRect();
+    return Math.max(0, window.innerWidth - r.left) + 16;
+  }
+
   setTool(t: EditorTool): void {
     this.tool = t;
     for (const [id, btn] of this.toolBtns) btn.classList.toggle('active', id === t);

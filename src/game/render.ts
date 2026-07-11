@@ -8,11 +8,15 @@ export class Camera {
   x = 0; // world px at left edge
   y = 0;
   zoom = 2;
+  // device px reserved on the right (e.g. the editor panel) so map content is
+  // never framed underneath it — the usable viewport shrinks from the right.
+  rightInset = 0;
 
   clamp(game: Game, vw: number, vh: number): void {
     const worldW = game.world.w * TILE * this.zoom;
     const worldH = game.world.h * TILE * this.zoom;
-    this.x = Math.max(Math.min(this.x, worldW - vw), Math.min(0, (worldW - vw) / 2));
+    const avw = vw - this.rightInset; // usable width once the right inset is reserved
+    this.x = Math.max(Math.min(this.x, worldW - avw), Math.min(0, (worldW - avw) / 2));
     this.y = Math.max(Math.min(this.y, worldH - vh + 40), Math.min(0, (worldH - vh) / 2));
   }
 

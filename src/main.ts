@@ -83,8 +83,10 @@ function openEditor(data?: CustomLevelData): void {
   uiRoot.innerHTML = '';
   editor.open(data);
   cam.zoom = 2;
+  const dpr = canvas.width / canvas.clientWidth;
+  cam.rightInset = editor.panelRightInset() * dpr;
   const th = editor.game.townhall;
-  cam.x = th.x * TILE * cam.zoom - renderer.viewW / 3;
+  cam.x = th.x * TILE * cam.zoom - (renderer.viewW - cam.rightInset) / 3;
   cam.y = th.y * TILE * cam.zoom - renderer.viewH / 2;
   cam.clamp(editor.game, renderer.viewW, renderer.viewH);
 }
@@ -554,6 +556,7 @@ function startCustomLevel(data: CustomLevelData, opts: { playtest?: boolean }): 
 function startGame(def: LevelDef): void {
   clearOverlay();
   editor.close();
+  cam.rightInset = 0;
   game = new Game(def);
   speed = 1;
   cam.zoom = 2;
@@ -1000,6 +1003,10 @@ function frame(now: number): void {
 
 function onResize(): void {
   renderer.resize();
+  if (editor.active) {
+    const dpr = canvas.width / canvas.clientWidth;
+    cam.rightInset = editor.panelRightInset() * dpr;
+  }
   const g = editor.active ? editor.game : game;
   if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
 }
