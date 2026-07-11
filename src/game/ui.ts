@@ -276,27 +276,34 @@ export class Hud {
     const g = this.game;
     const pop = el('div', 'res-pop', this.root);
     pop.onclick = (e) => e.stopPropagation();
-    const refresh = (): void => {
-      pop.innerHTML = '';
-      el('div', 'res-pop-name', pop).textContent = `${ITEM_NAMES[item]} · ${g.stock[item]} in store`;
-      const row = el('div', 'res-pop-row', pop);
-      el('span', undefined, row).textContent = 'Keep';
-      const minus = el('button', 'res-step', row);
-      minus.textContent = '−';
-      const val = el('b', 'res-keep-val', row);
+    // Build the controls ONCE; refresh() only mutates text in place, so the
+    // stepper buttons under the cursor are never torn down mid-click (which
+    // would make the browser silently drop the click).
+    const nameEl = el('div', 'res-pop-name', pop);
+    const row = el('div', 'res-pop-row', pop);
+    el('span', undefined, row).textContent = 'Keep';
+    const minus = el('button', 'res-step', row);
+    minus.textContent = '−';
+    const val = el('b', 'res-keep-val', row);
+    const plus = el('button', 'res-step', row);
+    plus.textContent = '+';
+    el('div', 'res-pop-note', pop).textContent = 'Haulers ship only the surplus to the caravan.';
+    const step = (delta: number): void => {
+      g.setKeep(item, g.keep[item] + delta);
       val.textContent = String(g.keep[item]);
-      const plus = el('button', 'res-step', row);
-      plus.textContent = '+';
-      minus.onclick = () => { g.setKeep(item, g.keep[item] - 1); refresh(); this.refreshKeepBadge(item); };
-      plus.onclick = () => { g.setKeep(item, g.keep[item] + 1); refresh(); this.refreshKeepBadge(item); };
-      el('div', 'res-pop-note', pop).textContent = 'Haulers ship only the surplus to the caravan.';
+      this.refreshKeepBadge(item);
+    };
+    minus.onclick = () => step(-1);
+    plus.onclick = () => step(1);
+    const refresh = (): void => {
+      nameEl.textContent = `${ITEM_NAMES[item]} · ${g.stock[item]} in store`;
+      val.textContent = String(g.keep[item]);
     };
     refresh();
     const r = anchor.getBoundingClientRect();
     pop.style.left = `${Math.max(8, r.left)}px`;
     pop.style.top = `${r.bottom + 6}px`;
     this.reservePop = { item, el: pop, refresh };
-    // defer so THIS click doesn't immediately close it
     setTimeout(() => document.addEventListener('click', this.closeReserveOnOutside), 0);
   }
 
