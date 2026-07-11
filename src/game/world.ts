@@ -134,6 +134,12 @@ export function rampRunCells(
     const cx = ax + i * dx;
     const cy = ay + i * sy;
     if (!canPlaceRamp(world, cx, cy, prev)) break;
+    // Ascending (dragging up): a loaded hauler hops from prev's stand cell up to
+    // this one, which needs headroom two cells above prev (canPlaceRamp only
+    // clears the stand cell one above). Without it the ramp places but can't be
+    // climbed under a low ceiling — truncate the run at the last reachable tile.
+    // Descending runs are walked/fallen down, so they don't need this clearance.
+    if (prev && sy < 0 && !world.isPassable(prev.x, prev.y - 2)) break;
     cells.push({ x: cx, y: cy });
     prev = { x: cx, y: cy };
   }

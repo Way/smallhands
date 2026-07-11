@@ -136,6 +136,39 @@ function stepWorld() {
   check('placeBridgeRun charged a plank per tile', g.stock.plank === 5);
 }
 
+// --- Ramp climbability: an ascending run must stop where a low ceiling blocks
+// the hop between tiles, so it never places tiles a loaded hauler can't reach. ---
+{
+  const w = new World(24, 20);
+  const surfaceY = 14, ax = 8;
+  for (let x = 0; x < w.w; x++)
+    for (let y = 0; y < w.h; y++) w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+
+  // Open sky: the full 45° run builds.
+  const open = rampRunCells(w, ax, surfaceY - 1, ax + 3, surfaceY - 4);
+  check('ramp run builds fully with clear headroom', open.length === 4);
+
+  // Drop solid two cells above the anchor's stand cell — the hop from the anchor
+  // to the next tile has no headroom, so the run truncates to the anchor alone.
+  w.set(ax, surfaceY - 3, T.ROCK); // (8,11): transit cell of the first seam
+  const blocked = rampRunCells(w, ax, surfaceY - 1, ax + 3, surfaceY - 4);
+  check('ramp run truncates at a blocked transit headroom',
+    blocked.length === 1 && blocked[0].x === ax && blocked[0].y === surfaceY - 1);
+
+  // A descending drag is walked/fallen down, so ascent headroom must not clip it.
+  // Plateau on the left (ground top at 10) dropping to a lower shelf on the right;
+  // anchor hangs off the plateau edge and the run descends down-right.
+  const w2 = new World(24, 20);
+  const highY = 10, lowY = 15;
+  for (let x = 0; x < w2.w; x++) {
+    const top = x <= ax ? highY : lowY;
+    for (let y = 0; y < w2.h; y++) w2.set(x, y, y < top ? T.AIR : y === top ? T.GRASS : T.DIRT);
+  }
+  w2.set(ax + 1, highY - 2, T.ROCK); // solid at the cell an ascent seam would check
+  const down = rampRunCells(w2, ax + 1, highY, ax + 4, highY + 3);
+  check('descending ramp run is not clipped by ascent headroom', down.length === 4);
+}
+
 // --- Task 3: tool defs + sim placers ---
 {
   const ramp = TOOL_DEFS.find((t) => t.id === 'ramp');
