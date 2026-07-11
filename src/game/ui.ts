@@ -78,6 +78,9 @@ export class Hud {
   private tooltip: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
   private hintSig = '';
+  private keepBadges = new Map<ItemType, HTMLElement>();
+  private lastKeep: Record<string, number> = {};
+  private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -99,13 +102,20 @@ export class Hud {
     // resources
     const res = el('div', 'panel res-bar', bar);
     for (const it of ITEM_TYPES) {
-      const chip = el('div', 'res-chip', res);
-      chip.title = ITEM_NAMES[it];
+      const chip = el('button', 'res-chip', res);
+      chip.title = `${ITEM_NAMES[it]} — click to keep some in store`;
       icon(ITEM_ICON[it], 20, chip);
       const cnt = el('span', 'cnt', chip);
       cnt.textContent = '0';
+      const badge = el('span', 'keep-badge', chip);
+      badge.hidden = true;
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        this.toggleReservePopover(it, chip);
+      };
       this.resCounts.set(it, cnt);
       this.resChips.set(it, chip);
+      this.keepBadges.set(it, badge);
     }
 
     el('div', 'spacer', bar);
@@ -238,6 +248,56 @@ export class Hud {
   private hideTooltip(): void {
     this.tooltip?.remove();
     this.tooltip = null;
+  }
+
+  private refreshKeepBadge(item: ItemType): void {
+    const n = this.game.keep[item];
+    const badge = this.keepBadges.get(item)!;
+    badge.hidden = n <= 0;
+    if (n > 0) badge.textContent = String(n);
+    this.resChips.get(item)!.classList.toggle('has-keep', n > 0);
+  }
+
+  private closeReserveOnOutside = (): void => this.closeReservePopover();
+
+  private closeReservePopover(): void {
+    if (!this.reservePop) return;
+    this.reservePop.el.remove();
+    this.reservePop = null;
+    document.removeEventListener('click', this.closeReserveOnOutside);
+  }
+
+  private toggleReservePopover(item: ItemType, anchor: HTMLElement): void {
+    if (this.reservePop?.item === item) {
+      this.closeReservePopover();
+      return;
+    }
+    this.closeReservePopover();
+    const g = this.game;
+    const pop = el('div', 'res-pop', this.root);
+    pop.onclick = (e) => e.stopPropagation();
+    const refresh = (): void => {
+      pop.innerHTML = '';
+      el('div', 'res-pop-name', pop).textContent = `${ITEM_NAMES[item]} · ${g.stock[item]} in store`;
+      const row = el('div', 'res-pop-row', pop);
+      el('span', undefined, row).textContent = 'Keep';
+      const minus = el('button', 'res-step', row);
+      minus.textContent = '−';
+      const val = el('b', 'res-keep-val', row);
+      val.textContent = String(g.keep[item]);
+      const plus = el('button', 'res-step', row);
+      plus.textContent = '+';
+      minus.onclick = () => { g.setKeep(item, g.keep[item] - 1); refresh(); this.refreshKeepBadge(item); };
+      plus.onclick = () => { g.setKeep(item, g.keep[item] + 1); refresh(); this.refreshKeepBadge(item); };
+      el('div', 'res-pop-note', pop).textContent = 'Haulers ship only the surplus to the caravan.';
+    };
+    refresh();
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.max(8, r.left)}px`;
+    pop.style.top = `${r.bottom + 6}px`;
+    this.reservePop = { item, el: pop, refresh };
+    // defer so THIS click doesn't immediately close it
+    setTimeout(() => document.addEventListener('click', this.closeReserveOnOutside), 0);
   }
 
   toast(html: string, warn = false, autoDismiss = 0): void {
@@ -375,6 +435,13 @@ export class Hud {
         this.lastStock[it] = n;
       }
     }
+    for (const it of ITEM_TYPES) {
+      if (this.lastKeep[it] !== g.keep[it]) {
+        this.lastKeep[it] = g.keep[it];
+        this.refreshKeepBadge(it);
+      }
+    }
+    this.reservePop?.refresh();
     for (const o of g.objectives) {
       const r = this.objRows.get(o.item);
       if (!r) continue;
