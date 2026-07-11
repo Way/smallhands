@@ -338,7 +338,9 @@ export class Game {
       if (b.kind === 'lift') {
         this.world.extraSupport.delete(this.world.idx(b.x, b.liftTopY + 1));
       }
-      this.demolishCount++;
+      // Cancelling an unbuilt blueprint refunds in full and tears down nothing
+      // real, so it shouldn't cost the player the "No Demolish" feat.
+      if (b.state !== 'blueprint') this.demolishCount++;
       this.buildings = this.buildings.filter((o) => o.id !== b.id);
       // abort tasks that reference it
       for (const w of this.workers) {
@@ -1109,7 +1111,10 @@ export class Game {
     if (this.demolishCount === 0) out.push('no-demolish');
     if (this.nodes.length > 0) {
       const touched = this.nodes.filter((n) => n.yieldLeft < NODE_YIELD[n.kind].amount).length;
-      if (touched <= Math.ceil(this.nodes.length / 2)) out.push('light-touch');
+      // "leave half untouched" ⇒ untouched ≥ n/2 ⇒ touched ≤ floor(n/2). Using
+      // floor (not ceil) keeps the miss honest: it can't be earned by touching a
+      // majority on odd counts, and a single-node level can't cheat it.
+      if (touched <= Math.floor(this.nodes.length / 2)) out.push('light-touch');
     }
     return out;
   }

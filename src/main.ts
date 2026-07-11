@@ -104,6 +104,26 @@ function medalSlotRow(key: string): HTMLElement {
   return row;
 }
 
+// The best-time / gold-target line plus the medal + feat slot row, shared by
+// every card kind (campaign, daily, custom). The slots always render — empty
+// ones are the replay magnet — while the text line only appears when there is
+// something to show. `goldTime` is null when a card can't cheaply know its gold
+// threshold (the daily is generated on demand).
+function addMedalBits(card: HTMLElement, key: string, goldTime: number | null): void {
+  const anchor = card.querySelector('.lv-status');
+  const rec = save.records[key];
+  const parts: string[] = [];
+  if (rec) parts.push(`Best <b>${fmtTime(rec.bestTime)}</b>`);
+  if (goldTime != null) parts.push(`Gold ${fmtTime(goldTime)}`);
+  if (parts.length) {
+    const best = document.createElement('div');
+    best.className = 'lv-best';
+    best.innerHTML = parts.join(' · ');
+    card.insertBefore(best, anchor);
+  }
+  card.insertBefore(medalSlotRow(key), anchor);
+}
+
 // ---- editor ---------------------------------------------------------------------
 
 const editor = new Editor(uiRoot, {
@@ -276,7 +296,6 @@ function showLevelSelect(): void {
   LEVELS.forEach((lvl, i) => {
     const unlocked = i === 0 || save.completed.includes(LEVELS[i - 1].id);
     const done = save.completed.includes(lvl.id);
-    const rec = save.records[`c${lvl.id}`];
     const card = document.createElement('button');
     card.className = 'level-card' + (unlocked ? '' : ' locked');
     card.innerHTML = `
@@ -286,13 +305,7 @@ function showLevelSelect(): void {
       <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div>
     `;
     if (unlocked && lvl.medals) {
-      const best = document.createElement('div');
-      best.className = 'lv-best';
-      best.innerHTML = rec
-        ? `Best <b>${fmtTime(rec.bestTime)}</b> · Gold ${fmtTime(lvl.medals.gold)}`
-        : `Gold ${fmtTime(lvl.medals.gold)}`;
-      card.insertBefore(best, card.querySelector('.lv-status'));
-      card.insertBefore(medalSlotRow(`c${lvl.id}`), card.querySelector('.lv-status'));
+      addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
     }
     if (unlocked) {
       card.onclick = () => {
@@ -330,13 +343,9 @@ function showLevelSelect(): void {
       <div class="lv-desc">${daily.label} · difficulty ★${daily.difficulty}. One shared seed per day — same mountain for everyone.</div>
       <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
     `;
-    if (save.records[daily.seed]) {
-      const best = document.createElement('div');
-      best.className = 'lv-best';
-      best.innerHTML = `Best <b>${fmtTime(save.records[daily.seed].bestTime)}</b>`;
-      card.insertBefore(best, card.querySelector('.lv-status'));
-      card.insertBefore(medalSlotRow(daily.seed), card.querySelector('.lv-status'));
-    }
+    // the daily's gold time isn't known until the level is generated, so pass
+    // null; the empty medal/feat slots still show as the replay magnet
+    addMedalBits(card, daily.seed, null);
     card.onclick = () => {
       audio.click();
       confirmIfInProgress('Abandon the current level?', 'Abandon level', () => {
@@ -421,17 +430,7 @@ function showLevelSelect(): void {
     `;
     (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
     (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || 'A custom level.';
-    {
-      const rec = save.records[lvl.id];
-      const times = medalTimesFor(lvl);
-      const best = document.createElement('div');
-      best.className = 'lv-best';
-      best.innerHTML = rec
-        ? `Best <b>${fmtTime(rec.bestTime)}</b> · Gold ${fmtTime(times.gold)}`
-        : `Gold ${fmtTime(times.gold)}`;
-      card.insertBefore(best, card.querySelector('.lv-status'));
-      card.insertBefore(medalSlotRow(lvl.id), card.querySelector('.lv-status'));
-    }
+    addMedalBits(card, lvl.id, medalTimesFor(lvl).gold);
     card.onclick = () => {
       audio.click();
       confirmIfInProgress('Abandon the current level?', 'Abandon level', () => startCustomLevel(lvl, {}));
@@ -655,7 +654,7 @@ function buildCeremony(ov: HTMLElement): void {
     labels.className = 'labels';
     labels.innerHTML =
       `<span style="width:${pct(medals.gold)}"><b>Gold</b> ${fmtTime(medals.gold)}</span>` +
-      `<span style="width:${((medals.silver - medals.gold) / max) * 100}%"><b>Silver</b> ${fmtTime(medals.silver)}</span>` +
+      `<span style="width:${(((medals.silver - medals.gold) / max) * 100).toFixed(1)}%"><b>Silver</b> ${fmtTime(medals.silver)}</span>` +
       `<span><b>Bronze</b> ${fmtTime(medals.bronze)}</span>`;
     gauge.appendChild(labels);
     cer.appendChild(gauge);
@@ -875,11 +874,15 @@ function handleEvent(e: GameEvent): void {
         const medal = g.level.medals ? medalFor(g.level.medals, g.time) : null;
         const feats = g.earnedFeats();
         let newRecord = false;
-        let firstClear = true;
+        // "First clear" reflects completion history, not whether a record exists —
+        // levels finished before records shipped must not read as first clears.
+        // Checked before the completion lists are updated just below.
+        const firstClear = currentCustom
+          ? !save.completedCustom.includes(currentCustom.id)
+          : !save.completed.includes(g.level.id);
         if (!playtesting) {
           const key = recordKey();
           const rec = save.records[key];
-          firstClear = !rec;
           newRecord = !rec || g.time < rec.bestTime;
           save.records[key] = {
             bestTime: rec ? Math.min(rec.bestTime, g.time) : g.time,

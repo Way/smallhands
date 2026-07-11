@@ -29,7 +29,9 @@ function sanitizeRecords(raw: unknown): Record<string, LevelRecord> {
   for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof v !== 'object' || v === null) continue;
     const r = v as Record<string, unknown>;
-    if (typeof r.bestTime !== 'number' || !Number.isFinite(r.bestTime)) continue;
+    // reject non-finite and negative times — a bogus negative best can never be
+    // beaten and renders as garbage in the time display
+    if (typeof r.bestTime !== 'number' || !Number.isFinite(r.bestTime) || r.bestTime < 0) continue;
     out[key] = {
       bestTime: r.bestTime,
       medal: MEDAL_TIERS.includes(r.medal as MedalTier) ? (r.medal as MedalTier) : null,
