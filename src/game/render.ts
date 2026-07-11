@@ -214,8 +214,27 @@ export class Renderer {
           case T.LADDER:
             name = 'tile_ladder';
             break;
+          case T.RAMP:
+            name = 'tile_ramp';
+            break;
         }
-        if (name) ctx.drawImage(sprite(name).canvas, px, py);
+        if (name === 'tile_ramp') {
+          // face the slope toward the higher neighbour: if the ramp continues
+          // up to the left (a RAMP tile up-left), mirror the default up-right art
+          const upLeft = world.get(x - 1, y - 1) === T.RAMP || world.get(x - 1, y) === T.RAMP;
+          const spr = sprite('tile_ramp').canvas;
+          if (upLeft) {
+            ctx.save();
+            ctx.translate(px + TILE, py);
+            ctx.scale(-1, 1);
+            ctx.drawImage(spr, 0, 0);
+            ctx.restore();
+          } else {
+            ctx.drawImage(spr, px, py);
+          }
+        } else if (name) {
+          ctx.drawImage(sprite(name).canvas, px, py);
+        }
         // subtle variation + edge shading on solid terrain
         if (world.isSolid(x, y)) {
           const h = tileHash(x, y);

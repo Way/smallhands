@@ -142,6 +142,24 @@ export function buildAtlas(): void {
     '................',
     '................',
   ]);
+  makeSprite('tile_ramp', platPal, [
+    '...............P',
+    '..............PP',
+    '.............Ppp',
+    '............Ppkp',
+    '...........Ppksk',
+    '..........Ppksk.',
+    '.........Ppkskk.',
+    '........Ppkskks.',
+    '.......Ppkskkskk',
+    '......Ppkskkskks',
+    '.....Ppkskkskksk',
+    '....Ppkskkskkskk',
+    '...Ppkskkskkskks',
+    '..Ppkskkskkskksk',
+    '.Ppkskkskkskkskk',
+    'Ppkskkskkskkskks',
+  ]);
   const ladPal = { l: '#c89858', L: '#e0b070', k: '#8f6a38' };
   makeSprite('tile_ladder', ladPal, [
     '..Ll........lL..',
