@@ -205,3 +205,41 @@ export interface ObjectiveReq {
   item: ItemType;
   amount: number;
 }
+
+// ---- medals & feats ---------------------------------------------------------
+
+export type MedalTier = 'gold' | 'silver' | 'bronze';
+export const MEDAL_TIERS: MedalTier[] = ['gold', 'silver', 'bronze'];
+
+// completion-time thresholds in seconds; at or under a threshold earns the tier
+export interface MedalTimes {
+  gold: number;
+  silver: number;
+  bronze: number;
+}
+
+export function medalFor(times: MedalTimes, seconds: number): MedalTier | null {
+  if (seconds <= times.gold) return 'gold';
+  if (seconds <= times.silver) return 'silver';
+  if (seconds <= times.bronze) return 'bronze';
+  return null;
+}
+
+// the higher (better) of two tiers
+export function bestTier(a: MedalTier | null, b: MedalTier | null): MedalTier | null {
+  const rank = (t: MedalTier | null) => (t === null ? 3 : MEDAL_TIERS.indexOf(t));
+  return rank(a) <= rank(b) ? a : b;
+}
+
+// Feats: named side-goals, always the same two so every level (campaign,
+// generated, custom) can award them and players learn to hunt them.
+export interface FeatDef {
+  id: string;
+  name: string;
+  desc: string;
+}
+
+export const FEATS: FeatDef[] = [
+  { id: 'no-demolish', name: 'No Demolish', desc: 'Win without demolishing anything' },
+  { id: 'light-touch', name: 'Light Touch', desc: 'Leave half of all resource nodes untouched' },
+];

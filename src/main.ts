@@ -1,6 +1,6 @@
 import './style.css';
-import { TILE, TOOL_DEFS } from './game/types';
-import type { Tool } from './game/types';
+import { FEATS, TILE, TOOL_DEFS, bestTier, medalFor } from './game/types';
+import type { MedalTier, Tool } from './game/types';
 import { buildAtlas, drawIconTo } from './engine/sprites';
 import { audio } from './engine/audio';
 import {
@@ -19,7 +19,7 @@ import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud } from './game/ui';
 import { Editor } from './game/editor';
-import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
+import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
 import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 
@@ -54,6 +54,55 @@ let running = false;
 
 const hover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
 const noHover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
+
+// result of the most recent win, feeding the medal ceremony
+interface WinResult {
+  time: number;
+  medal: MedalTier | null;
+  feats: string[];
+  newRecord: boolean;
+  firstClear: boolean;
+}
+let lastWin: WinResult | null = null;
+
+function fmtTime(t: number): string {
+  const mins = Math.floor(t / 60);
+  const secs = Math.floor(t % 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function mkIcon(name: string, size: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.className = 'px-icon';
+  drawIconTo(c, name, size);
+  return c;
+}
+
+// save-file key for the running level's personal best
+function recordKey(): string {
+  return currentCustom ? currentCustom.id : `c${LEVELS[currentLevelIdx].id}`;
+}
+
+// medal + feat slots as shown on level cards
+function medalSlotRow(key: string): HTMLElement {
+  const rec = save.records[key];
+  const row = document.createElement('div');
+  row.className = 'medal-row';
+  const medalSlot = document.createElement('span');
+  medalSlot.className = 'mslot' + (rec?.medal ? ' filled' : '');
+  medalSlot.title = rec?.medal ? `${rec.medal[0].toUpperCase()}${rec.medal.slice(1)} medal` : 'No medal yet';
+  if (rec?.medal) medalSlot.appendChild(mkIcon(`medal_${rec.medal}`, 26));
+  row.appendChild(medalSlot);
+  for (const feat of FEATS) {
+    const got = rec?.feats.includes(feat.id) ?? false;
+    const slot = document.createElement('span');
+    slot.className = 'mslot pin' + (got ? ' filled' : '');
+    slot.title = `${feat.name} — ${feat.desc}`;
+    if (got) slot.appendChild(mkIcon('pin_feat', 20));
+    row.appendChild(slot);
+  }
+  return row;
+}
 
 // ---- editor ---------------------------------------------------------------------
 
@@ -186,12 +235,48 @@ function showLevelSelect(): void {
   h.textContent = 'Choose a level';
   ov.appendChild(h);
 
+  // ---- trophy shelf: the collection at a glance ----
+  if (Object.keys(save.records).length > 0) {
+    const shelf = document.createElement('div');
+    shelf.className = 'shelf';
+    const counts = { gold: 0, silver: 0, bronze: 0, feats: 0 };
+    for (const r of Object.values(save.records)) {
+      if (r.medal) counts[r.medal]++;
+      counts.feats += r.feats.length;
+    }
+    for (const tier of ['gold', 'silver', 'bronze'] as const) {
+      const c = document.createElement('span');
+      c.className = 'count';
+      c.appendChild(mkIcon(`medal_${tier}`, 30));
+      c.appendChild(document.createTextNode(`× ${counts[tier]}`));
+      shelf.appendChild(c);
+    }
+    const sep = document.createElement('span');
+    sep.className = 'sep';
+    shelf.appendChild(sep);
+    const pins = document.createElement('span');
+    pins.className = 'count';
+    pins.appendChild(mkIcon('pin_feat', 24));
+    pins.appendChild(document.createTextNode(`× ${counts.feats}`));
+    shelf.appendChild(pins);
+    const sep2 = document.createElement('span');
+    sep2.className = 'sep';
+    shelf.appendChild(sep2);
+    const campaignGold = LEVELS.filter((l) => save.records[`c${l.id}`]?.medal === 'gold').length;
+    const pct = document.createElement('span');
+    pct.className = 'pct';
+    pct.innerHTML = `<b>${campaignGold}/${LEVELS.length}</b> campaign gold`;
+    shelf.appendChild(pct);
+    ov.appendChild(shelf);
+  }
+
   // ---- campaign ----
   const grid = document.createElement('div');
   grid.className = 'level-grid';
   LEVELS.forEach((lvl, i) => {
     const unlocked = i === 0 || save.completed.includes(LEVELS[i - 1].id);
     const done = save.completed.includes(lvl.id);
+    const rec = save.records[`c${lvl.id}`];
     const card = document.createElement('button');
     card.className = 'level-card' + (unlocked ? '' : ' locked');
     card.innerHTML = `
@@ -200,6 +285,15 @@ function showLevelSelect(): void {
       <div class="lv-desc">${lvl.desc}</div>
       <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div>
     `;
+    if (unlocked && lvl.medals) {
+      const best = document.createElement('div');
+      best.className = 'lv-best';
+      best.innerHTML = rec
+        ? `Best <b>${fmtTime(rec.bestTime)}</b> · Gold ${fmtTime(lvl.medals.gold)}`
+        : `Gold ${fmtTime(lvl.medals.gold)}`;
+      card.insertBefore(best, card.querySelector('.lv-status'));
+      card.insertBefore(medalSlotRow(`c${lvl.id}`), card.querySelector('.lv-status'));
+    }
     if (unlocked) {
       card.onclick = () => {
         audio.click();
@@ -236,6 +330,13 @@ function showLevelSelect(): void {
       <div class="lv-desc">${daily.label} · difficulty ★${daily.difficulty}. One shared seed per day — same mountain for everyone.</div>
       <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
     `;
+    if (save.records[daily.seed]) {
+      const best = document.createElement('div');
+      best.className = 'lv-best';
+      best.innerHTML = `Best <b>${fmtTime(save.records[daily.seed].bestTime)}</b>`;
+      card.insertBefore(best, card.querySelector('.lv-status'));
+      card.insertBefore(medalSlotRow(daily.seed), card.querySelector('.lv-status'));
+    }
     card.onclick = () => {
       audio.click();
       confirmIfInProgress('Abandon the current level?', 'Abandon level', () => {
@@ -320,6 +421,17 @@ function showLevelSelect(): void {
     `;
     (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
     (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || 'A custom level.';
+    {
+      const rec = save.records[lvl.id];
+      const times = medalTimesFor(lvl);
+      const best = document.createElement('div');
+      best.className = 'lv-best';
+      best.innerHTML = rec
+        ? `Best <b>${fmtTime(rec.bestTime)}</b> · Gold ${fmtTime(times.gold)}`
+        : `Gold ${fmtTime(times.gold)}`;
+      card.insertBefore(best, card.querySelector('.lv-status'));
+      card.insertBefore(medalSlotRow(lvl.id), card.querySelector('.lv-status'));
+    }
     card.onclick = () => {
       audio.click();
       confirmIfInProgress('Abandon the current level?', 'Abandon level', () => startCustomLevel(lvl, {}));
@@ -474,20 +586,126 @@ function showGenerateDialog(): void {
   seedIn.focus();
 }
 
-function showWin(): void {
+// The medal ceremony: stamp-in medal, honest time gauge, feat reveals.
+function buildCeremony(ov: HTMLElement): void {
   const g = game!;
+  const win = lastWin;
+  const cer = document.createElement('div');
+  cer.className = 'panel ceremony';
+  ov.appendChild(cer);
+
+  const line = document.createElement('div');
+  line.className = 'cer-line';
+  const nm = document.createElement('b');
+  nm.textContent = g.level.name;
+  line.appendChild(nm);
+  line.appendChild(document.createTextNode(` · ${fmtTime(g.time)} · Crew ${g.workers.length} · Town Hall ${g.thLevel}`));
+  cer.appendChild(line);
+
+  const medal = win?.medal ?? null;
+  const big = document.createElement('div');
+  big.className = 'big-medal';
+  if (medal) {
+    const c = mkIcon(`medal_${medal}`, 112);
+    c.className = 'px-icon stamp';
+    big.appendChild(c);
+  } else {
+    const none = document.createElement('span');
+    none.className = 'mslot big-empty';
+    none.title = 'Beat the bronze time for a medal';
+    big.appendChild(none);
+  }
+  cer.appendChild(big);
+
+  const name = document.createElement('div');
+  name.className = 'medal-name' + (medal ? ` ${medal}` : '');
+  name.textContent = medal ? `${medal.toUpperCase()} MEDAL` : 'ORDER DELIVERED';
+  cer.appendChild(name);
+
+  if (win && !playtesting && (win.newRecord || win.firstClear)) {
+    const chip = document.createElement('span');
+    chip.className = 'newrec';
+    chip.textContent = win.firstClear ? '★ First clear' : '★ New record';
+    cer.appendChild(chip);
+  }
+
+  // time gauge with the medal thresholds
+  const medals = g.level.medals;
+  if (medals) {
+    const max = medals.bronze * 1.2;
+    const pct = (v: number) => `${Math.min(100, (v / max) * 100).toFixed(1)}%`;
+    const gauge = document.createElement('div');
+    gauge.className = 'gauge';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.background = `linear-gradient(90deg, #ffd76e 0 ${pct(medals.gold)}, #dfe7f2 ${pct(medals.gold)} ${pct(medals.silver)}, #e0a06a ${pct(medals.silver)} ${pct(medals.bronze)}, #3b4a63 ${pct(medals.bronze)})`;
+    for (const t of [medals.gold, medals.silver, medals.bronze]) {
+      const tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.style.left = pct(t);
+      bar.appendChild(tick);
+    }
+    const you = document.createElement('span');
+    you.className = 'you';
+    you.style.left = pct(g.time);
+    you.title = `Your time: ${fmtTime(g.time)}`;
+    bar.appendChild(you);
+    gauge.appendChild(bar);
+    const labels = document.createElement('div');
+    labels.className = 'labels';
+    labels.innerHTML =
+      `<span style="width:${pct(medals.gold)}"><b>Gold</b> ${fmtTime(medals.gold)}</span>` +
+      `<span style="width:${((medals.silver - medals.gold) / max) * 100}%"><b>Silver</b> ${fmtTime(medals.silver)}</span>` +
+      `<span><b>Bronze</b> ${fmtTime(medals.bronze)}</span>`;
+    gauge.appendChild(labels);
+    cer.appendChild(gauge);
+  }
+
+  // feats — earned and missed alike; the miss is the hook
+  const feats = document.createElement('div');
+  feats.className = 'feats';
+  for (const def of FEATS) {
+    const got = win?.feats.includes(def.id) ?? false;
+    const f = document.createElement('div');
+    f.className = 'feat ' + (got ? 'got' : 'miss');
+    f.appendChild(mkIcon('pin_feat', 24));
+    const txt = document.createElement('div');
+    const t1 = document.createElement('span');
+    t1.textContent = def.name;
+    const t2 = document.createElement('small');
+    t2.textContent = got ? `${def.desc} — done!` : def.desc;
+    txt.appendChild(t1);
+    txt.appendChild(t2);
+    f.appendChild(txt);
+    feats.appendChild(f);
+  }
+  cer.appendChild(feats);
+
+  // a little confetti over the ceremony
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const colors = ['#ffc94d', '#a878c8', '#6fd66f', '#5aa2e8'];
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('span');
+      p.className = 'confetti';
+      p.style.left = `${8 + Math.random() * 84}%`;
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = `${Math.random() * 0.9}s`;
+      p.style.animationDuration = `${1.3 + Math.random() * 0.9}s`;
+      cer.appendChild(p);
+    }
+    setTimeout(() => cer.querySelectorAll('.confetti').forEach((e) => e.remove()), 3400);
+  }
+}
+
+function showWin(): void {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
   const ov = document.createElement('div');
   ov.className = 'overlay';
   const title = document.createElement('div');
   title.className = 'win-title';
   title.textContent = 'Level complete!';
   ov.appendChild(title);
-  const mins = Math.floor(g.time / 60);
-  const secs = Math.floor(g.time % 60);
-  const stats = document.createElement('div');
-  stats.className = 'win-stats';
-  stats.innerHTML = `<b>${g.level.name}</b> cleared in ${mins}:${String(secs).padStart(2, '0')}<br/>Crew size: ${g.workers.length} smallhands · Town Hall level ${g.thLevel}`;
-  ov.appendChild(stats);
+  buildCeremony(ov);
   const row = document.createElement('div');
   row.className = 'btn-row';
   if (playtesting && currentCustom) {
@@ -651,13 +869,35 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'win': {
       audio.win();
+      // medal, feats & personal best
+      {
+        const g = game!;
+        const medal = g.level.medals ? medalFor(g.level.medals, g.time) : null;
+        const feats = g.earnedFeats();
+        let newRecord = false;
+        let firstClear = true;
+        if (!playtesting) {
+          const key = recordKey();
+          const rec = save.records[key];
+          firstClear = !rec;
+          newRecord = !rec || g.time < rec.bestTime;
+          save.records[key] = {
+            bestTime: rec ? Math.min(rec.bestTime, g.time) : g.time,
+            medal: bestTier(rec?.medal ?? null, medal),
+            feats: [...new Set([...(rec?.feats ?? []), ...feats])],
+          };
+        }
+        lastWin = { time: g.time, medal, feats, newRecord, firstClear };
+      }
       if (currentCustom) {
         if (!playtesting && !save.completedCustom.includes(currentCustom.id)) {
           save.completedCustom.push(currentCustom.id);
-          persistSave(save);
         }
+        if (!playtesting) persistSave(save);
       } else if (!save.completed.includes(game!.level.id)) {
         save.completed.push(game!.level.id);
+        persistSave(save);
+      } else {
         persistSave(save);
       }
       // celebrate, then show the win screen

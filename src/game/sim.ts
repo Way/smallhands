@@ -118,6 +118,7 @@ export class Game {
   time = 0;
   speed = 1;
   paused = false;
+  demolishCount = 0; // for the "No Demolish" feat
 
   private nextId = 1;
   private spawnTimer = 1;
@@ -320,6 +321,7 @@ export class Game {
     if (t === T.LADDER || t === T.PLATFORM) {
       this.world.set(x, y, T.AIR);
       this.refund(t === T.LADDER ? { log: 1 } : { plank: 1 }, 0.5);
+      this.demolishCount++;
       this.onEvent({ type: 'demolish' });
       return true;
     }
@@ -336,6 +338,7 @@ export class Game {
       if (b.kind === 'lift') {
         this.world.extraSupport.delete(this.world.idx(b.x, b.liftTopY + 1));
       }
+      this.demolishCount++;
       this.buildings = this.buildings.filter((o) => o.id !== b.id);
       // abort tasks that reference it
       for (const w of this.workers) {
@@ -1098,6 +1101,17 @@ export class Game {
         }
       }
     }
+  }
+
+  // Which feats did this run earn? Evaluated at win time.
+  earnedFeats(): string[] {
+    const out: string[] = [];
+    if (this.demolishCount === 0) out.push('no-demolish');
+    if (this.nodes.length > 0) {
+      const touched = this.nodes.filter((n) => n.yieldLeft < NODE_YIELD[n.kind].amount).length;
+      if (touched <= Math.ceil(this.nodes.length / 2)) out.push('light-touch');
+    }
+    return out;
   }
 
   private checkWin(): void {

@@ -2,14 +2,41 @@
 
 import { sanitizeLevelData } from '../game/leveldata';
 import type { CustomLevelData } from '../game/leveldata';
+import { MEDAL_TIERS } from '../game/types';
+import type { MedalTier } from '../game/types';
 
 const KEY = 'smallhands-save-v1';
 const CUSTOM_KEY = 'smallhands-custom-v1';
 
+// Personal best for one level. Keyed by `c<id>` for campaign levels and by
+// the CustomLevelData id for custom/generated/daily levels.
+export interface LevelRecord {
+  bestTime: number; // seconds
+  medal: MedalTier | null; // best tier ever earned
+  feats: string[]; // feat ids ever earned (union across runs)
+}
+
 export interface SaveData {
   completed: number[]; // campaign level ids
   completedCustom: string[]; // custom/generated level ids
+  records: Record<string, LevelRecord>;
   muted: boolean;
+}
+
+function sanitizeRecords(raw: unknown): Record<string, LevelRecord> {
+  const out: Record<string, LevelRecord> = {};
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v !== 'object' || v === null) continue;
+    const r = v as Record<string, unknown>;
+    if (typeof r.bestTime !== 'number' || !Number.isFinite(r.bestTime)) continue;
+    out[key] = {
+      bestTime: r.bestTime,
+      medal: MEDAL_TIERS.includes(r.medal as MedalTier) ? (r.medal as MedalTier) : null,
+      feats: Array.isArray(r.feats) ? r.feats.filter((f): f is string => typeof f === 'string') : [],
+    };
+  }
+  return out;
 }
 
 export function loadSave(): SaveData {
@@ -20,13 +47,14 @@ export function loadSave(): SaveData {
       return {
         completed: data.completed ?? [],
         completedCustom: data.completedCustom ?? [],
+        records: sanitizeRecords(data.records),
         muted: data.muted ?? false,
       };
     }
   } catch {
     // corrupt or unavailable storage — start fresh
   }
-  return { completed: [], completedCustom: [], muted: false };
+  return { completed: [], completedCustom: [], records: {}, muted: false };
 }
 
 export function persistSave(data: SaveData): void {
