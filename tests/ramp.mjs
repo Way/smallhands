@@ -14,6 +14,7 @@ const res = await build({
       export { Game } from './src/game/sim.ts';
       export { LEVELS } from './src/game/levels.ts';
       export { TOOL_DEFS } from './src/game/types.ts';
+      export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -21,7 +22,7 @@ const res = await build({
   bundle: true, format: 'esm', platform: 'node', write: false,
 });
 const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -132,6 +133,27 @@ function stepWorld() {
   check('Level 4 allows ramp', g4.toolUnlocked('ramp') === true);
   check('Level 2 does NOT allow ramp', g2.toolUnlocked('ramp') === false);
   check('Level 4 has a ramp hint', (LEVELS[3].hints ?? []).some((h) => h.id === 'ramp'));
+}
+
+// --- Task 5: verifier treats RAMP as support (hand-placed ramps validate) ---
+{
+  const data = blankLevelData(64, 28);
+  // decode the RLE tiles, drop a RAMP tile in a clearly-air surface cell far from
+  // the town hall / goal footprints, then re-encode.
+  const decoded = new Uint8Array(data.width * data.height);
+  let i = 0;
+  for (const part of data.tiles.split(',')) {
+    const [t, n] = part.includes('x') ? part.split('x').map(Number) : [Number(part), 1];
+    for (let k = 0; k < n && i < decoded.length; k++) decoded[i++] = t;
+  }
+  const standY = data.height - 8 - 1; // blankLevelData ground: 8 tiles, surface at height-8
+  const airIdx = standY * data.width + 30; // (30, standY): air just above the surface
+  decoded[airIdx] = T.RAMP;
+  data.tiles = encodeTiles(decoded);
+  const report = verifyLevel(data);
+  const roundTrip = decodeTiles(data.tiles, data.width * data.height);
+  check('ramp byte round-trips through encode/decode', roundTrip[airIdx] === T.RAMP);
+  check('stray ramp adds no solvability problem', report.problems.length === 0);
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
