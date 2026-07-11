@@ -48,7 +48,7 @@ export class World {
   isSupport(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return true; // world edge acts as floor
     const t = this.get(x, y);
-    if (t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK || t === T.PLATFORM || t === T.LADDER) return true;
+    if (t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK || t === T.PLATFORM || t === T.LADDER || t === T.RAMP) return true;
     return this.extraSupport.has(this.idx(x, y));
   }
 
@@ -85,6 +85,89 @@ export function canPlacePlatform(world: World, x: number, y: number): boolean {
     world.get(x + 1, y) === T.PLATFORM ||
     world.isSolid(x, y + 1)
   );
+}
+
+// A ramp tile is a support tile placed either with solid contact (the anchor of
+// a run) or diagonally adjacent to the previous ramp tile in the run. It always
+// needs clear headroom (the cell above, where a worker stands, must be passable).
+export function canPlaceRamp(
+  world: World,
+  x: number,
+  y: number,
+  prev: { x: number; y: number } | null
+): boolean {
+  if (world.get(x, y) !== T.AIR) return false; // never overwrite terrain/other tiles
+  if (!world.isPassable(x, y - 1)) return false; // headroom for the worker standing on top
+  if (!prev) {
+    // anchor: must touch something solid so the run isn't floating
+    return (
+      world.isSolid(x - 1, y) ||
+      world.isSolid(x + 1, y) ||
+      world.isSupport(x, y + 1) ||
+      world.get(x - 1, y) === T.RAMP ||
+      world.get(x + 1, y) === T.RAMP
+    );
+  }
+  // chain step: exactly one diagonal from the previous ramp tile (fixed 45deg pitch)
+  return Math.abs(x - prev.x) === 1 && Math.abs(y - prev.y) === 1;
+}
+
+// The buildable 45deg ramp chain from anchor (ax,ay) toward (tx,ty). Snaps to the
+// shorter axis so it stays 1:1, and stops at the first cell that fails validation.
+export function rampRunCells(
+  world: World,
+  ax: number,
+  ay: number,
+  tx: number,
+  ty: number
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  const dx = Math.sign(tx - ax);
+  const sy = Math.sign(ty - ay);
+  if (dx === 0 || sy === 0) {
+    if (canPlaceRamp(world, ax, ay, null)) cells.push({ x: ax, y: ay });
+    return cells;
+  }
+  const n = Math.min(Math.abs(tx - ax), Math.abs(ty - ay));
+  let prev: { x: number; y: number } | null = null;
+  for (let i = 0; i <= n; i++) {
+    const cx = ax + i * dx;
+    const cy = ay + i * sy;
+    if (!canPlaceRamp(world, cx, cy, prev)) break;
+    // Ascending (dragging up): a loaded hauler hops from prev's stand cell up to
+    // this one, which needs headroom two cells above prev (canPlaceRamp only
+    // clears the stand cell one above). Without it the ramp places but can't be
+    // climbed under a low ceiling — truncate the run at the last reachable tile.
+    // Descending runs are walked/fallen down, so they don't need this clearance.
+    if (prev && sy < 0 && !world.isPassable(prev.x, prev.y - 2)) break;
+    cells.push({ x: cx, y: cy });
+    prev = { x: cx, y: cy };
+  }
+  return cells;
+}
+
+// The buildable horizontal bridge run at row ay from ax toward tx. The anchor
+// must satisfy the platform rule; each later tile just extends the deck we are
+// laying (a bridge spans a gap), so it only needs clear air — canPlacePlatform
+// can't see the run's own tiles since they aren't placed yet. Stops at the first
+// non-air cell so the run never overwrites terrain or another structure.
+export function bridgeRunCells(
+  world: World,
+  ax: number,
+  ay: number,
+  tx: number,
+  _ty: number
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  const dx = Math.sign(tx - ax) || 1;
+  const n = Math.abs(tx - ax);
+  for (let i = 0; i <= n; i++) {
+    const cx = ax + i * dx;
+    const ok = i === 0 ? canPlacePlatform(world, cx, ay) : world.get(cx, ay) === T.AIR;
+    if (!ok) break;
+    cells.push({ x: cx, y: ay });
+  }
+  return cells;
 }
 
 export function canPlaceBuilding(

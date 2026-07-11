@@ -1,7 +1,7 @@
 import './style.css';
 import { TILE, TOOL_DEFS } from './game/types';
 import type { Tool } from './game/types';
-import { buildAtlas, drawIconTo } from './engine/sprites';
+import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio } from './engine/audio';
 import {
   deleteCustomLevel,
@@ -17,6 +17,7 @@ import { LEVELS } from './game/levels';
 import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
+import { rampRunCells, bridgeRunCells } from './game/world';
 import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
@@ -721,6 +722,7 @@ function setTool(t: Tool): void {
   }
   hover.tool = t;
   hud.setActiveTool(t);
+  runAnchor = null;
   applyToolCursor();
   audio.click();
 }
@@ -740,6 +742,8 @@ let painting = false; // editor drag-paint stroke in progress
 let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
+let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
+const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform';
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
@@ -753,6 +757,11 @@ canvas.addEventListener('pointerdown', (e) => {
     painting = true;
     editor.applyAt(t.x, t.y, false);
   }
+  if (!editor.active && e.button === 0 && game && running && isRunTool(hover.tool)) {
+    const dpr = canvas.width / canvas.clientWidth;
+    const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+    runAnchor = { x: t.x, y: t.y, tool: hover.tool };
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {
@@ -760,7 +769,7 @@ canvas.addEventListener('pointermove', (e) => {
   const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
   if (painting) {
     editor.applyAt(t.x, t.y, true);
-  } else if (dragging) {
+  } else if (dragging && !runAnchor) {
     const dx = e.clientX - lastMx;
     const dy = e.clientY - lastMy;
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
@@ -797,12 +806,29 @@ canvas.addEventListener('pointerleave', () => {
   editor.setHover(0, 0, false);
 });
 
+canvas.addEventListener('pointercancel', () => {
+  dragging = false;
+  runAnchor = null;
+  applyToolCursor();
+});
+
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
   applyToolCursor(); // drop the grabbing hand back to the tool cursor
   if (painting) {
     painting = false;
     editor.endStroke();
+    return;
+  }
+  if (runAnchor) {
+    const a = runAnchor;
+    runAnchor = null;
+    const dpr = canvas.width / canvas.clientWidth;
+    const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+    if (game && running) {
+      if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
+      else game.placeBridgeRun(a.x, a.y, t.x, t.y);
+    }
     return;
   }
   if (dragMoved || e.button !== 0) return;
@@ -979,7 +1005,10 @@ function applyTool(tx: number, ty: number): void {
       g.placeLadder(tx, ty);
       break;
     case 'platform':
-      g.placePlatform(tx, ty);
+      g.placeBridgeRun(tx, ty, tx, ty);
+      break;
+    case 'ramp':
+      g.placeRampRun(tx, ty, tx, ty);
       break;
     case 'sawmill':
       g.placeBuilding('sawmill', tx, ty);
@@ -1015,6 +1044,18 @@ function drawIdleBackdrop(): void {
 let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
+
+const runOverlay = (ctx: CanvasRenderingContext2D) => {
+  if (!runAnchor || !game) return;
+  const cells =
+    runAnchor.tool === 'ramp'
+      ? rampRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty)
+      : bridgeRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+  const name = runAnchor.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
+  ctx.globalAlpha = 0.6;
+  for (const c of cells) ctx.drawImage(sprite(name).canvas, c.x * TILE, c.y * TILE);
+  ctx.globalAlpha = 1;
+};
 
 function frame(now: number): void {
   const dtReal = Math.min(0.1, (now - last) / 1000);
@@ -1056,7 +1097,7 @@ function frame(now: number): void {
       cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
     }
 
-    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000);
+    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
   }
 
   hud?.update();
