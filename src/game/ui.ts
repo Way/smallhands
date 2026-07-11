@@ -55,6 +55,7 @@ function icon(name: string, size = 20, parent?: HTMLElement): HTMLCanvasElement 
 export interface HudCallbacks {
   onTool: (t: Tool) => void;
   onSpeed: (s: number) => void;
+  onZoom: (dir: number) => void;
   onRole: (r: Role, delta: number) => void;
   onUpgrade: () => void;
   onMenu: () => void;
@@ -91,6 +92,7 @@ export class Hud {
     this.buildTopBar();
     this.buildToolbar();
     this.buildSpeedBar();
+    this.buildZoomBar();
     this.buildMenuBar();
     this.toastWrap = el('div', 'toast-wrap', root);
     this.update();
@@ -186,6 +188,19 @@ export class Hud {
       btn.textContent = label;
       btn.onclick = () => this.cbs.onSpeed(s);
       this.speedBtns.set(s, btn);
+    }
+  }
+
+  private buildZoomBar(): void {
+    const bar = el('div', 'panel zoombar', this.root);
+    for (const [label, dir] of [
+      ['−', -1],
+      ['+', 1],
+    ] as const) {
+      const btn = el('button', 'speed-btn', bar);
+      btn.textContent = label;
+      btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
+      btn.onclick = () => this.cbs.onZoom(dir);
     }
   }
 

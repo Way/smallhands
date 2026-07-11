@@ -146,7 +146,7 @@ export interface ToolDef {
 }
 
 export const TOOL_DEFS: ToolDef[] = [
-  { id: 'select', label: 'Inspect', key: '1', desc: 'Inspect things. Drag or use WASD to pan, scroll to zoom.' },
+  { id: 'select', label: 'Inspect', key: '1', desc: 'Inspect things. Drag, scroll or use WASD to pan; +/− or pinch to zoom.' },
   { id: 'harvest', label: 'Harvest', key: '2', desc: 'Mark trees, boulders and iron veins for your crew to harvest. Click again to unmark.' },
   { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder tile from 1 log — or a plank if you have no logs. Smallhands climb ladders, but never while carrying goods!', cost: { log: 1 } },
   { id: 'platform', label: 'Platform', key: '4', desc: 'Build a wooden platform to walk across gaps.', cost: { plank: 1 } },

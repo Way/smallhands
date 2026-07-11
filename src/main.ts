@@ -569,6 +569,7 @@ function startGame(def: LevelDef): void {
   hud = new Hud(uiRoot, game, {
     onTool: setTool,
     onSpeed: (s) => setSpeed(s),
+    onZoom: (dir) => zoomStep(dir),
     onRole: (r, d) => {
       game!.setDesired(r, game!.desiredRoles[r] + d);
       audio.click();
@@ -812,14 +813,34 @@ canvas.addEventListener('pointerup', (e) => {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// Wheel handling: trackpads fire dozens of small-delta events per gesture and
-// also emit horizontal deltas while two-finger panning. Pan on the dominant
-// axis; only step the zoom once a full notch of vertical delta accumulates,
-// with a short cooldown so one gesture ≈ one zoom step.
-let wheelAcc = 0;
-let wheelAccAt = 0;
-let wheelConsumed = false;
-let lastZoomAt = 0;
+// Step the zoom one level toward an anchor point given in device pixels.
+// Defaults to the centre of the usable viewport, which is what the +/- keys
+// and the on-screen buttons want; the pinch handler passes the cursor instead.
+function zoomStep(dir: number, ax?: number, ay?: number): void {
+  const g = editor.active ? editor.game : running ? game : null;
+  if (!g) return;
+  const oldZoom = cam.zoom;
+  const next = Math.max(1, Math.min(4, oldZoom + dir));
+  if (next === oldZoom) return;
+  const anchorX = ax ?? (renderer.viewW - cam.rightInset) / 2;
+  const anchorY = ay ?? renderer.viewH / 2;
+  const wx = (cam.x + anchorX) / oldZoom;
+  const wy = (cam.y + anchorY) / oldZoom;
+  cam.zoom = next;
+  cam.x = wx * next - anchorX;
+  cam.y = wy * next - anchorY;
+  cam.clamp(g, renderer.viewW, renderer.viewH);
+}
+
+// Wheel: a plain scroll pans the map freely on both axes, so scrolling up/down
+// moves the view up/down just like scrolling sideways moves it left/right.
+// Zoom lives on pinch (ctrl+wheel), the +/- keys, and the on-screen buttons.
+// Pinch arrives as a stream of small ctrl+wheel deltas, so accumulate them into
+// one step per gesture; shift+wheel keeps the classic "scroll sideways" gesture
+// for mouse users whose wheel only emits a vertical delta.
+let pinchAcc = 0;
+let pinchAt = 0;
+let pinchConsumed = false;
 
 canvas.addEventListener(
   'wheel',
@@ -829,57 +850,35 @@ canvas.addEventListener(
     if (!g) return;
     const dpr = canvas.width / canvas.clientWidth;
 
-    // dominant horizontal movement = pan sideways, never zoom
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      cam.x += e.deltaX * dpr;
-      cam.clamp(g, renderer.viewW, renderer.viewH);
+    // pinch-to-zoom (ctrl+wheel): one step per gesture, aimed at the cursor
+    if (e.ctrlKey) {
+      const now = performance.now();
+      if (now - pinchAt > 250) {
+        // 250ms without wheel events = the previous gesture ended
+        pinchAcc = 0;
+        pinchConsumed = false;
+      }
+      pinchAt = now;
+      if (pinchConsumed) return;
+      pinchAcc += e.deltaY;
+      if (Math.abs(pinchAcc) < 25) return;
+      const dir = pinchAcc < 0 ? 1 : -1;
+      pinchAcc = 0;
+      pinchConsumed = true;
+      zoomStep(dir, e.clientX * dpr, e.clientY * dpr);
       return;
     }
 
-    // pinch gestures arrive as ctrl+wheel — treat them as zoom immediately;
-    // shift+wheel is the classic "scroll sideways" convention
-    if (e.shiftKey && !e.ctrlKey) {
+    // shift+wheel: pan sideways from a purely vertical wheel (mouse convention)
+    if (e.shiftKey) {
       cam.x += e.deltaY * dpr;
       cam.clamp(g, renderer.viewW, renderer.viewH);
       return;
     }
 
-    const now = performance.now();
-    if (now - wheelAccAt > 250) {
-      // 250ms without wheel events = the previous gesture ended
-      wheelAcc = 0;
-      wheelConsumed = false;
-    }
-    wheelAccAt = now;
-
-    let dir: number;
-    if (Math.abs(e.deltaY) >= 80 && !e.ctrlKey) {
-      // discrete mouse-wheel notch: step per notch, lightly rate-limited
-      if (now - lastZoomAt < 120) return;
-      dir = e.deltaY < 0 ? 1 : -1;
-    } else {
-      // trackpad stream (or pinch): accumulate, then one step per gesture
-      if (wheelConsumed) return;
-      wheelAcc += e.deltaY;
-      const threshold = e.ctrlKey ? 25 : 60;
-      if (Math.abs(wheelAcc) < threshold) return;
-      dir = wheelAcc < 0 ? 1 : -1;
-      wheelAcc = 0;
-      wheelConsumed = true;
-    }
-    lastZoomAt = now;
-
-    const oldZoom = cam.zoom;
-    const next = Math.max(1, Math.min(4, oldZoom + dir));
-    if (next === oldZoom) return;
-    // zoom toward the cursor
-    const mx = e.clientX * dpr;
-    const my = e.clientY * dpr;
-    const wx = (cam.x + mx) / oldZoom;
-    const wy = (cam.y + my) / oldZoom;
-    cam.zoom = next;
-    cam.x = wx * next - mx;
-    cam.y = wy * next - my;
+    // plain scroll: pan on whichever axes the gesture moved
+    cam.x += e.deltaX * dpr;
+    cam.y += e.deltaY * dpr;
     cam.clamp(g, renderer.viewW, renderer.viewH);
   },
   { passive: false }
@@ -890,6 +889,16 @@ window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement | null;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
   keys.add(e.key.toLowerCase());
+  if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    zoomStep(1);
+    return;
+  }
+  if (e.key === '-' || e.key === '_') {
+    e.preventDefault();
+    zoomStep(-1);
+    return;
+  }
   if (editor.active) {
     if (editor.setToolByKey(e.key)) return;
     return;
