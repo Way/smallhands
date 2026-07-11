@@ -29,6 +29,31 @@ self-contained static site (~22 kB gzipped).
 - **Four handcrafted levels** — from a gentle tutorial to a three-terrace summit
   supply line, each verified completable end-to-end.
 
+## The Workshop: editor, generator & daily challenge
+
+Beyond the campaign, the level select offers a **Workshop** row:
+
+- **Level editor** — sculpt terrain (ground / rock / dig), plant trees,
+  boulders and iron veins, move the Town Hall and caravan, set the delivery
+  order, starting crew, stock and Town Hall level. One click **verifies**
+  the level with a static solvability analysis (buried buildings, sealed-off
+  resources, cargo routes checked on a graph that assumes you may build
+  platforms and lifts, resource budget vs. the order) and **Playtest** drops
+  you straight into the real game — and back into the editor.
+- **Procedural generator** — seeded, difficulty ★1–★5. Terrain is built from
+  a grammar of flats, cliffs and pits (the classic "get it back up" puzzle),
+  the economy is budgeted to the generated order, and every roll is
+  re-verified until it passes. The same seed always builds the same level —
+  share seeds with friends.
+- **Daily challenge** — one shared seed per calendar day, difficulty rising
+  through the week. Completion is tracked.
+- **Share codes** — any level (edited or generated) exports as a compact
+  `SMH1.…` text code; import codes from the level select. No server needed —
+  levels and progress live in localStorage.
+
+The design for where the game goes next — story, chapters, new mechanics,
+skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
+
 ## Controls
 
 | Input | Action |
@@ -58,6 +83,15 @@ ladder logistics) and fails if the levels can't be completed:
 ```bash
 npm run build && npm run preview &   # serve dist on :4173
 node tests/e2e.mjs
+```
+
+A second suite drives the level editor (open, verify, sculpt, playtest,
+return), checks the generator across 30 seed × difficulty combinations
+(verified + booted in the real simulation + deterministic), round-trips a
+share code and soaks a generated level for 60 simulated seconds:
+
+```bash
+node tests/editor-generator.mjs
 ```
 
 ## Hosting

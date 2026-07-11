@@ -63,7 +63,13 @@ export class Renderer {
     return this.canvas.height;
   }
 
-  draw(game: Game, cam: Camera, hover: HoverState, timeSec: number): void {
+  draw(
+    game: Game,
+    cam: Camera,
+    hover: HoverState,
+    timeSec: number,
+    overlay?: (ctx: CanvasRenderingContext2D) => void
+  ): void {
     const { ctx } = this;
     const W = this.canvas.width;
     const H = this.canvas.height;
@@ -83,6 +89,7 @@ export class Renderer {
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
+    overlay?.(ctx);
 
     ctx.restore();
   }

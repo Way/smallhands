@@ -3,14 +3,25 @@ import { TILE, TOOL_DEFS } from './game/types';
 import type { Tool } from './game/types';
 import { buildAtlas, drawIconTo } from './engine/sprites';
 import { audio } from './engine/audio';
-import { loadSave, persistSave } from './engine/save';
+import {
+  deleteCustomLevel,
+  loadCustomLevels,
+  loadSave,
+  persistSave,
+  upsertCustomLevel,
+} from './engine/save';
 import { Game } from './game/sim';
 import { findPath } from './game/nav';
 import type { GameEvent } from './game/sim';
 import { LEVELS } from './game/levels';
+import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud } from './game/ui';
+import { Editor } from './game/editor';
+import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
+import type { CustomLevelData } from './game/leveldata';
+import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui-root') as HTMLDivElement;
@@ -25,6 +36,7 @@ buildAtlas();
 }
 
 const save = loadSave();
+let customLevels = loadCustomLevels();
 audio.muted = save.muted;
 
 const renderer = new Renderer(canvas);
@@ -33,11 +45,49 @@ const cam = new Camera();
 let game: Game | null = null;
 let hud: Hud | null = null;
 let currentLevelIdx = 0;
+// context of the running level: campaign index or custom data (+ playtest flag)
+let currentCustom: CustomLevelData | null = null;
+let playtesting = false;
 let speed = 1;
 let prevSpeed = 1; // speed to restore when resuming from the level-select overlay
 let running = false;
 
 const hover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
+const noHover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
+
+// ---- editor ---------------------------------------------------------------------
+
+const editor = new Editor(uiRoot, {
+  onExit: () => {
+    const leave = () => {
+      editor.close();
+      showLevelSelect();
+    };
+    if (editor.dirty) showConfirm('Leave the editor? Unsaved changes will be lost.', 'Leave editor', leave);
+    else leave();
+  },
+  onPlaytest: (data) => {
+    editor.close();
+    startCustomLevel(data, { playtest: true });
+  },
+  onSave: (data) => {
+    customLevels = upsertCustomLevel(customLevels, data);
+  },
+});
+
+function openEditor(data?: CustomLevelData): void {
+  clearOverlay();
+  running = false;
+  game = null;
+  hud = null;
+  uiRoot.innerHTML = '';
+  editor.open(data);
+  cam.zoom = 2;
+  const th = editor.game.townhall;
+  cam.x = th.x * TILE * cam.zoom - renderer.viewW / 3;
+  cam.y = th.y * TILE * cam.zoom - renderer.viewH / 2;
+  cam.clamp(editor.game, renderer.viewW, renderer.viewH);
+}
 
 // ---- overlays ---------------------------------------------------------------
 
@@ -129,12 +179,14 @@ function showLevelSelect(): void {
   clearOverlay();
   running = false;
   const ov = document.createElement('div');
-  ov.className = 'overlay';
+  ov.className = 'overlay level-select';
   const h = document.createElement('div');
   h.className = 'title-logo';
   h.style.fontSize = '38px';
   h.textContent = 'Choose a level';
   ov.appendChild(h);
+
+  // ---- campaign ----
   const grid = document.createElement('div');
   grid.className = 'level-grid';
   LEVELS.forEach((lvl, i) => {
@@ -161,6 +213,148 @@ function showLevelSelect(): void {
     grid.appendChild(card);
   });
   ov.appendChild(grid);
+
+  // ---- workshop: daily challenge, generator, editor, custom levels ----
+  const sec = document.createElement('div');
+  sec.className = 'section-title';
+  sec.textContent = 'Workshop — endless levels, daily challenge & your own creations';
+  ov.appendChild(sec);
+
+  const wgrid = document.createElement('div');
+  wgrid.className = 'level-grid workshop-grid';
+  ov.appendChild(wgrid);
+
+  // daily challenge
+  {
+    const daily = dailySeed();
+    const done = save.completedCustom.includes(daily.seed);
+    const card = document.createElement('button');
+    card.className = 'level-card daily';
+    card.innerHTML = `
+      <div class="lv-num">📅</div>
+      <div class="lv-name">Daily Challenge</div>
+      <div class="lv-desc">${daily.label} · difficulty ★${daily.difficulty}. One shared seed per day — same mountain for everyone.</div>
+      <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
+    `;
+    card.onclick = () => {
+      audio.click();
+      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => {
+        const data = generateVerifiedLevel({ seed: daily.seed, difficulty: daily.difficulty });
+        data.id = daily.seed; // stable id so completion sticks
+        data.name = `Daily · ${daily.label}`;
+        startCustomLevel(data, {});
+      });
+    };
+    wgrid.appendChild(card);
+  }
+
+  // generate
+  {
+    const card = document.createElement('button');
+    card.className = 'level-card action';
+    card.innerHTML = `
+      <div class="lv-num">🎲</div>
+      <div class="lv-name">Generate a level</div>
+      <div class="lv-desc">Roll a fresh, verified level from a seed. Pick your difficulty, share the seed with friends.</div>
+      <div class="lv-status">Endless</div>
+    `;
+    card.onclick = () => {
+      audio.click();
+      showGenerateDialog();
+    };
+    wgrid.appendChild(card);
+  }
+
+  // new level in editor
+  {
+    const card = document.createElement('button');
+    card.className = 'level-card action';
+    card.innerHTML = `
+      <div class="lv-num">✎</div>
+      <div class="lv-name">Level editor</div>
+      <div class="lv-desc">Sculpt terrain, plant resources, set the delivery order — then playtest and share it as a code.</div>
+      <div class="lv-status">Create</div>
+    `;
+    card.onclick = () => {
+      audio.click();
+      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => openEditor());
+    };
+    wgrid.appendChild(card);
+  }
+
+  // import code
+  {
+    const card = document.createElement('button');
+    card.className = 'level-card action';
+    card.innerHTML = `
+      <div class="lv-num">⇩</div>
+      <div class="lv-name">Import code</div>
+      <div class="lv-desc">Paste a shared level code (SMH1.…) to add someone else's level to your list.</div>
+      <div class="lv-status">Share</div>
+    `;
+    card.onclick = () => {
+      audio.click();
+      const code = window.prompt('Paste a Smallhands level code:');
+      if (!code) return;
+      const data = decodeShareCode(code);
+      if (!data) {
+        window.alert('That code could not be read — make sure the whole SMH1.… string was copied.');
+        return;
+      }
+      customLevels = upsertCustomLevel(customLevels, data);
+      showLevelSelect();
+    };
+    wgrid.appendChild(card);
+  }
+
+  // saved custom levels
+  for (const lvl of customLevels) {
+    const done = save.completedCustom.includes(lvl.id);
+    const card = document.createElement('div');
+    card.className = 'level-card custom';
+    card.innerHTML = `
+      <div class="lv-num">★</div>
+      <div class="lv-name"></div>
+      <div class="lv-desc"></div>
+      <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
+    `;
+    (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
+    (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || 'A custom level.';
+    card.onclick = () => {
+      audio.click();
+      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => startCustomLevel(lvl, {}));
+    };
+    const actions = document.createElement('div');
+    actions.className = 'lv-actions';
+    const mkBtn = (label: string, title: string, fn: (e: Event) => void) => {
+      const b = document.createElement('button');
+      b.className = 'lv-action-btn';
+      b.textContent = label;
+      b.title = title;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        audio.click();
+        fn(e);
+      };
+      actions.appendChild(b);
+    };
+    mkBtn('✎', 'Edit this level', () =>
+      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => openEditor(lvl))
+    );
+    mkBtn('⧉', 'Copy share code', () => {
+      const code = encodeShareCode(lvl);
+      navigator.clipboard?.writeText(code).catch(() => window.prompt('Copy this level code:', code));
+    });
+    mkBtn('✕', 'Delete this level', () =>
+      showConfirm(`Delete "${lvl.name}"? This cannot be undone.`, 'Delete level', () => {
+        customLevels = deleteCustomLevel(customLevels, lvl.id);
+        showLevelSelect();
+      })
+    );
+    card.appendChild(actions);
+    wgrid.appendChild(card);
+  }
+
   const row = document.createElement('div');
   row.className = 'btn-row';
   if (gameInProgress()) {
@@ -192,6 +386,94 @@ function showLevelSelect(): void {
   uiRoot.appendChild(ov);
 }
 
+function showGenerateDialog(): void {
+  const ov = document.createElement('div');
+  ov.className = 'overlay confirm-overlay';
+  const box = document.createElement('div');
+  box.className = 'panel confirm-box gen-box';
+  const msg = document.createElement('div');
+  msg.className = 'confirm-msg';
+  msg.innerHTML = '<b>Generate a level</b><br/>The same seed and difficulty always build the same level.';
+  box.appendChild(msg);
+
+  const seedRow = document.createElement('div');
+  seedRow.className = 'gen-row';
+  const seedIn = document.createElement('input');
+  seedIn.className = 'ed-input';
+  seedIn.value = randomSeed();
+  seedIn.maxLength = 40;
+  seedRow.appendChild(seedIn);
+  const reroll = document.createElement('button');
+  reroll.className = 'ed-btn';
+  reroll.textContent = '↻';
+  reroll.title = 'New random seed';
+  reroll.onclick = () => {
+    seedIn.value = randomSeed();
+    audio.click();
+  };
+  seedRow.appendChild(reroll);
+  box.appendChild(seedRow);
+
+  const diffRow = document.createElement('div');
+  diffRow.className = 'gen-row';
+  const diffLbl = document.createElement('span');
+  diffLbl.textContent = 'Difficulty';
+  diffRow.appendChild(diffLbl);
+  const diffSel = document.createElement('select');
+  diffSel.className = 'ed-input ed-select';
+  const names = ['★1 Stroll', '★2 Hike', '★3 Climb', '★4 Expedition', '★5 Ascent'];
+  names.forEach((n, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i + 1);
+    opt.textContent = n;
+    diffSel.appendChild(opt);
+  });
+  diffSel.value = '2';
+  diffRow.appendChild(diffSel);
+  box.appendChild(diffRow);
+
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  const gen = (openInEditor: boolean) => {
+    const seed = seedIn.value.trim() || randomSeed();
+    const data = generateVerifiedLevel({ seed, difficulty: Number(diffSel.value) });
+    ov.remove();
+    if (openInEditor) openEditor(data);
+    else startCustomLevel(data, {});
+  };
+  const play = document.createElement('button');
+  play.className = 'big-btn';
+  play.textContent = '▶ Play';
+  play.onclick = () => {
+    audio.click();
+    confirmIfInProgress('Abandon the current level?', 'Abandon level', () => gen(false));
+  };
+  row.appendChild(play);
+  const edit = document.createElement('button');
+  edit.className = 'big-btn secondary';
+  edit.textContent = '✎ Open in editor';
+  edit.onclick = () => {
+    audio.click();
+    confirmIfInProgress('Abandon the current level?', 'Abandon level', () => gen(true));
+  };
+  row.appendChild(edit);
+  const cancel = document.createElement('button');
+  cancel.className = 'big-btn secondary';
+  cancel.textContent = 'Cancel';
+  cancel.onclick = () => {
+    audio.click();
+    ov.remove();
+  };
+  row.appendChild(cancel);
+  box.appendChild(row);
+  ov.appendChild(box);
+  ov.addEventListener('pointerdown', (e) => {
+    if (e.target === ov) ov.remove();
+  });
+  uiRoot.appendChild(ov);
+  seedIn.focus();
+}
+
 function showWin(): void {
   const g = game!;
   const ov = document.createElement('div');
@@ -208,21 +490,42 @@ function showWin(): void {
   ov.appendChild(stats);
   const row = document.createElement('div');
   row.className = 'btn-row';
-  const next = LEVELS[currentLevelIdx + 1];
-  if (next) {
-    const nb = document.createElement('button');
-    nb.className = 'big-btn';
-    nb.textContent = `Next: ${next.name} →`;
-    nb.onclick = () => {
+  if (playtesting && currentCustom) {
+    const back = document.createElement('button');
+    back.className = 'big-btn';
+    back.textContent = '✎ Back to editor';
+    back.onclick = () => {
       audio.click();
-      startLevel(currentLevelIdx + 1);
+      openEditor(currentCustom!);
     };
-    row.appendChild(nb);
+    row.appendChild(back);
+  } else if (!currentCustom) {
+    const next = LEVELS[currentLevelIdx + 1];
+    if (next) {
+      const nb = document.createElement('button');
+      nb.className = 'big-btn';
+      nb.textContent = `Next: ${next.name} →`;
+      nb.onclick = () => {
+        audio.click();
+        startLevel(currentLevelIdx + 1);
+      };
+      row.appendChild(nb);
+    } else {
+      const done = document.createElement('div');
+      done.className = 'win-stats';
+      done.innerHTML =
+        '<b>You have finished every campaign level!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.';
+      ov.appendChild(done);
+    }
   } else {
-    const done = document.createElement('div');
-    done.className = 'win-stats';
-    done.innerHTML = '<b>You have finished every level — thanks for playing!</b>';
-    ov.appendChild(done);
+    const again = document.createElement('button');
+    again.className = 'big-btn';
+    again.textContent = '🎲 Another one';
+    again.onclick = () => {
+      audio.click();
+      showGenerateDialog();
+    };
+    row.appendChild(again);
   }
   const lv = document.createElement('button');
   lv.className = 'big-btn secondary';
@@ -236,9 +539,21 @@ function showWin(): void {
 // ---- level lifecycle -----------------------------------------------------------
 
 function startLevel(idx: number): void {
-  clearOverlay();
   currentLevelIdx = idx;
-  const def = LEVELS[idx];
+  currentCustom = null;
+  playtesting = false;
+  startGame(LEVELS[idx]);
+}
+
+function startCustomLevel(data: CustomLevelData, opts: { playtest?: boolean }): void {
+  currentCustom = data;
+  playtesting = opts.playtest ?? false;
+  startGame(levelDefFromData(data));
+}
+
+function startGame(def: LevelDef): void {
+  clearOverlay();
+  editor.close();
   game = new Game(def);
   speed = 1;
   cam.zoom = 2;
@@ -256,6 +571,10 @@ function startLevel(idx: number): void {
     },
     onUpgrade: () => game!.startThUpgrade(),
     onMenu: () => {
+      if (playtesting && currentCustom) {
+        openEditor(currentCustom);
+        return;
+      }
       prevSpeed = speed;
       setSpeed(0);
       showLevelSelect();
@@ -264,7 +583,10 @@ function startLevel(idx: number): void {
       confirmIfInProgress(
         `Restart "${game!.level.name}"? Progress in the current level will be lost.`,
         'Restart level',
-        () => startLevel(currentLevelIdx)
+        () => {
+          if (currentCustom) startCustomLevel(currentCustom, { playtest: playtesting });
+          else startLevel(currentLevelIdx);
+        }
       ),
   });
   setTool('select');
@@ -281,6 +603,13 @@ function startLevel(idx: number): void {
     setSpeed,
     setTool,
     findPath,
+    editor,
+    generateVerifiedLevel,
+    startCustomLevel,
+    verifyLevel,
+    encodeShareCode,
+    decodeShareCode,
+    blankLevelData,
   };
 }
 
@@ -322,7 +651,12 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'win': {
       audio.win();
-      if (!save.completed.includes(game!.level.id)) {
+      if (currentCustom) {
+        if (!playtesting && !save.completedCustom.includes(currentCustom.id)) {
+          save.completedCustom.push(currentCustom.id);
+          persistSave(save);
+        }
+      } else if (!save.completed.includes(game!.level.id)) {
         save.completed.push(game!.level.id);
         persistSave(save);
       }
@@ -366,6 +700,7 @@ function setSpeed(s: number): void {
 
 let dragging = false;
 let dragMoved = false;
+let painting = false; // editor drag-paint stroke in progress
 let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
@@ -376,39 +711,59 @@ canvas.addEventListener('pointerdown', (e) => {
   dragMoved = false;
   lastMx = e.clientX;
   lastMy = e.clientY;
+  if (editor.active && e.button === 0 && editor.toolDef().drag) {
+    const dpr = canvas.width / canvas.clientWidth;
+    const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+    painting = true;
+    editor.applyAt(t.x, t.y, false);
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {
   const dpr = canvas.width / canvas.clientWidth;
-  if (dragging) {
+  const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+  if (painting) {
+    editor.applyAt(t.x, t.y, true);
+  } else if (dragging) {
     const dx = e.clientX - lastMx;
     const dy = e.clientY - lastMy;
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
-    if (dragMoved && (hover.tool === 'select' || e.buttons === 4 || e.buttons === 2 || dragMoved)) {
-      // pan with any tool while dragging; taps still place
+    if (dragMoved) {
+      // pan with any non-painting drag; taps still place
       cam.x -= dx * dpr;
       cam.y -= dy * dpr;
-      if (game) cam.clamp(game, renderer.viewW, renderer.viewH);
+      const g = editor.active ? editor.game : game;
+      if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
     }
     lastMx = e.clientX;
     lastMy = e.clientY;
   }
-  const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
   hover.tx = t.x;
   hover.ty = t.y;
   hover.visible = true;
+  if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
 canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
+  editor.setHover(0, 0, false);
 });
 
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
-  if (dragMoved || !game || !running) return;
-  if (e.button !== 0) return;
+  if (painting) {
+    painting = false;
+    editor.endStroke();
+    return;
+  }
+  if (dragMoved || e.button !== 0) return;
   const dpr = canvas.width / canvas.clientWidth;
   const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+  if (editor.active) {
+    editor.applyAt(t.x, t.y, false);
+    return;
+  }
+  if (!game || !running) return;
   applyTool(t.x, t.y);
 });
 
@@ -427,13 +782,14 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
-    if (!game || !running) return;
+    const g = editor.active ? editor.game : running ? game : null;
+    if (!g) return;
     const dpr = canvas.width / canvas.clientWidth;
 
     // dominant horizontal movement = pan sideways, never zoom
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
       cam.x += e.deltaX * dpr;
-      cam.clamp(game, renderer.viewW, renderer.viewH);
+      cam.clamp(g, renderer.viewW, renderer.viewH);
       return;
     }
 
@@ -441,7 +797,7 @@ canvas.addEventListener(
     // shift+wheel is the classic "scroll sideways" convention
     if (e.shiftKey && !e.ctrlKey) {
       cam.x += e.deltaY * dpr;
-      cam.clamp(game, renderer.viewW, renderer.viewH);
+      cam.clamp(g, renderer.viewW, renderer.viewH);
       return;
     }
 
@@ -481,14 +837,20 @@ canvas.addEventListener(
     cam.zoom = next;
     cam.x = wx * next - mx;
     cam.y = wy * next - my;
-    cam.clamp(game, renderer.viewW, renderer.viewH);
+    cam.clamp(g, renderer.viewW, renderer.viewH);
   },
   { passive: false }
 );
 
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
+  const target = e.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
   keys.add(e.key.toLowerCase());
+  if (editor.active) {
+    if (editor.setToolByKey(e.key)) return;
+    return;
+  }
   if (e.key === 'Escape' && !running) {
     // close a confirm dialog first; otherwise resume the paused level
     const confirm = document.querySelector('.confirm-overlay');
@@ -578,13 +940,20 @@ function frame(now: number): void {
   last = now;
 
   // keyboard camera pan
-  if (game && running) {
+  if ((game && running) || editor.active) {
     const panSpeed = 700 * dtReal;
     if (keys.has('a') || keys.has('arrowleft')) cam.x -= panSpeed;
     if (keys.has('d') || keys.has('arrowright')) cam.x += panSpeed;
     if (keys.has('w') || keys.has('arrowup')) cam.y -= panSpeed;
     if (keys.has('s') || keys.has('arrowdown')) cam.y += panSpeed;
-    cam.clamp(game, renderer.viewW, renderer.viewH);
+    const g = editor.active ? editor.game : game;
+    if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
+  }
+
+  if (editor.active) {
+    renderer.draw(editor.game, cam, noHover, now / 1000, (ctx) => editor.drawOverlay(ctx));
+    requestAnimationFrame(frame);
+    return;
   }
 
   const active = running && game ? game : idleGame;
@@ -615,7 +984,8 @@ function frame(now: number): void {
 
 function onResize(): void {
   renderer.resize();
-  if (game) cam.clamp(game, renderer.viewW, renderer.viewH);
+  const g = editor.active ? editor.game : game;
+  if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
 }
 
 window.addEventListener('resize', onResize);
