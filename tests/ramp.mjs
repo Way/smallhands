@@ -125,5 +125,14 @@ function stepWorld() {
   check('placeRampRun stops at unaffordable: 3rd cell not placed', g.world.get(col + 2, sfc - 2) === T.AIR);
 }
 
+// --- Task 4: Level 4 offers Ramp; Level 2 does not ---
+{
+  const g4 = new Game(LEVELS[3]); // The Summit Beacon
+  const g2 = new Game(LEVELS[1]); // The Cliff Shrine (lift-only)
+  check('Level 4 allows ramp', g4.toolUnlocked('ramp') === true);
+  check('Level 2 does NOT allow ramp', g2.toolUnlocked('ramp') === false);
+  check('Level 4 has a ramp hint', (LEVELS[3].hints ?? []).some((h) => h.id === 'ramp'));
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
 process.exit(failures ? 1 : 0);
