@@ -214,6 +214,40 @@ if (!ropeResult.usedSlide || !ropeResult.won) {
 }
 console.log('rope anchor: built by a builder, cargo slid down a 7-tile cliff, order delivered');
 
+// ---- 5. medal ceremony & records --------------------------------------------------
+// The rope-test win should trigger the medal ceremony and persist a record.
+await page.waitForTimeout(2200); // win screen appears 1.6s after the win event
+if (!(await page.$('.ceremony'))) await fail('win screen is missing the medal ceremony');
+const cerState = await page.evaluate(() => {
+  const medalName = document.querySelector('.medal-name')?.textContent ?? '';
+  const gauge = !!document.querySelector('.gauge .you');
+  const featsGot = document.querySelectorAll('.ceremony .feat.got').length;
+  const featsAll = document.querySelectorAll('.ceremony .feat').length;
+  const save = JSON.parse(localStorage.getItem('smallhands-save-v1') ?? '{}');
+  const recs = save.records ?? {};
+  const rec = Object.values(recs)[Object.keys(recs).length - 1];
+  return { medalName, gauge, featsGot, featsAll, recCount: Object.keys(recs).length, rec };
+});
+if (!cerState.medalName) await fail('ceremony has no medal name');
+if (!cerState.gauge) await fail('ceremony time gauge missing the player marker');
+if (cerState.featsAll !== 2 || cerState.featsGot < 1) {
+  await fail(`feats wrong: ${cerState.featsGot}/${cerState.featsAll} earned (expected no-demolish to be earned)`);
+}
+if (cerState.recCount < 1 || typeof cerState.rec?.bestTime !== 'number') {
+  await fail('no personal-best record persisted to the save file');
+}
+console.log(`medals: ceremony shown ("${cerState.medalName}"), ${cerState.featsGot}/2 feats, record saved (best ${Math.round(cerState.rec.bestTime)}s)`);
+
+// the trophy shelf should now appear on the level select
+await page.click('.overlay .big-btn.secondary'); // "Levels"
+await page.waitForTimeout(400);
+if (!(await page.$('.shelf'))) await fail('trophy shelf missing from level select after earning a record');
+if (!(await page.$('.level-card .medal-row'))) await fail('medal slots missing from level cards');
+console.log('medals: trophy shelf and card slots visible on level select');
+// head back into a level so the soak section has its debug hook
+await page.click('.level-card:not(.locked)');
+await page.waitForTimeout(400);
+
 // simulate 60s of a generated level at speed to ensure no runtime errors
 await page.evaluate(() => {
   const sh = window.__smallhands;

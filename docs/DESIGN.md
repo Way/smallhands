@@ -310,11 +310,18 @@ Phase B — the next contentful slice (each item is small and independent)
    inverse of the lift edge (top→bottom, cargo allowed). Verifier and
    generator account for it; covered by an end-to-end test that builds a
    plateau in the editor and delivers cargo down a 7-tile cliff.
-2. 🔜 Medals + per-level best times in `SaveData` (win screen already has
-   time). **Needs its own design pass first**: medals must feel genuinely
-   rewarding — prestige presentation (a Hall of Fame / trophy shelf where
-   players can show off their medals and best times) is part of the scope,
-   to be evaluated separately before implementation.
+2. ✅ Medals + best times, shipped as concepts **A + C** from the mockup
+   evaluation (`docs/mockups/medals-concepts.html`): the win-screen
+   **medal ceremony** (stamp-in medal with the amber ember emblem, honest
+   time gauge with gold/silver/bronze thresholds, feat reveals — earned and
+   missed — first-clear/new-record chip, confetti) plus the **trophy shelf**
+   in the level select (aggregate medal counts, per-card medal + feat slots
+   and best times). Two universal feats: *No Demolish* and *Light Touch*
+   (leave half of all resource nodes untouched). Campaign thresholds are
+   hand-set in `levels.ts`; generated/custom levels derive theirs from
+   order size and map width (`medalTimesFor`). Personal bests persist in
+   `SaveData.records`. Concept **B (Hall of Fame + prestige card)** remains
+   the Phase 2 follow-up once medals have accumulated.
 3. Side orders: a `sideOrder` field on `LevelDef` + spawn logic in `sim.ts`.
 4. Chapter 1 "Mistwood": 5 levels using rope + crumble tiles (new tile kind
    `T.CRUMBLE` with a crossing counter), caravan letters as overlays.

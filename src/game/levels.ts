@@ -1,5 +1,5 @@
 import { T } from './types';
-import type { ObjectiveReq, Role, Tool } from './types';
+import type { MedalTimes, ObjectiveReq, Role, Tool } from './types';
 import type { Game } from './sim';
 
 export interface LevelHint {
@@ -23,6 +23,7 @@ export interface LevelDef {
   startThLevel?: number;
   hints?: LevelHint[];
   camera?: { x: number; y: number };
+  medals?: MedalTimes; // completion-time thresholds in seconds
 }
 
 // ---- terrain authoring helpers ---------------------------------------------
@@ -89,6 +90,7 @@ export const LEVELS: LevelDef[] = [
     width: 56,
     height: 26,
     objectives: [{ item: 'plank', amount: 8 }],
+    medals: { gold: 210, silver: 330, bronze: 540 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'demolish'],
     startStock: { log: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1 },
@@ -143,6 +145,7 @@ export const LEVELS: LevelDef[] = [
       { item: 'stone', amount: 10 },
       { item: 'plank', amount: 6 },
     ],
+    medals: { gold: 270, silver: 390, bronze: 600 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'lift', 'demolish'],
     startStock: { log: 4, plank: 6, stone: 4 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
@@ -194,6 +197,7 @@ export const LEVELS: LevelDef[] = [
       { item: 'plank', amount: 8 },
       { item: 'stone', amount: 8 },
     ],
+    medals: { gold: 360, silver: 510, bronze: 720 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'lift', 'demolish'],
     startStock: { log: 6, plank: 4, stone: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
@@ -263,6 +267,7 @@ export const LEVELS: LevelDef[] = [
       { item: 'stone', amount: 10 },
       { item: 'spear', amount: 4 },
     ],
+    medals: { gold: 480, silver: 660, bronze: 960 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
     startStock: { log: 6, plank: 2, stone: 4 },
     startRoles: { hauler: 3, builder: 1, woodcutter: 1, miner: 1 },

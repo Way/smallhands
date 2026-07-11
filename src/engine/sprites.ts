@@ -572,6 +572,46 @@ export function buildAtlas(): void {
     '................',
   ]);
 
+  // medals: ribbon + disc with the amber ember of the Ember Road on every tier
+  const medalRows = [
+    '..rr........rr..',
+    '..rRr......rRr..',
+    '...rRr....rRr...',
+    '...rRRr..rRRr...',
+    '....rRRrrRRr....',
+    '.....kkkkkk.....',
+    '...kkGGGGGGkk...',
+    '..kGGGGffGGGGk..',
+    '.kGGGGfffFGGGGk.',
+    '.kGGGGffFFGGGGk.',
+    '.kGGGgfFFfgGGGk.',
+    '.kGGGGgffgGGGGk.',
+    '..kGGggggggGGk..',
+    '...kGgggggggk...',
+    '....kkggggkk....',
+    '......kkkk......',
+  ];
+  const ember = { f: '#ffe094', F: '#ff8a3d' };
+  makeSprite('medal_gold', { k: '#a06f14', G: '#ffd76e', g: '#f0a92e', r: '#a03028', R: '#e0554a', ...ember }, medalRows);
+  makeSprite('medal_silver', { k: '#6d7a90', G: '#dfe7f2', g: '#aebccf', r: '#37699c', R: '#5aa2e8', ...ember }, medalRows);
+  makeSprite('medal_bronze', { k: '#7a4a22', G: '#e0a06a', g: '#b87840', r: '#3f8f43', R: '#6fd66f', ...ember }, medalRows);
+
+  // feat pin: a shield with a star
+  makeSprite('pin_feat', { k: '#a06f14', S: '#5aa2e8', w: '#ffd76e' }, [
+    '.kkkkkkkkkk.',
+    'kSSSSSSSSSSk',
+    'kSSSSwwSSSSk',
+    'kSSSwwwwSSSk',
+    'kSwwwwwwwwSk',
+    'kSSwwwwwwSSk',
+    'kSSSwwwwSSSk',
+    'kSSwwSSwwSSk',
+    '.kSSSSSSSSk.',
+    '..kSSSSSSk..',
+    '...kSSSSk...',
+    '....kkkk....',
+  ]);
+
   // crate for the town hall stockpile
   makeSprite('crate', { c: '#b98850', C: '#d3a86e', k: '#7c5830' }, [
     'kkkkkkkk',

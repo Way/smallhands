@@ -123,6 +123,7 @@ export class Game {
   time = 0;
   speed = 1;
   paused = false;
+  demolishCount = 0; // for the "No Demolish" feat
 
   private nextId = 1;
   private spawnTimer = 1;
@@ -378,6 +379,7 @@ export class Game {
       // refunding a log would let plank→ladder→demolish→log→sawmill mint free
       // planks. Planks never convert back to logs, so a plank refund can't loop.
       this.refund({ plank: 1 }, 0.5);
+      this.demolishCount++;
       this.onEvent({ type: 'demolish' });
       return true;
     }
@@ -394,6 +396,9 @@ export class Game {
       if (b.kind === 'lift') {
         this.world.extraSupport.delete(this.world.idx(b.x, b.liftTopY + 1));
       }
+      // Cancelling an unbuilt blueprint refunds in full and tears down nothing
+      // real, so it shouldn't cost the player the "No Demolish" feat.
+      if (b.state !== 'blueprint') this.demolishCount++;
       this.buildings = this.buildings.filter((o) => o.id !== b.id);
       // abort tasks that reference it
       for (const w of this.workers) {
@@ -1156,6 +1161,20 @@ export class Game {
         }
       }
     }
+  }
+
+  // Which feats did this run earn? Evaluated at win time.
+  earnedFeats(): string[] {
+    const out: string[] = [];
+    if (this.demolishCount === 0) out.push('no-demolish');
+    if (this.nodes.length > 0) {
+      const touched = this.nodes.filter((n) => n.yieldLeft < NODE_YIELD[n.kind].amount).length;
+      // "leave half untouched" ⇒ untouched ≥ n/2 ⇒ touched ≤ floor(n/2). Using
+      // floor (not ceil) keeps the miss honest: it can't be earned by touching a
+      // majority on odd counts, and a single-node level can't cheat it.
+      if (touched <= Math.floor(this.nodes.length / 2)) out.push('light-touch');
+    }
+    return out;
   }
 
   private checkWin(): void {

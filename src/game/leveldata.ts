@@ -2,7 +2,7 @@
 // procedural generator, stored in localStorage and shareable as a text code.
 
 import { FOOTPRINTS, ITEM_TYPES, ROLES, T } from './types';
-import type { ItemType, NodeKind, ObjectiveReq, Role } from './types';
+import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
 import type { LevelDef } from './levels';
@@ -104,6 +104,16 @@ export function blankLevelData(width = 64, height = 28): CustomLevelData {
 
 // ---- LevelDef bridge -----------------------------------------------------------
 
+// Medal thresholds for generated/custom levels, derived from the order size
+// and the walking distances the map implies. Deliberately a touch generous —
+// hand-tuned thresholds are for the campaign; these keep dailies fair.
+export function medalTimesFor(data: CustomLevelData): MedalTimes {
+  const items = data.objectives.reduce((s, o) => s + o.amount, 0);
+  const par = 100 + items * 15 + Math.round(data.width * 0.8);
+  const r = (v: number) => Math.round(v / 10) * 10;
+  return { gold: r(par), silver: r(par * 1.5), bronze: r(par * 2.3) };
+}
+
 let customDefSeq = 1000;
 
 export function levelDefFromData(data: CustomLevelData): LevelDef {
@@ -118,6 +128,7 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     startRoles: { ...data.startRoles },
     startWorkers: data.startWorkers,
     startThLevel: data.startThLevel,
+    medals: medalTimesFor(data),
     camera: { x: Math.max(0, data.townhall.x - 6), y: Math.max(0, data.townhall.y - 6) },
     build: (g) => {
       g.world.tiles = decodeTiles(data.tiles, data.width * data.height);

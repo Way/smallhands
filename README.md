@@ -30,6 +30,10 @@ self-contained static site (~22 kB gzipped).
   grow your crew.
 - **Four handcrafted levels** — from a gentle tutorial to a three-terrace summit
   supply line, each verified completable end-to-end.
+- **Medals & personal bests** — every level has gold/silver/bronze time
+  thresholds and two feats (*No Demolish*, *Light Touch*). Wins end in a
+  medal ceremony with an honest time gauge; the level select carries a
+  trophy shelf and per-level medal slots. Records live in localStorage.
 
 ## The Workshop: editor, generator & daily challenge
 
