@@ -84,6 +84,31 @@ html, body {
   100% { background: rgba(255, 255, 255, 0.06); }
 }
 
+.res-chip { cursor: pointer; position: relative; border: 1px solid transparent; color: var(--text); }
+.res-chip:hover { border-color: var(--panel-border-light); }
+.res-chip.has-keep { border-color: var(--accent); }
+.keep-badge {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: var(--accent); color: #1a1e28;
+  font-size: 10px; font-weight: 800; line-height: 15px; text-align: center;
+}
+.res-pop {
+  position: absolute; z-index: 60; padding: 8px 10px; min-width: 150px;
+  background: var(--panel-bg); border: 1px solid var(--panel-border-light);
+  border-radius: 8px; font-size: 12px; line-height: 1.4; color: var(--text);
+}
+.res-pop-name { font-weight: 700; margin-bottom: 5px; }
+.res-pop-row { display: flex; align-items: center; gap: 8px; }
+.res-keep-val { min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.res-step {
+  width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid var(--panel-border-light);
+  color: var(--text); font-size: 15px; font-weight: 700; line-height: 1;
+}
+.res-step:hover { border-color: var(--accent); }
+.res-pop-note { margin-top: 6px; color: var(--text-dim); font-size: 11px; }
+
 .spacer { flex: 1; pointer-events: none !important; }
 
 /* ---- objectives ---- */
@@ -249,6 +274,16 @@ html, body {
 .speed-btn:hover { color: var(--text); border-color: var(--accent); }
 .speed-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
 
+/* ---- zoom controls ---- */
+.zoombar {
+  position: absolute;
+  bottom: 58px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+}
+
 /* ---- menu button ---- */
 .menubar {
   position: absolute;
@@ -297,6 +332,27 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 .toast.warn { border-color: var(--danger); }
+
+/* interactive town-hall toast */
+.th-toast { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.th-toast .th-toast-body { color: var(--text-dim); font-size: 13px; }
+.th-toast .th-toast-cost { display: flex; gap: 10px; }
+.th-toast .cost-item { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; }
+.th-toast canvas { width: 16px; height: 16px; image-rendering: pixelated; }
+.th-toast .insufficient { color: var(--danger); }
+.th-toast .th-mini {
+  padding: 5px 16px;
+  border: 1px solid var(--panel-border-light);
+  border-radius: 6px;
+  background: linear-gradient(#2e3c55, #253148);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.th-toast .th-mini:hover:not(:disabled) { border-color: var(--accent); }
+.th-toast .th-mini:disabled { opacity: 0.45; cursor: default; }
+.th-toast .dismiss { margin-left: 0; }
 
 /* ---- overlays (title, level select, win) ---- */
 .overlay {
@@ -451,7 +507,9 @@ html, body {
 .tooltip .tt-time { margin-top: 4px; font-size: 11px; color: var(--text-dim); text-align: center; }
 
 @media (max-width: 860px) {
-  .crew { display: none; }
+  .topbar { flex-wrap: wrap; }
+  .spacer { display: none; }
+  .crew { min-width: 150px; }
   .objectives { max-width: 200px; }
   .tool-btn { width: 46px; height: 46px; }
 }

@@ -1,7 +1,7 @@
 import './style.css';
 import { FEATS, TILE, TOOL_DEFS, bestTier, medalFor } from './game/types';
 import type { MedalTier, Tool } from './game/types';
-import { buildAtlas, drawIconTo } from './engine/sprites';
+import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio } from './engine/audio';
 import {
   deleteCustomLevel,
@@ -17,7 +17,8 @@ import { LEVELS } from './game/levels';
 import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
-import { Hud } from './game/ui';
+import { rampRunCells, bridgeRunCells } from './game/world';
+import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
@@ -151,9 +152,12 @@ function openEditor(data?: CustomLevelData): void {
   hud = null;
   uiRoot.innerHTML = '';
   editor.open(data);
+  canvas.style.cursor = 'crosshair'; // editor paints tiles; drop the game tool cursor
   cam.zoom = 2;
+  const dpr = canvas.width / canvas.clientWidth;
+  cam.rightInset = editor.panelRightInset() * dpr;
   const th = editor.game.townhall;
-  cam.x = th.x * TILE * cam.zoom - renderer.viewW / 3;
+  cam.x = th.x * TILE * cam.zoom - (renderer.viewW - cam.rightInset) / 3;
   cam.y = th.y * TILE * cam.zoom - renderer.viewH / 2;
   cam.clamp(editor.game, renderer.viewW, renderer.viewH);
 }
@@ -771,6 +775,7 @@ function startCustomLevel(data: CustomLevelData, opts: { playtest?: boolean }): 
 function startGame(def: LevelDef): void {
   clearOverlay();
   editor.close();
+  cam.rightInset = 0;
   game = new Game(def);
   speed = 1;
   cam.zoom = 2;
@@ -782,6 +787,7 @@ function startGame(def: LevelDef): void {
   hud = new Hud(uiRoot, game, {
     onTool: setTool,
     onSpeed: (s) => setSpeed(s),
+    onZoom: (dir) => zoomStep(dir),
     onRole: (r, d) => {
       game!.setDesired(r, game!.desiredRoles[r] + d);
       audio.click();
@@ -850,10 +856,13 @@ function handleEvent(e: GameEvent): void {
     case 'built':
       audio.built();
       break;
-    case 'upgraded':
+    case 'upgraded': {
       audio.upgraded();
       h.toast(`<b>Town Hall level ${e.level}!</b> New buildings unlocked and a bigger crew.`, false, 6);
+      const th = game!.townhall;
+      renderer.addUpgradeEffect((th.x + 2) * TILE, th.y * TILE + 4, e.level);
       break;
+    }
     case 'produce':
       break;
     case 'spawn':
@@ -919,6 +928,33 @@ function handleEvent(e: GameEvent): void {
   }
 }
 
+// ---- cursors: the pointer becomes the tool you're holding ------------------------
+// Each tool's toolbar icon is rendered once to a data-URI and used as the OS cursor,
+// so Harvest literally hands you the hoe. Inspect keeps the native grab/grabbing
+// pointer to advertise panning.
+const CURSOR_SIZE = 28;
+const CURSOR_HOTSPOT: Partial<Record<Tool, [number, number]>> = {
+  harvest: [5, 3], // the hoe's blade, so it points at the tile it will mark
+};
+const cursorCache = new Map<Tool, string>();
+function toolCursorCss(tool: Tool): string {
+  if (tool === 'select') return 'grab';
+  const icon = TOOL_ICON[tool];
+  if (!icon) return 'default';
+  let css = cursorCache.get(tool);
+  if (!css) {
+    const c = document.createElement('canvas');
+    drawIconTo(c, icon, CURSOR_SIZE);
+    const [hx, hy] = CURSOR_HOTSPOT[tool] ?? [CURSOR_SIZE / 2, CURSOR_SIZE / 2];
+    css = `url(${c.toDataURL()}) ${hx} ${hy}, auto`;
+    cursorCache.set(tool, css);
+  }
+  return css;
+}
+function applyToolCursor(): void {
+  canvas.style.cursor = editor.active ? 'crosshair' : toolCursorCss(hover.tool);
+}
+
 function setTool(t: Tool): void {
   if (!game || !hud) return;
   const def = TOOL_DEFS.find((d) => d.id === t)!;
@@ -929,6 +965,8 @@ function setTool(t: Tool): void {
   }
   hover.tool = t;
   hud.setActiveTool(t);
+  runAnchor = null;
+  applyToolCursor();
   audio.click();
 }
 
@@ -947,6 +985,8 @@ let painting = false; // editor drag-paint stroke in progress
 let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
+let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
+const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform';
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
@@ -960,6 +1000,11 @@ canvas.addEventListener('pointerdown', (e) => {
     painting = true;
     editor.applyAt(t.x, t.y, false);
   }
+  if (!editor.active && e.button === 0 && game && running && isRunTool(hover.tool)) {
+    const dpr = canvas.width / canvas.clientWidth;
+    const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+    runAnchor = { x: t.x, y: t.y, tool: hover.tool };
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {
@@ -967,12 +1012,13 @@ canvas.addEventListener('pointermove', (e) => {
   const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
   if (painting) {
     editor.applyAt(t.x, t.y, true);
-  } else if (dragging) {
+  } else if (dragging && !runAnchor) {
     const dx = e.clientX - lastMx;
     const dy = e.clientY - lastMy;
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
     if (dragMoved) {
       // pan with any non-painting drag; taps still place
+      canvas.style.cursor = 'grabbing';
       cam.x -= dx * dpr;
       cam.y -= dy * dpr;
       const g = editor.active ? editor.game : game;
@@ -984,19 +1030,48 @@ canvas.addEventListener('pointermove', (e) => {
   hover.tx = t.x;
   hover.ty = t.y;
   hover.visible = true;
+
+  // hover hint for the town hall (Select tool, not while panning)
+  const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
+  if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
+  else hud?.hideBuildingHint();
+  // cursor cost badge: while placing a cost-bearing tool, spell out which
+  // resource is short so a red ghost isn't a mystery (no-op when affordable)
+  if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
+  else hud?.hidePlacementNeeds();
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
 canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
+  hud?.hideBuildingHint();
+  hud?.hidePlacementNeeds();
   editor.setHover(0, 0, false);
+});
+
+canvas.addEventListener('pointercancel', () => {
+  dragging = false;
+  runAnchor = null;
+  applyToolCursor();
 });
 
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
+  applyToolCursor(); // drop the grabbing hand back to the tool cursor
   if (painting) {
     painting = false;
     editor.endStroke();
+    return;
+  }
+  if (runAnchor) {
+    const a = runAnchor;
+    runAnchor = null;
+    const dpr = canvas.width / canvas.clientWidth;
+    const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
+    if (game && running) {
+      if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
+      else game.placeBridgeRun(a.x, a.y, t.x, t.y);
+    }
     return;
   }
   if (dragMoved || e.button !== 0) return;
@@ -1012,14 +1087,34 @@ canvas.addEventListener('pointerup', (e) => {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// Wheel handling: trackpads fire dozens of small-delta events per gesture and
-// also emit horizontal deltas while two-finger panning. Pan on the dominant
-// axis; only step the zoom once a full notch of vertical delta accumulates,
-// with a short cooldown so one gesture ≈ one zoom step.
-let wheelAcc = 0;
-let wheelAccAt = 0;
-let wheelConsumed = false;
-let lastZoomAt = 0;
+// Step the zoom one level toward an anchor point given in device pixels.
+// Defaults to the centre of the usable viewport, which is what the +/- keys
+// and the on-screen buttons want; the pinch handler passes the cursor instead.
+function zoomStep(dir: number, ax?: number, ay?: number): void {
+  const g = editor.active ? editor.game : running ? game : null;
+  if (!g) return;
+  const oldZoom = cam.zoom;
+  const next = Math.max(1, Math.min(4, oldZoom + dir));
+  if (next === oldZoom) return;
+  const anchorX = ax ?? (renderer.viewW - cam.rightInset) / 2;
+  const anchorY = ay ?? renderer.viewH / 2;
+  const wx = (cam.x + anchorX) / oldZoom;
+  const wy = (cam.y + anchorY) / oldZoom;
+  cam.zoom = next;
+  cam.x = wx * next - anchorX;
+  cam.y = wy * next - anchorY;
+  cam.clamp(g, renderer.viewW, renderer.viewH);
+}
+
+// Wheel: a plain scroll pans the map freely on both axes, so scrolling up/down
+// moves the view up/down just like scrolling sideways moves it left/right.
+// Zoom lives on pinch (ctrl+wheel), the +/- keys, and the on-screen buttons.
+// Pinch arrives as a stream of small ctrl+wheel deltas, so accumulate them into
+// one step per gesture; shift+wheel keeps the classic "scroll sideways" gesture
+// for mouse users whose wheel only emits a vertical delta.
+let pinchAcc = 0;
+let pinchAt = 0;
+let pinchConsumed = false;
 
 canvas.addEventListener(
   'wheel',
@@ -1029,57 +1124,35 @@ canvas.addEventListener(
     if (!g) return;
     const dpr = canvas.width / canvas.clientWidth;
 
-    // dominant horizontal movement = pan sideways, never zoom
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      cam.x += e.deltaX * dpr;
-      cam.clamp(g, renderer.viewW, renderer.viewH);
+    // pinch-to-zoom (ctrl+wheel): one step per gesture, aimed at the cursor
+    if (e.ctrlKey) {
+      const now = performance.now();
+      if (now - pinchAt > 250) {
+        // 250ms without wheel events = the previous gesture ended
+        pinchAcc = 0;
+        pinchConsumed = false;
+      }
+      pinchAt = now;
+      if (pinchConsumed) return;
+      pinchAcc += e.deltaY;
+      if (Math.abs(pinchAcc) < 25) return;
+      const dir = pinchAcc < 0 ? 1 : -1;
+      pinchAcc = 0;
+      pinchConsumed = true;
+      zoomStep(dir, e.clientX * dpr, e.clientY * dpr);
       return;
     }
 
-    // pinch gestures arrive as ctrl+wheel — treat them as zoom immediately;
-    // shift+wheel is the classic "scroll sideways" convention
-    if (e.shiftKey && !e.ctrlKey) {
+    // shift+wheel: pan sideways from a purely vertical wheel (mouse convention)
+    if (e.shiftKey) {
       cam.x += e.deltaY * dpr;
       cam.clamp(g, renderer.viewW, renderer.viewH);
       return;
     }
 
-    const now = performance.now();
-    if (now - wheelAccAt > 250) {
-      // 250ms without wheel events = the previous gesture ended
-      wheelAcc = 0;
-      wheelConsumed = false;
-    }
-    wheelAccAt = now;
-
-    let dir: number;
-    if (Math.abs(e.deltaY) >= 80 && !e.ctrlKey) {
-      // discrete mouse-wheel notch: step per notch, lightly rate-limited
-      if (now - lastZoomAt < 120) return;
-      dir = e.deltaY < 0 ? 1 : -1;
-    } else {
-      // trackpad stream (or pinch): accumulate, then one step per gesture
-      if (wheelConsumed) return;
-      wheelAcc += e.deltaY;
-      const threshold = e.ctrlKey ? 25 : 60;
-      if (Math.abs(wheelAcc) < threshold) return;
-      dir = wheelAcc < 0 ? 1 : -1;
-      wheelAcc = 0;
-      wheelConsumed = true;
-    }
-    lastZoomAt = now;
-
-    const oldZoom = cam.zoom;
-    const next = Math.max(1, Math.min(4, oldZoom + dir));
-    if (next === oldZoom) return;
-    // zoom toward the cursor
-    const mx = e.clientX * dpr;
-    const my = e.clientY * dpr;
-    const wx = (cam.x + mx) / oldZoom;
-    const wy = (cam.y + my) / oldZoom;
-    cam.zoom = next;
-    cam.x = wx * next - mx;
-    cam.y = wy * next - my;
+    // plain scroll: pan on whichever axes the gesture moved
+    cam.x += e.deltaX * dpr;
+    cam.y += e.deltaY * dpr;
     cam.clamp(g, renderer.viewW, renderer.viewH);
   },
   { passive: false }
@@ -1090,6 +1163,16 @@ window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement | null;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
   keys.add(e.key.toLowerCase());
+  if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    zoomStep(1);
+    return;
+  }
+  if (e.key === '-' || e.key === '_') {
+    e.preventDefault();
+    zoomStep(-1);
+    return;
+  }
   if (editor.active) {
     if (editor.setToolByKey(e.key)) return;
     return;
@@ -1133,18 +1216,42 @@ function applyTool(tx: number, ty: number): void {
           4
         );
       } else if (b) {
-        hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
+        if (b.kind === 'townhall') {
+          hud!.showTownhall();
+        } else {
+          hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
+        }
       }
       break;
     }
-    case 'harvest':
-      g.toggleMark(tx, ty);
+    case 'harvest': {
+      if (g.toggleMark(tx, ty)) {
+        const n = g.nodeAt(tx, ty);
+        if (n) {
+          const cx = n.x + 0.5;
+          const cy = n.kind === 'tree' ? n.y - 1.2 : n.y + 0.3;
+          if (n.marked) {
+            // the order lands with authority: a kick + a gold spark burst tinted
+            // by the material under the flag
+            n.wobble = 0.35;
+            g.spawnBurst(cx, cy, '#ffd94d', 10);
+            g.spawnBurst(cx, cy, n.kind === 'tree' ? '#6fd66f' : '#c9d2e0', 5);
+          } else {
+            // order rescinded — a small, cool puff
+            g.spawnBurst(cx, cy, 'rgba(180,196,220,0.9)', 3);
+          }
+        }
+      }
       break;
+    }
     case 'ladder':
       g.placeLadder(tx, ty);
       break;
     case 'platform':
-      g.placePlatform(tx, ty);
+      g.placeBridgeRun(tx, ty, tx, ty);
+      break;
+    case 'ramp':
+      g.placeRampRun(tx, ty, tx, ty);
       break;
     case 'sawmill':
       g.placeBuilding('sawmill', tx, ty);
@@ -1180,6 +1287,18 @@ function drawIdleBackdrop(): void {
 let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
+
+const runOverlay = (ctx: CanvasRenderingContext2D) => {
+  if (!runAnchor || !game) return;
+  const cells =
+    runAnchor.tool === 'ramp'
+      ? rampRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty)
+      : bridgeRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+  const name = runAnchor.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
+  ctx.globalAlpha = 0.6;
+  for (const c of cells) ctx.drawImage(sprite(name).canvas, c.x * TILE, c.y * TILE);
+  ctx.globalAlpha = 1;
+};
 
 function frame(now: number): void {
   const dtReal = Math.min(0.1, (now - last) / 1000);
@@ -1221,7 +1340,7 @@ function frame(now: number): void {
       cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
     }
 
-    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000);
+    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
   }
 
   hud?.update();
@@ -1230,6 +1349,10 @@ function frame(now: number): void {
 
 function onResize(): void {
   renderer.resize();
+  if (editor.active) {
+    const dpr = canvas.width / canvas.clientWidth;
+    cam.rightInset = editor.panelRightInset() * dpr;
+  }
   const g = editor.active ? editor.game : game;
   if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
 }

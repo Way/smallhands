@@ -22,7 +22,7 @@ const ITEM_ICON: Record<ItemType, string> = {
   spear: 'item_spear',
 };
 
-const TOOL_ICON: Partial<Record<Tool, string>> = {
+export const TOOL_ICON: Partial<Record<Tool, string>> = {
   select: 'icon_select',
   harvest: 'icon_harvest',
   ladder: 'tile_ladder',
@@ -55,6 +55,7 @@ function icon(name: string, size = 20, parent?: HTMLElement): HTMLCanvasElement 
 export interface HudCallbacks {
   onTool: (t: Tool) => void;
   onSpeed: (s: number) => void;
+  onZoom: (dir: number) => void;
   onRole: (r: Role, delta: number) => void;
   onUpgrade: () => void;
   onMenu: () => void;
@@ -76,6 +77,13 @@ export class Hud {
   private speedBtns = new Map<number, HTMLButtonElement>();
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
+  private hint: HTMLElement | null = null;
+  private hintSig = '';
+  private needs: HTMLElement | null = null;
+  private needsSig = '';
+  private keepBadges = new Map<ItemType, HTMLElement>();
+  private lastKeep: Record<string, number> = {};
+  private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -86,6 +94,7 @@ export class Hud {
     this.buildTopBar();
     this.buildToolbar();
     this.buildSpeedBar();
+    this.buildZoomBar();
     this.buildMenuBar();
     this.toastWrap = el('div', 'toast-wrap', root);
     this.update();
@@ -97,13 +106,20 @@ export class Hud {
     // resources
     const res = el('div', 'panel res-bar', bar);
     for (const it of ITEM_TYPES) {
-      const chip = el('div', 'res-chip', res);
-      chip.title = ITEM_NAMES[it];
+      const chip = el('button', 'res-chip', res);
+      chip.title = `${ITEM_NAMES[it]} — click to keep some in store`;
       icon(ITEM_ICON[it], 20, chip);
       const cnt = el('span', 'cnt', chip);
       cnt.textContent = '0';
+      const badge = el('span', 'keep-badge', chip);
+      badge.hidden = true;
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        this.toggleReservePopover(it, chip);
+      };
       this.resCounts.set(it, cnt);
       this.resChips.set(it, chip);
+      this.keepBadges.set(it, badge);
     }
 
     el('div', 'spacer', bar);
@@ -177,6 +193,19 @@ export class Hud {
     }
   }
 
+  private buildZoomBar(): void {
+    const bar = el('div', 'panel zoombar', this.root);
+    for (const [label, dir] of [
+      ['−', -1],
+      ['+', 1],
+    ] as const) {
+      const btn = el('button', 'speed-btn', bar);
+      btn.textContent = label;
+      btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
+      btn.onclick = () => this.cbs.onZoom(dir);
+    }
+  }
+
   private buildMenuBar(): void {
     const bar = el('div', 'panel menubar', this.root);
     const menu = el('button', 'speed-btn', bar);
@@ -238,6 +267,63 @@ export class Hud {
     this.tooltip = null;
   }
 
+  private refreshKeepBadge(item: ItemType): void {
+    const n = this.game.keep[item];
+    const badge = this.keepBadges.get(item)!;
+    badge.hidden = n <= 0;
+    if (n > 0) badge.textContent = String(n);
+    this.resChips.get(item)!.classList.toggle('has-keep', n > 0);
+  }
+
+  private closeReserveOnOutside = (): void => this.closeReservePopover();
+
+  private closeReservePopover(): void {
+    if (!this.reservePop) return;
+    this.reservePop.el.remove();
+    this.reservePop = null;
+    document.removeEventListener('click', this.closeReserveOnOutside);
+  }
+
+  private toggleReservePopover(item: ItemType, anchor: HTMLElement): void {
+    if (this.reservePop?.item === item) {
+      this.closeReservePopover();
+      return;
+    }
+    this.closeReservePopover();
+    const g = this.game;
+    const pop = el('div', 'res-pop', this.root);
+    pop.onclick = (e) => e.stopPropagation();
+    // Build the controls ONCE; refresh() only mutates text in place, so the
+    // stepper buttons under the cursor are never torn down mid-click (which
+    // would make the browser silently drop the click).
+    const nameEl = el('div', 'res-pop-name', pop);
+    const row = el('div', 'res-pop-row', pop);
+    el('span', undefined, row).textContent = 'Keep';
+    const minus = el('button', 'res-step', row);
+    minus.textContent = '−';
+    const val = el('b', 'res-keep-val', row);
+    const plus = el('button', 'res-step', row);
+    plus.textContent = '+';
+    el('div', 'res-pop-note', pop).textContent = 'Haulers ship only the surplus to the caravan.';
+    const step = (delta: number): void => {
+      g.setKeep(item, g.keep[item] + delta);
+      val.textContent = String(g.keep[item]);
+      this.refreshKeepBadge(item);
+    };
+    minus.onclick = () => step(-1);
+    plus.onclick = () => step(1);
+    const refresh = (): void => {
+      nameEl.textContent = `${ITEM_NAMES[item]} · ${g.stock[item]} in store`;
+      val.textContent = String(g.keep[item]);
+    };
+    refresh();
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.max(8, r.left)}px`;
+    pop.style.top = `${r.bottom + 6}px`;
+    this.reservePop = { item, el: pop, refresh };
+    setTimeout(() => document.addEventListener('click', this.closeReserveOnOutside), 0);
+  }
+
   toast(html: string, warn = false, autoDismiss = 0): void {
     // keep at most 2 stacked hints
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
@@ -248,6 +334,136 @@ export class Hud {
     d.textContent = 'dismiss';
     d.onclick = () => t.remove();
     if (autoDismiss > 0) setTimeout(() => t.remove(), autoDismiss * 1000);
+  }
+
+  // Interactive town-hall panel shown when the building is tapped with Select.
+  showTownhall(): void {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
+    const t = el('div', 'toast th-toast', this.toastWrap);
+    const build = (): void => {
+      t.innerHTML = '';
+      const head = el('div', undefined, t);
+      head.innerHTML = `<b>Town Hall</b> · Level ${g.thLevel} · ${g.workers.length}/${g.maxWorkers} crew`;
+      if (g.thUpgrade) {
+        el('div', 'th-toast-body', t).textContent =
+          `Upgrading… ${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100)}% — a builder is on the way.`;
+      } else if (!lvl.upgradeCost) {
+        el('div', 'th-toast-body', t).textContent = 'Fully upgraded — max crew reached.';
+      } else {
+        el('div', 'th-toast-body', t).textContent =
+          `Upgrade → Level ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+        const cost = el('div', 'th-toast-cost', t);
+        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+          const s = el('span', 'cost-item', cost);
+          icon(ITEM_ICON[k as ItemType], 16, s);
+          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+          n.textContent = String(v);
+        }
+        const btn = el('button', 'th-mini', t);
+        btn.textContent = 'Upgrade';
+        btn.disabled = !g.canAfford(lvl.upgradeCost);
+        btn.onclick = () => {
+          this.cbs.onUpgrade();
+          build(); // re-render to reflect the in-progress state
+        };
+      }
+      const d = el('span', 'dismiss', t);
+      d.textContent = 'dismiss';
+      d.onclick = () => t.remove();
+    };
+    build();
+  }
+
+  // Hover hint for the town hall on the canvas (desktop discoverability).
+  showBuildingHint(clientX: number, clientY: number): void {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    const up = g.thUpgrade;
+    const sig = [
+      g.thLevel,
+      g.workers.length,
+      g.maxWorkers,
+      up ? Math.floor((up.progress / up.time) * 20) : 'x',
+      lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
+    ].join('|');
+    if (!this.hint) {
+      this.hint = el('div', 'tooltip', this.root);
+      this.hintSig = '';
+    }
+    const tip = this.hint;
+    if (sig !== this.hintSig) {
+      this.hintSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>Town Hall</b> · Lv ${g.thLevel}`;
+      el('div', 'tt-desc', tip).textContent = `Crew ${g.workers.length}/${g.maxWorkers}`;
+      if (up) {
+        el('div', 'tt-desc', tip).textContent =
+          `Upgrading… ${Math.floor((up.progress / up.time) * 100)}%`;
+      } else if (lvl.upgradeCost) {
+        el('div', undefined, tip).textContent =
+          `Click: upgrade → Lv ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+        const cost = el('div', 'tt-cost', tip);
+        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+          const s = el('span', undefined, cost);
+          icon(ITEM_ICON[k as ItemType], 14, s);
+          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+          n.textContent = String(v);
+        }
+      } else {
+        el('div', 'tt-desc', tip).textContent = 'Max level';
+      }
+    }
+    // follow the cursor, clamped to stay on screen
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hideBuildingHint(): void {
+    this.hint?.remove();
+    this.hint = null;
+    this.hintSig = '';
+  }
+
+  // While a cost-bearing tool is held and you hover the map, show WHY the ghost
+  // is red: the tool's required resources, with the missing ones in red. Nothing
+  // to show when you can afford it — the green outline already says "go".
+  showPlacementNeeds(clientX: number, clientY: number, tool: Tool): void {
+    const rows = this.game.placementShortfall(tool);
+    if (rows.length === 0) {
+      this.hidePlacementNeeds();
+      return;
+    }
+    const label = TOOL_DEFS.find((t) => t.id === tool)?.label ?? '';
+    const sig = tool + rows.map((r) => `|${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`).join('');
+    if (!this.needs) {
+      this.needs = el('div', 'tooltip', this.root);
+      this.needsSig = '';
+    }
+    const tip = this.needs;
+    if (sig !== this.needsSig) {
+      this.needsSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${label}</b> needs`;
+      const cost = el('div', 'tt-cost', tip);
+      for (const r of rows) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[r.item], 14, s);
+        el('b', r.short ? 'insufficient' : '', s).textContent = `${r.have}/${r.need}`;
+      }
+    }
+    // follow the cursor, clamped to stay on screen (same as showBuildingHint)
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hidePlacementNeeds(): void {
+    this.needs?.remove();
+    this.needs = null;
+    this.needsSig = '';
   }
 
   flashResource(item: ItemType): void {
@@ -261,6 +477,7 @@ export class Hud {
   setActiveTool(t: Tool): void {
     this.activeTool = t;
     for (const [id, btn] of this.toolBtns) btn.classList.toggle('active', id === t);
+    this.hidePlacementNeeds(); // stale badge from the previous tool; re-shows on next hover
   }
 
   setSpeed(s: number): void {
@@ -282,6 +499,13 @@ export class Hud {
         this.lastStock[it] = n;
       }
     }
+    for (const it of ITEM_TYPES) {
+      if (this.lastKeep[it] !== g.keep[it]) {
+        this.lastKeep[it] = g.keep[it];
+        this.refreshKeepBadge(it);
+      }
+    }
+    this.reservePop?.refresh();
     for (const o of g.objectives) {
       const r = this.objRows.get(o.item);
       if (!r) continue;

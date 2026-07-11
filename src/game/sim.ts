@@ -25,9 +25,10 @@ import type {
   PathStep,
   ResourceNode,
   Role,
+  ShortfallRow,
   Tool,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -107,6 +108,10 @@ export class Game {
 
   stock: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
   stockReserved: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
+
+  // Player-set floor per item: haulers deliver only stock ABOVE this to the
+  // caravan, so resources can be banked for construction. 0 = ship everything.
+  keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
 
   desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0 };
 
@@ -214,6 +219,10 @@ export class Game {
     return this.stock[item] - this.stockReserved[item];
   }
 
+  setKeep(item: ItemType, n: number): void {
+    this.keep[item] = Math.max(0, Math.min(99, Math.floor(n)));
+  }
+
   toolUnlocked(tool: Tool): boolean {
     const def = TOOL_DEFS.find((t) => t.id === tool)!;
     if (def.thLevel && this.thLevel < def.thLevel) return false;
@@ -225,6 +234,32 @@ export class Game {
       if (this.stock[k as ItemType] < (v as number)) return false;
     }
     return true;
+  }
+
+  // What's missing to place a cost-bearing tool right now, for the cursor cost
+  // badge. Returns every required resource (with have/need + a `short` flag) ONLY
+  // when at least one is short — an empty array means "affordable", so no badge.
+  // Compares against raw `stock`, exactly like canAfford/payCost.
+  placementShortfall(tool: Tool): ShortfallRow[] {
+    // Ladder spends 1 log, or 1 plank when no logs remain (see ladderWood), so
+    // it's short only when you have neither. Show a single log row in that case
+    // rather than TOOL_DEFS' nominal { log: 1 }, which would misread a plank.
+    if (tool === 'ladder') {
+      if (this.ladderWood() !== null) return [];
+      return [{ item: 'log', have: 0, need: 1, short: true }];
+    }
+    const cost = TOOL_DEFS.find((t) => t.id === tool)?.cost;
+    if (!cost) return [];
+    const rows: ShortfallRow[] = [];
+    let anyShort = false;
+    for (const [k, need] of Object.entries(cost)) {
+      const item = k as ItemType;
+      const have = this.stock[item];
+      const short = have < (need as number);
+      if (short) anyShort = true;
+      rows.push({ item, have, need: need as number, short });
+    }
+    return anyShort ? rows : [];
   }
 
   private payCost(cost: Partial<Record<ItemType, number>>): void {
@@ -239,28 +274,48 @@ export class Game {
 
   // ---- player actions ------------------------------------------------------
 
+  // A ladder is 1 unit of wood: spend a log if we have one, otherwise a plank.
+  // Prefer logs so refined planks stay free for the goal and platforms, but
+  // never dead-end the player when every log has been sawn into planks.
+  ladderWood(): ItemType | null {
+    if (this.stock.log >= 1) return 'log';
+    if (this.stock.plank >= 1) return 'plank';
+    return null;
+  }
+
   placeLadder(x: number, y: number): boolean {
-    const cost = TOOL_DEFS.find((t) => t.id === 'ladder')!.cost!;
-    if (!canPlaceLadder(this.world, x, y) || !this.canAfford(cost)) {
+    const wood = this.ladderWood();
+    if (!canPlaceLadder(this.world, x, y) || wood === null) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
-    this.payCost(cost);
+    this.stock[wood] -= 1;
     this.world.set(x, y, T.LADDER);
     this.onEvent({ type: 'place' });
     return true;
   }
 
-  placePlatform(x: number, y: number): boolean {
-    const cost = TOOL_DEFS.find((t) => t.id === 'platform')!.cost!;
-    if (!canPlacePlatform(this.world, x, y) || !this.canAfford(cost)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
+  // Lay a drag-run of tiles, charging the tool's cost per tile and stopping when
+  // the player can no longer afford the next one. Shared by Ramp and Bridge.
+  private placeRun(toolId: Tool, cells: { x: number; y: number }[], tile: T): number {
+    const cost = TOOL_DEFS.find((t) => t.id === toolId)!.cost!;
+    let placed = 0;
+    for (const c of cells) {
+      if (!this.canAfford(cost)) break;
+      this.payCost(cost);
+      this.world.set(c.x, c.y, tile);
+      placed++;
     }
-    this.payCost(cost);
-    this.world.set(x, y, T.PLATFORM);
-    this.onEvent({ type: 'place' });
-    return true;
+    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
+    return placed;
+  }
+
+  placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
+    return this.placeRun('ramp', rampRunCells(this.world, ax, ay, tx, ty), T.RAMP);
+  }
+
+  placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
+    return this.placeRun('platform', bridgeRunCells(this.world, ax, ay, tx, ty), T.PLATFORM);
   }
 
   placeBuilding(kind: 'sawmill' | 'forge', x: number, y: number): boolean {
@@ -318,9 +373,12 @@ export class Game {
 
   demolish(x: number, y: number): boolean {
     const t = this.world.get(x, y);
-    if (t === T.LADDER || t === T.PLATFORM) {
+    if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
       this.world.set(x, y, T.AIR);
-      this.refund(t === T.LADDER ? { log: 1 } : { plank: 1 }, 0.5);
+      // Refund in planks even for ladders (which may have been paid in logs):
+      // refunding a log would let plank→ladder→demolish→log→sawmill mint free
+      // planks. Planks never convert back to logs, so a plank refund can't loop.
+      this.refund({ plank: 1 }, 0.5);
       this.demolishCount++;
       this.onEvent({ type: 'demolish' });
       return true;
@@ -612,7 +670,7 @@ export class Game {
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
-        if (this.available(o.item) <= 0) continue;
+        if (this.available(o.item) - this.keep[o.item] <= 0) continue;
         cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
       }
     }

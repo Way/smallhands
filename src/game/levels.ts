@@ -239,6 +239,11 @@ export const LEVELS: LevelDef[] = [
         when: () => true,
       },
       {
+        id: 'reserve',
+        text: 'Stone fills the order <b>and</b> builds your Cargo Lift and Forge. Click the <b>stone counter</b> up top to <b>keep some back</b> before it all ships out.',
+        when: (g) => g.stock.stone >= 2 && g.thLevel < 2,
+      },
+      {
         id: 'th2',
         text: 'The <b>Forge</b> and <b>Cargo Lift</b> need Town Hall level 2. Stockpile planks and stone, then press <b>Upgrade</b> in the crew panel.',
         when: (g) => g.stock.plank >= 6,
@@ -263,7 +268,7 @@ export const LEVELS: LevelDef[] = [
       { item: 'spear', amount: 4 },
     ],
     medals: { gold: 480, silver: 660, bronze: 960 },
-    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'lift', 'demolish'],
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
     startStock: { log: 6, plank: 2, stone: 4 },
     startRoles: { hauler: 3, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 6,
@@ -313,6 +318,11 @@ export const LEVELS: LevelDef[] = [
         id: 'chain',
         text: 'Tip: lifts only need Town Hall 2 — but each terrace needs its own lift. Consider moving production <b>up the mountain</b> instead of hauling everything from below.',
         when: (g) => g.thLevel >= 2,
+      },
+      {
+        id: 'ramp',
+        text: 'Short steps a lift refuses? Build a <b>Ramp</b> — drag a diagonal from solid ground. Loaded smallhands walk ramps (unlike ladders), up <i>and</i> down.',
+        when: (g) => g.time > 15,
       },
     ],
     camera: { x: 12, y: 22 },
