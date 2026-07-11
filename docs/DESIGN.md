@@ -79,10 +79,16 @@ teaching arc: *introduce → invert → combine → subvert → Grand Order*.
 The core asymmetry of Smallhands is: **down is free, up is expensive** (for
 cargo). Every chapter bends that asymmetry a new way instead of repeating it:
 
-- **Rope anchors (Ch. 1)** — the mirror image of the cargo lift: a cheap,
-  build-once *down-only* cargo zipline. Suddenly "get goods down a cliff
-  safely" matters (loaded workers only survive 2-tile drops). Levels can now
-  put resources *above* the base and still be puzzles.
+- **Rope anchors (Ch. 1)** ✅ *(mechanic shipped; Mistwood levels pending)* —
+  the mirror image of the cargo lift: a cheap, build-once *down-only* cargo
+  zipline. Suddenly "get goods down a cliff safely" matters (loaded workers
+  only survive 2-tile drops). Levels can now put resources *above* the base
+  and still be puzzles. Implemented as the **Rope Anchor** tool (2 logs +
+  1 plank, no Town Hall gate): placed on a cliff-edge cell, it hangs its rope
+  over the side down to the first landing (min. 3 tiles). The pathfinder
+  gained a `slide` edge — downward only, allowed while carrying — and the
+  solvability verifier and generator account for it, so generated levels may
+  now legitimately route cargo *down* tall cliffs.
 - **Water (Ch. 2)** — a horizontal wall. Water tiles are impassable;
   a **pump** (new building, needs planks + bricks) drains a connected body
   one row at a time, opening routes *over time*. First mechanic where the
@@ -296,12 +302,17 @@ Phase A — ✅ **shipped in this change**
 - Level select "Workshop": daily challenge, generate, editor, import,
   custom level cards; completion tracking for custom/daily levels.
 
-Phase B — 🔜 the next contentful slice (each item is small and independent)
-1. Medals + per-level best times in `SaveData` (win screen already has time).
-2. Side orders: a `sideOrder` field on `LevelDef` + spawn logic in `sim.ts`.
-3. Rope anchor: new `Tool` + a `PathStep` kind `'slide'`; nav edge = the
-   inverse of the lift edge (top→bottom, cargo allowed). Editor/generator
-   pick it up automatically via `allowedTools`.
+Phase B — the next contentful slice (each item is small and independent)
+1. ✅ Rope anchor: new `Tool` + a `PathStep` kind `'slide'`; nav edge = the
+   inverse of the lift edge (top→bottom, cargo allowed). Verifier and
+   generator account for it; covered by an end-to-end test that builds a
+   plateau in the editor and delivers cargo down a 7-tile cliff.
+2. 🔜 Medals + per-level best times in `SaveData` (win screen already has
+   time). **Needs its own design pass first**: medals must feel genuinely
+   rewarding — prestige presentation (a Hall of Fame / trophy shelf where
+   players can show off their medals and best times) is part of the scope,
+   to be evaluated separately before implementation.
+3. Side orders: a `sideOrder` field on `LevelDef` + spawn logic in `sim.ts`.
 4. Chapter 1 "Mistwood": 5 levels using rope + crumble tiles (new tile kind
    `T.CRUMBLE` with a crossing counter), caravan letters as overlays.
 5. Weekly expedition (seed = ISO week, twist list).

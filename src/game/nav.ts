@@ -7,6 +7,7 @@ import type { World } from './world';
 //   - carrying workers cannot climb ladders
 //   - carrying workers only dare small drops
 //   - cargo lifts move workers (and their cargo) upward only
+//   - rope anchors slide workers (and their cargo) downward only
 //
 // Falls make the graph directional: walking off a ledge is easy,
 // getting back up needs a ladder (empty-handed) or a lift.
@@ -18,7 +19,7 @@ interface SearchResult {
 
 export function findPath(
   world: World,
-  lifts: Building[],
+  transits: Building[], // ready-or-not lifts and rope anchors
   sx: number,
   sy: number,
   targets: Set<number>, // cell keys that count as arrival
@@ -138,10 +139,13 @@ export function findPath(
     }
 
     // Cargo lifts: base cell → top landing cell, upward only.
-    for (const lift of lifts) {
-      if (lift.state !== 'ready') continue;
-      if (lift.x === x && lift.y === y) {
-        consider(lift.x, lift.liftTopY, 'lift', 2 + (lift.y - lift.liftTopY) * 0.4);
+    // Rope anchors: anchor cell → bottom landing, downward only, cargo ok.
+    for (const t of transits) {
+      if (t.state !== 'ready') continue;
+      if (t.kind === 'lift' && t.x === x && t.y === y) {
+        consider(t.x, t.liftTopY, 'lift', 2 + (t.y - t.liftTopY) * 0.4);
+      } else if (t.kind === 'rope' && t.x === x && t.y === y) {
+        consider(t.x + t.ropeSide, t.ropeBottomY, 'slide', 1.2 + (t.ropeBottomY - t.y) * 0.15);
       }
     }
   }

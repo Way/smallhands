@@ -3,7 +3,7 @@
 
 import { FOOTPRINTS, ITEM_TYPES, ROLES, T } from './types';
 import type { ItemType, NodeKind, ObjectiveReq, Role } from './types';
-import { World, liftTopFor } from './world';
+import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -382,7 +382,8 @@ function floodPassable(world: World, sx: number, sy: number): Set<number> {
 
 // Where can a CARRYING smallhand get to from (sx, sy), assuming the player
 // builds whatever helps: platforms bridging any air corridor that starts at
-// a standable cell, and cargo lifts on every valid cliff face?
+// a standable cell, cargo lifts on every valid cliff face, and rope anchors
+// on every valid cliff edge (cargo may slide DOWN ropes).
 // Carrying rules still apply: no ladders, falls of at most 2 tiles.
 function cargoReach(world: World, sx: number, sy: number): Set<number> {
   const start = settle(world, sx, sy);
@@ -437,6 +438,9 @@ function cargoReach(world: World, sx: number, sy: number): Set<number> {
     // a lift could be built here
     const topY = liftTopFor(world, x, y);
     if (topY !== null) visit(x, topY);
+    // a rope anchor could be built here
+    const drop = ropeDropFor(world, x, y);
+    if (drop !== null) visit(x + drop.side, drop.bottomY);
   }
   return seen;
 }

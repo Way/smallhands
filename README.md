@@ -20,6 +20,8 @@ self-contained static site (~22 kB gzipped).
 - **The ladder rule** — a smallhand carrying goods *refuses ladders*. Empty hands
   climb anywhere; cargo needs another way up.
 - **Cargo lifts** — hoist a loaded worker straight up a cliff face. Up only!
+- **Rope anchors** — the mirror image of the lift: anchored at a cliff edge,
+  smallhands slide *down* the rope, cargo and all. Down only!
 - **One-way falls** — empty workers hop down up to 5 tiles, loaded ones only 2.
   Getting down is easy; the puzzle is getting things back up.
 - **Production chains** — trees → logs → sawmill → planks; boulders → stone;

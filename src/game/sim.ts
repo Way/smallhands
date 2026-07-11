@@ -9,6 +9,7 @@ import {
   NODE_YIELD,
   RECIPES,
   ROLES,
+  SLIDE_SPEED,
   T,
   TH_LEVELS,
   TOOL_DEFS,
@@ -26,7 +27,7 @@ import type {
   Role,
   Tool,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, footprintH, footprintW, liftTopFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, canPlacePlatform, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -168,6 +169,8 @@ export class Game {
       liftCarY: y,
       liftBusy: false,
       liftRiderId: null,
+      ropeSide: 1,
+      ropeBottomY: y,
     };
     this.buildings.push(b);
     return b;
@@ -189,6 +192,15 @@ export class Game {
 
   get lifts(): Building[] {
     return this.buildings.filter((b) => b.kind === 'lift');
+  }
+
+  get ropes(): Building[] {
+    return this.buildings.filter((b) => b.kind === 'rope');
+  }
+
+  // Buildings that add edges to the movement graph (lifts and rope anchors).
+  get transits(): Building[] {
+    return this.buildings.filter((b) => b.kind === 'lift' || b.kind === 'rope');
   }
 
   roleCount(role: Role): number {
@@ -283,6 +295,26 @@ export class Game {
     return true;
   }
 
+  placeRope(x: number, y: number): boolean {
+    const def = TOOL_DEFS.find((t) => t.id === 'rope')!;
+    const drop = ropeDropFor(this.world, x, y);
+    if (!this.toolUnlocked('rope') || drop === null || !this.canAfford(def.cost!)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    // no two ropes sharing an anchor cell
+    if (this.ropes.some((r) => r.x === x && r.y === y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    this.payCost(def.cost!);
+    const b = this.addBuilding('rope', x, y, false);
+    b.ropeSide = drop.side;
+    b.ropeBottomY = drop.bottomY;
+    this.onEvent({ type: 'place' });
+    return true;
+  }
+
   demolish(x: number, y: number): boolean {
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM) {
@@ -360,6 +392,11 @@ export class Game {
   buildingAt(x: number, y: number): Building | undefined {
     return this.buildings.find((b) => {
       if (b.kind === 'lift') return b.x === x && y <= b.y && y >= b.liftTopY;
+      if (b.kind === 'rope') {
+        // the anchor cell, or anywhere along the hanging rope
+        if (b.x === x && b.y === y) return true;
+        return x === b.x + b.ropeSide && y >= b.y && y <= b.ropeBottomY;
+      }
       const w = footprintW(b);
       const h = footprintH(b);
       return x >= b.x && x < b.x + w && y >= b.y && y < b.y + h;
@@ -616,14 +653,14 @@ export class Game {
         this.haulCooldown.set(key, this.time + 4);
         continue;
       }
-      const leg1 = findPath(this.world, this.lifts, w.cx, w.cy, srcCells, w.carrying !== null);
+      const leg1 = findPath(this.world, this.transits, w.cx, w.cy, srcCells, w.carrying !== null);
       if (!leg1) {
         this.haulCooldown.set(key, this.time + 4);
         continue;
       }
       // verify the carrying leg is possible from the pickup point
       const pickCell = leg1.steps.length ? leg1.steps[leg1.steps.length - 1] : { x: w.cx, y: w.cy };
-      const leg2 = findPath(this.world, this.lifts, pickCell.x, pickCell.y, snkCells, true);
+      const leg2 = findPath(this.world, this.transits, pickCell.x, pickCell.y, snkCells, true);
       if (!leg2) {
         this.haulCooldown.set(key, this.time + 4);
         continue;
@@ -659,7 +696,7 @@ export class Game {
       if (NODE_ROLE[n.kind] !== w.role) continue;
       const cells = nodeApproachCells(this.world, n.x, n.y);
       if (cells.size === 0) continue;
-      const path = findPath(this.world, this.lifts, w.cx, w.cy, cells, false);
+      const path = findPath(this.world, this.transits, w.cx, w.cy, cells, false);
       if (!path) continue;
       if (!best || path.cost < best.cost) best = { node: n, steps: path.steps, cost: path.cost };
     }
@@ -674,7 +711,7 @@ export class Game {
   private tryAssignConstruct(w: Worker): boolean {
     // town hall upgrade takes priority
     if (this.thUpgrade && this.thUpgrade.builderId === null) {
-      const path = findPath(this.world, this.lifts, w.cx, w.cy, this.thApproach(), false);
+      const path = findPath(this.world, this.transits, w.cx, w.cy, this.thApproach(), false);
       if (path) {
         this.thUpgrade.builderId = w.id;
         w.task = { kind: 'upgrade' };
@@ -688,7 +725,7 @@ export class Game {
       if (this.workers.some((o) => o.task?.kind === 'construct' && o.task.buildingId === b.id)) continue;
       const cells = this.buildingApproach(b);
       if (cells.size === 0) continue;
-      const path = findPath(this.world, this.lifts, w.cx, w.cy, cells, false);
+      const path = findPath(this.world, this.transits, w.cx, w.cy, cells, false);
       if (!path) continue;
       w.task = { kind: 'construct', buildingId: b.id };
       w.path = path.steps;
@@ -705,7 +742,7 @@ export class Game {
     const targets = new Set<number>();
     if (this.world.isStandable(w.cx + dx, w.cy)) targets.add(this.world.key(w.cx + dx, w.cy));
     if (targets.size === 0) return;
-    const path = findPath(this.world, this.lifts, w.cx, w.cy, targets, w.carrying !== null);
+    const path = findPath(this.world, this.transits, w.cx, w.cy, targets, w.carrying !== null);
     if (path && path.steps.length <= 5) {
       w.task = { kind: 'wander' };
       w.path = path.steps;
@@ -793,7 +830,7 @@ export class Game {
           w.carrying = task.item;
           // second leg
           const cells = this.sinkCells(task.sink);
-          const path = cells ? findPath(this.world, this.lifts, w.cx, w.cy, cells, true) : null;
+          const path = cells ? findPath(this.world, this.transits, w.cx, w.cy, cells, true) : null;
           if (!path) {
             this.abortTask(w); // drops the item where they stand
             return;
@@ -941,13 +978,31 @@ export class Game {
       return;
     }
 
-    const speed = (step.kind === 'climb' ? CLIMB_SPEED : step.kind === 'fall' ? FALL_SPEED : WALK_SPEED) * dt;
+    if (step.kind === 'slide') {
+      // the rope must still exist (and be built) to slide down it
+      const rope = this.ropes.find(
+        (r) => r.state === 'ready' && r.x === w.cx && r.y === w.cy && r.x + r.ropeSide === step.x && r.ropeBottomY === step.y
+      );
+      if (!rope) {
+        this.repath(w);
+        return;
+      }
+    }
+
+    const speed =
+      (step.kind === 'climb'
+        ? CLIMB_SPEED
+        : step.kind === 'fall'
+          ? FALL_SPEED
+          : step.kind === 'slide'
+            ? SLIDE_SPEED
+            : WALK_SPEED) * dt;
     const tx = step.x;
     const ty = step.y;
-    // move horizontally first for falls, then vertically
+    // move horizontally first for falls and rope slides, then vertically
     let dx = tx - w.px;
     let dy = ty - w.py;
-    if (step.kind === 'fall' && Math.abs(dx) > 0.01) dy = 0;
+    if ((step.kind === 'fall' || step.kind === 'slide') && Math.abs(dx) > 0.01) dy = 0;
     const len = Math.hypot(dx, dy);
     if (Math.abs(dx) > 0.01) w.facing = dx > 0 ? 1 : -1;
     if (len <= speed) {
@@ -974,7 +1029,7 @@ export class Game {
     }
     const last = w.path[w.path.length - 1];
     const targets = new Set<number>([this.world.key(last.x, last.y)]);
-    const path = findPath(this.world, this.lifts, w.cx, w.cy, targets, w.carrying !== null);
+    const path = findPath(this.world, this.transits, w.cx, w.cy, targets, w.carrying !== null);
     if (path) {
       w.path = path.steps;
       w.stepIdx = 0;

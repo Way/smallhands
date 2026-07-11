@@ -150,6 +150,70 @@ const roundTrip = await page.evaluate(() => {
 if (!roundTrip) await fail('share code round trip corrupted the level');
 console.log('share codes: encode → decode round trip intact');
 
+// ---- 4. rope anchor mechanic -----------------------------------------------------
+// Build a plateau in the editor, then in the real game: ladders up the east
+// face for empty hands, a rope anchor on the west edge, and a stone on top
+// that can ONLY come down by rope (7-tile drop, loaded workers survive 2).
+const ropeResult = await page.evaluate(() => {
+  const sh = window.__smallhands;
+  sh.editor.open(sh.blankLevelData(64, 28));
+  sh.editor.setTool('ground');
+  // a shelf (rows 13..18) with a walk-through tunnel below it at ground level
+  // (row 19), so both sides of the map stay connected for walkers
+  for (let x = 40; x <= 50; x++) {
+    for (let y = 18; y >= 13; y--) sh.editor.applyAt(x, y, false);
+  }
+  const data = sh.editor.serialize();
+  data.objectives = [{ item: 'stone', amount: 1 }];
+  data.nodes = [];
+  sh.editor.close();
+  sh.startCustomLevel(data, {});
+  const g = window.__smallhands.game;
+  g.stock.log = 20;
+  g.stock.plank = 10;
+
+  // rope on flat ground must be rejected
+  if (g.placeRope(20, 19)) return { error: 'rope was allowed on flat ground' };
+
+  // ladders up the east cliff face (empty hands only)
+  for (let y = 13; y <= 19; y++) g.world.set(51, y, 6 /* T.LADDER */);
+  // rope anchor on the west edge of the plateau
+  if (!g.placeRope(40, 12)) return { error: 'placeRope rejected a valid cliff edge' };
+  const rope = g.ropes[0];
+  if (rope.ropeSide !== -1 || rope.ropeBottomY !== 19) {
+    return { error: `rope geometry wrong: side ${rope.ropeSide}, bottom ${rope.ropeBottomY}` };
+  }
+
+  // the delivery: one stone stranded on the plateau
+  g.groundItems.push({ id: 99999, item: 'stone', x: 45, y: 12, reserved: false, bounce: 0 });
+
+  // let the sim run: builder climbs up, builds the rope; hauler climbs up,
+  // picks up the stone, slides down the rope, delivers to stock, then goal
+  let usedSlide = false;
+  for (let i = 0; i < 60 * 240; i++) {
+    g.tick(1 / 60);
+    if (!usedSlide) {
+      usedSlide = g.workers.some((w) => w.stepIdx < w.path.length && w.path[w.stepIdx].kind === 'slide' && w.carrying);
+    }
+    if (g.won) break;
+  }
+  const pathCheck = sh.findPath(g.world, g.transits, 45, 12, new Set([g.world.key(10, 19)]), true);
+  return {
+    ropeReady: rope.state === 'ready',
+    usedSlide,
+    won: g.won,
+    delivered: g.objectives[0].delivered,
+    cargoPathHasSlide: !!pathCheck && pathCheck.steps.some((s) => s.kind === 'slide'),
+  };
+});
+if (ropeResult.error) await fail(ropeResult.error);
+if (!ropeResult.ropeReady) await fail('rope anchor was never constructed by a builder');
+if (!ropeResult.cargoPathHasSlide) await fail('carrying path off the plateau does not use the rope');
+if (!ropeResult.usedSlide || !ropeResult.won) {
+  await fail(`rope delivery failed: usedSlide=${ropeResult.usedSlide} won=${ropeResult.won} delivered=${ropeResult.delivered}`);
+}
+console.log('rope anchor: built by a builder, cargo slid down a 7-tile cliff, order delivered');
+
 // simulate 60s of a generated level at speed to ensure no runtime errors
 await page.evaluate(() => {
   const sh = window.__smallhands;

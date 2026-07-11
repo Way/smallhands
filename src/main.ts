@@ -912,6 +912,9 @@ function applyTool(tx: number, ty: number): void {
     case 'lift':
       g.placeLift(tx, ty);
       break;
+    case 'rope':
+      g.placeRope(tx, ty);
+      break;
     case 'demolish':
       g.demolish(tx, ty);
       break;

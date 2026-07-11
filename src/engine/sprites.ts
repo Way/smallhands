@@ -534,6 +534,26 @@ export function buildAtlas(): void {
     '................',
   ]);
 
+  // rope anchor post (with a coiled spare rope at its side)
+  makeSprite('rope_anchor', { p: '#7c5830', P: '#9a7040', k: '#5f3c1b', r: '#d8b271', R: '#c09a55' }, [
+    '................',
+    '................',
+    '...kk...........',
+    '..kPPk..........',
+    '..kPpk..........',
+    '..kPpk...rRr....',
+    '..kPpk..rR.Rr...',
+    '..kPpk..rR.Rr...',
+    '..kPpk..rR.Rr...',
+    '..kPpk...rRr....',
+    '..kPpk..........',
+    '..kPpk..........',
+    '.kPPppk.........',
+    'kPPPpppk........',
+    'kkkkkkkk........',
+    '................',
+  ]);
+
   // crate for the town hall stockpile
   makeSprite('crate', { c: '#b98850', C: '#d3a86e', k: '#7c5830' }, [
     'kkkkkkkk',
