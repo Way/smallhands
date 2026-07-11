@@ -22,7 +22,7 @@ const ITEM_ICON: Record<ItemType, string> = {
   spear: 'item_spear',
 };
 
-const TOOL_ICON: Partial<Record<Tool, string>> = {
+export const TOOL_ICON: Partial<Record<Tool, string>> = {
   select: 'icon_select',
   harvest: 'icon_harvest',
   ladder: 'tile_ladder',

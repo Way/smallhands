@@ -17,7 +17,7 @@ import { LEVELS } from './game/levels';
 import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
-import { Hud } from './game/ui';
+import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
@@ -82,6 +82,7 @@ function openEditor(data?: CustomLevelData): void {
   hud = null;
   uiRoot.innerHTML = '';
   editor.open(data);
+  canvas.style.cursor = 'crosshair'; // editor paints tiles; drop the game tool cursor
   cam.zoom = 2;
   const dpr = canvas.width / canvas.clientWidth;
   cam.rightInset = editor.panelRightInset() * dpr;
@@ -682,6 +683,33 @@ function handleEvent(e: GameEvent): void {
   }
 }
 
+// ---- cursors: the pointer becomes the tool you're holding ------------------------
+// Each tool's toolbar icon is rendered once to a data-URI and used as the OS cursor,
+// so Harvest literally hands you the hoe. Inspect keeps the native grab/grabbing
+// pointer to advertise panning.
+const CURSOR_SIZE = 28;
+const CURSOR_HOTSPOT: Partial<Record<Tool, [number, number]>> = {
+  harvest: [5, 3], // the hoe's blade, so it points at the tile it will mark
+};
+const cursorCache = new Map<Tool, string>();
+function toolCursorCss(tool: Tool): string {
+  if (tool === 'select') return 'grab';
+  const icon = TOOL_ICON[tool];
+  if (!icon) return 'default';
+  let css = cursorCache.get(tool);
+  if (!css) {
+    const c = document.createElement('canvas');
+    drawIconTo(c, icon, CURSOR_SIZE);
+    const [hx, hy] = CURSOR_HOTSPOT[tool] ?? [CURSOR_SIZE / 2, CURSOR_SIZE / 2];
+    css = `url(${c.toDataURL()}) ${hx} ${hy}, auto`;
+    cursorCache.set(tool, css);
+  }
+  return css;
+}
+function applyToolCursor(): void {
+  canvas.style.cursor = editor.active ? 'crosshair' : toolCursorCss(hover.tool);
+}
+
 function setTool(t: Tool): void {
   if (!game || !hud) return;
   const def = TOOL_DEFS.find((d) => d.id === t)!;
@@ -692,6 +720,7 @@ function setTool(t: Tool): void {
   }
   hover.tool = t;
   hud.setActiveTool(t);
+  applyToolCursor();
   audio.click();
 }
 
@@ -736,6 +765,7 @@ canvas.addEventListener('pointermove', (e) => {
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
     if (dragMoved) {
       // pan with any non-painting drag; taps still place
+      canvas.style.cursor = 'grabbing';
       cam.x -= dx * dpr;
       cam.y -= dy * dpr;
       const g = editor.active ? editor.game : game;
@@ -763,6 +793,7 @@ canvas.addEventListener('pointerleave', () => {
 
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
+  applyToolCursor(); // drop the grabbing hand back to the tool cursor
   if (painting) {
     painting = false;
     editor.endStroke();
@@ -910,9 +941,26 @@ function applyTool(tx: number, ty: number): void {
       }
       break;
     }
-    case 'harvest':
-      g.toggleMark(tx, ty);
+    case 'harvest': {
+      if (g.toggleMark(tx, ty)) {
+        const n = g.nodeAt(tx, ty);
+        if (n) {
+          const cx = n.x + 0.5;
+          const cy = n.kind === 'tree' ? n.y - 1.2 : n.y + 0.3;
+          if (n.marked) {
+            // the order lands with authority: a kick + a gold spark burst tinted
+            // by the material under the flag
+            n.wobble = 0.35;
+            g.spawnBurst(cx, cy, '#ffd94d', 10);
+            g.spawnBurst(cx, cy, n.kind === 'tree' ? '#6fd66f' : '#c9d2e0', 5);
+          } else {
+            // order rescinded — a small, cool puff
+            g.spawnBurst(cx, cy, 'rgba(180,196,220,0.9)', 3);
+          }
+        }
+      }
       break;
+    }
     case 'ladder':
       g.placeLadder(tx, ty);
       break;

@@ -42,6 +42,13 @@ export class Renderer {
   // transient celebration effects (e.g. town-hall upgrade), timed off the render clock
   private effects: { x: number; y: number; start: number; from: number; to: number }[] = [];
   private lastT = 0;
+  // Harvest-cursor feel: an eased 0..1 that rises while a harvestable node sits
+  // under the Harvest cursor, driving both the lock-on reticle and the hovered
+  // node's anticipation. `lastGhostT` gives us a dt for the ease.
+  private harvestFocus = 0;
+  private lastGhostT = 0;
+  private readonly reduceMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -89,8 +96,16 @@ export class Renderer {
     ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.scale(cam.zoom, cam.zoom);
 
+    // Which harvestable node (if any) is under the Harvest cursor this frame, and
+    // how "locked on" we are — eased so the reticle and node reaction ramp smoothly.
+    const harvNode =
+      hover.visible && hover.tool === 'harvest' ? game.nodeAt(hover.tx, hover.ty) : undefined;
+    const dt = Math.min(0.05, Math.max(0, timeSec - this.lastGhostT));
+    this.lastGhostT = timeSec;
+    this.harvestFocus += ((harvNode ? 1 : 0) - this.harvestFocus) * Math.min(1, dt * 14);
+
     this.drawTerrain(game, cam);
-    this.drawNodes(game, timeSec);
+    this.drawNodes(game, timeSec, harvNode?.id ?? -1, this.harvestFocus);
     this.drawBuildings(game, timeSec);
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
@@ -147,9 +162,12 @@ export class Renderer {
       const cx = ((c.x + t * c.v - cam.x * 0.06) % (W + 320)) - 160;
       const cy = c.y - cam.y * 0.05;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, 42 * c.s, 13 * c.s, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx + 26 * c.s, cy - 8 * c.s, 26 * c.s, 11 * c.s, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx - 30 * c.s, cy - 4 * c.s, 22 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
+      // main body defines the rounded left/right ends; lobes stay interior so
+      // there's no raised lobe poking past the tip (which read as a blue beak/notch)
+      ctx.ellipse(cx, cy, 42 * c.s, 14 * c.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 2 * c.s, cy - 4 * c.s, 30 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx - 14 * c.s, cy - 8 * c.s, 20 * c.s, 11 * c.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 12 * c.s, cy - 9 * c.s, 22 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -222,20 +240,28 @@ export class Renderer {
     }
   }
 
-  private drawNodes(game: Game, t: number): void {
+  // `hoveredId`/`focus` drive the Harvest-cursor anticipation: the node under the
+  // cursor leans/lifts (tree) or shivers (boulder/vein) as `focus` (0..1) ramps.
+  private drawNodes(game: Game, t: number, hoveredId: number, focus: number): void {
     const { ctx } = this;
+    const osc = this.reduceMotion ? 0 : 1;
     for (const n of game.nodes) {
+      const anticip = n.id === hoveredId ? focus : 0;
       const wob = n.wobble > 0 ? Math.sin(t * 40) * 1.2 : 0;
       const px = n.x * TILE + wob;
       if (n.kind === 'tree') {
         if (n.yieldLeft > 0) {
-          const sway = Math.sin(t * 1.2 + n.x) * 0.8;
-          ctx.drawImage(sprite('tree').canvas, px + sway * 0.5, (n.y - 1) * TILE, TILE, 32);
+          // hovered trees sway wider and lift toward the order
+          const sway = Math.sin(t * 1.2 + n.x) * (0.8 + anticip * 1.8 * osc);
+          const lift = anticip * 1.2;
+          ctx.drawImage(sprite('tree').canvas, px + sway * 0.5, (n.y - 1) * TILE - lift, TILE, 32);
         } else {
           ctx.drawImage(sprite('stump').canvas, n.x * TILE, n.y * TILE);
         }
       } else if (n.yieldLeft > 0) {
-        ctx.drawImage(sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas, px, n.y * TILE);
+        const shiver = Math.sin(t * 26) * anticip * 0.7 * osc;
+        const lift = anticip * 0.8;
+        ctx.drawImage(sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas, px + shiver, n.y * TILE - lift);
       }
       if (n.marked && n.yieldLeft > 0) {
         const bounce = Math.sin(t * 3) * 1.5;
@@ -655,6 +681,44 @@ export class Renderer {
 
   // ---- placement ghost -----------------------------------------------------------
 
+  // Four corner-brackets that frame a box and tighten as `lock` (0..1) rises —
+  // the Harvest lock-on. Also usable, later, for demolish (red) etc.
+  private reticle(
+    box: { x: number; y: number; w: number; h: number },
+    lock: number,
+    t: number,
+    color: string
+  ): void {
+    const { ctx } = this;
+    const pulse = 0.55 + Math.sin(t * 6) * 0.2;
+    const ins = 3 - lock * 2.4; // loose when scanning, tight when locked
+    const len = 3 + lock * 2;
+    const x0 = box.x - ins;
+    const y0 = box.y - ins;
+    const x1 = box.x + box.w + ins;
+    const y1 = box.y + box.h + ins;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.5 + lock * 0.5;
+    const corner = (x: number, y: number, dx: number, dy: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5 + dx * len, y + 0.5);
+      ctx.lineTo(x + 0.5, y + 0.5);
+      ctx.lineTo(x + 0.5, y + 0.5 + dy * len);
+      ctx.stroke();
+    };
+    corner(x0, y0, 1, 1);
+    corner(x1, y0, -1, 1);
+    corner(x0, y1, 1, -1);
+    corner(x1, y1, -1, -1);
+    if (lock > 0.1) {
+      ctx.globalAlpha = 0.14 * lock * pulse * 1.6;
+      ctx.fillStyle = color;
+      ctx.fillRect(box.x, box.y, box.w, box.h);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   private drawGhost(game: Game, hover: HoverState, t: number): void {
     const { ctx } = this;
     const { tool, tx, ty } = hover;
@@ -677,7 +741,27 @@ export class Renderer {
         break;
       case 'harvest': {
         const n = game.nodeAt(tx, ty);
-        outline(!!n);
+        if (n) {
+          const box =
+            n.kind === 'tree'
+              ? { x: n.x * TILE, y: (n.y - 1) * TILE, w: TILE, h: 2 * TILE }
+              : { x: n.x * TILE, y: n.y * TILE, w: TILE, h: TILE };
+          this.reticle(box, this.harvestFocus, t, '#ffc94d');
+          // preview the flag you're about to plant (unmarked nodes only — marked
+          // ones already fly the real flag)
+          if (!n.marked) {
+            const bounce = Math.sin(t * 3) * 1.5;
+            const topY = n.kind === 'tree' ? (n.y - 2) * TILE : (n.y - 1) * TILE + 6;
+            ctx.globalAlpha = 0.35 + Math.sin(t * 5) * 0.12;
+            ctx.drawImage(sprite('mark').canvas, n.x * TILE + 5, topY - 4 + bounce);
+            ctx.globalAlpha = 1;
+          }
+        } else {
+          // bare ground: a faint tick on the target tile — the hoe cursor leads
+          ctx.strokeStyle = 'rgba(232,238,247,0.35)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9);
+        }
         break;
       }
       case 'ladder': {
