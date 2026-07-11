@@ -140,7 +140,11 @@ export function rampRunCells(
   return cells;
 }
 
-// The buildable horizontal bridge run at row ay from ax toward tx.
+// The buildable horizontal bridge run at row ay from ax toward tx. The anchor
+// must satisfy the platform rule; each later tile just extends the deck we are
+// laying (a bridge spans a gap), so it only needs clear air — canPlacePlatform
+// can't see the run's own tiles since they aren't placed yet. Stops at the first
+// non-air cell so the run never overwrites terrain or another structure.
 export function bridgeRunCells(
   world: World,
   ax: number,
@@ -153,7 +157,8 @@ export function bridgeRunCells(
   const n = Math.abs(tx - ax);
   for (let i = 0; i <= n; i++) {
     const cx = ax + i * dx;
-    if (!canPlacePlatform(world, cx, ay)) break;
+    const ok = i === 0 ? canPlacePlatform(world, cx, ay) : world.get(cx, ay) === T.AIR;
+    if (!ok) break;
     cells.push({ x: cx, y: ay });
   }
   return cells;

@@ -90,6 +90,52 @@ function stepWorld() {
   check('bridgeRunCells is horizontal', br.length >= 1 && br.every((c) => c.y === surfaceY - 3));
 }
 
+// --- Bridge spans an open gap: the run must chain deck-to-deck, not re-check
+// each tile against the untouched world (which stops after the anchor). ---
+{
+  // Flat ground with a 5-wide bottomless pit at columns gapL..gapR.
+  const w = new World(24, 20);
+  const surfaceY = 14, gapL = 8, gapR = 12;
+  for (let x = 0; x < w.w; x++) {
+    for (let y = 0; y < w.h; y++) {
+      if (x >= gapL && x <= gapR) { w.set(x, y, T.AIR); continue; } // open pit
+      w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+    }
+  }
+
+  // Drag a bridge from the left rim across the whole pit to the right rim.
+  const span = bridgeRunCells(w, gapL, surfaceY, gapR, surfaceY);
+  check('bridge spans a 5-wide gap (chains deck-to-deck)',
+    span.length === 5 && span.every((c) => c.y === surfaceY) &&
+    span[0].x === gapL && span[4].x === gapR);
+
+  // Dragging past the far rim stops at the first solid cell (no overwrite).
+  const clipped = bridgeRunCells(w, gapL, surfaceY, gapL + 7, surfaceY);
+  check('bridge run stops at the far solid rim', clipped.length === 5);
+
+  // A mid-air anchor with no solid/deck contact still starts nothing.
+  check('floating bridge anchor places nothing',
+    bridgeRunCells(w, gapL + 1, surfaceY, gapR, surfaceY).length === 0);
+
+  // End-to-end through the sim: a plank is charged per spanning tile. Rebuild the
+  // same pit inside the game's own world (matching its dimensions) so placeBridgeRun
+  // runs the real charge/place path.
+  const g = new Game(LEVELS[0]);
+  const gsY = g.world.h - 6;
+  for (let x = 0; x < g.world.w; x++) {
+    for (let y = 0; y < g.world.h; y++) {
+      if (x >= gapL && x <= gapR) { g.world.set(x, y, T.AIR); continue; }
+      g.world.set(x, y, y < gsY ? T.AIR : y === gsY ? T.GRASS : T.DIRT);
+    }
+  }
+  g.stock.plank = 10;
+  const placed = g.placeBridgeRun(gapL, gsY, gapR, gsY);
+  check('placeBridgeRun bridges the gap: 5 tiles placed', placed === 5);
+  check('placeBridgeRun laid PLATFORM across the pit',
+    g.world.get(gapL, gsY) === T.PLATFORM && g.world.get(gapR, gsY) === T.PLATFORM);
+  check('placeBridgeRun charged a plank per tile', g.stock.plank === 5);
+}
+
 // --- Task 3: tool defs + sim placers ---
 {
   const ramp = TOOL_DEFS.find((t) => t.id === 'ramp');
