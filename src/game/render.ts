@@ -39,6 +39,14 @@ export class Renderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private cloudSeeds: { x: number; y: number; s: number; v: number }[] = [];
+  // Occasional birds crossing the sky — mostly a lone glider, sometimes a small
+  // V-flock (which is just several spawned together). Each bird's position is a
+  // pure function of the render clock (`st` = spawn time) so frame hitches never
+  // accumulate. `nextBirdAt` schedules the next spawn; the sky is empty between.
+  private birds: {
+    sx: number; sy: number; st: number; vx: number; scale: number; phase: number; flap: number; bob: number;
+  }[] = [];
+  private nextBirdAt = 0;
   // transient celebration effects (e.g. town-hall upgrade), timed off the render clock
   private effects: { x: number; y: number; start: number; from: number; to: number }[] = [];
   private lastT = 0;
@@ -170,6 +178,81 @@ export class Renderer {
       ctx.ellipse(cx + 12 * c.s, cy - 9 * c.s, 22 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    this.drawBirds(W, H, t, cam);
+  }
+
+  // Occasional birds drifting across the upper sky and leaving. Purely decorative,
+  // so reduced-motion skips them entirely. They share the clouds' slow parallax so
+  // they sit in the sky plane, and are drawn as flapping seagull silhouettes.
+  private drawBirds(W: number, H: number, t: number, cam: Camera): void {
+    if (this.reduceMotion) return;
+    const { ctx } = this;
+    const PAR = 0.06;
+
+    if (this.nextBirdAt === 0) this.nextBirdAt = t + 2 + Math.random() * 5;
+    if (t >= this.nextBirdAt && this.birds.length < 12) {
+      this.spawnBirds(W, H, t);
+      this.nextBirdAt = t + 26 + Math.random() * 30;
+    }
+
+    // drop a bird only once it has exited the *far* edge in its travel direction —
+    // never while it's still entering (camera parallax can hold it just off-screen)
+    this.birds = this.birds.filter((b) => {
+      const x = b.sx + b.vx * (t - b.st) - cam.x * PAR;
+      return b.vx > 0 ? x < W + 80 : x > -80;
+    });
+
+    ctx.strokeStyle = 'rgba(60,72,92,0.55)';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const b of this.birds) {
+      const age = t - b.st;
+      const x = b.sx + b.vx * age - cam.x * PAR;
+      const y = b.sy - cam.y * PAR + Math.sin(age * 0.8 + b.bob) * 1.5;
+      const span = 6 * b.scale;
+      const flap = Math.sin(age * b.flap + b.phase) * 0.5 + 0.5; // 0..1 wingbeat
+      // a gull silhouette: wings arch up from the body and the tips angle back
+      // down; the arch height animates with the wingbeat
+      const arch = span * (0.2 + 0.55 * flap);
+      const tip = span * 0.05;
+      ctx.lineWidth = Math.max(1, 1.3 * b.scale);
+      ctx.beginPath();
+      ctx.moveTo(x - span, y + tip);
+      ctx.quadraticCurveTo(x - span * 0.45, y - arch, x, y);
+      ctx.quadraticCurveTo(x + span * 0.45, y - arch, x + span, y + tip);
+      ctx.stroke();
+    }
+  }
+
+  // Spawn one flight: ~20% a small V-flock of 3–5, otherwise a lone bird. Random
+  // direction; flock members fan out behind the leader on alternating arms.
+  private spawnBirds(W: number, H: number, t: number): void {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    // cross the whole view in 9–15s regardless of resolution, so the sky is empty
+    // far more often than not (spawns are ~26–56s apart)
+    const vx = (dir * (W + 80)) / (9 + Math.random() * 6);
+    const baseY = H * 0.12 + Math.random() * H * 0.24;
+    const startX = dir > 0 ? -60 : W + 60; // fully off-screen so it eases in
+    const scale = 1.3 + Math.random() * 0.9;
+    const flap = 5 + Math.random() * 3; // wingbeat speed (rad/s)
+    const count = Math.random() < 0.2 ? 3 + Math.floor(Math.random() * 3) : 1;
+    const gapX = 14 * scale;
+    const gapY = 8 * scale;
+    for (let i = 0; i < count; i++) {
+      const rank = Math.ceil(i / 2); // 0 = leader, then pairs fan out behind
+      const side = i % 2 === 0 ? 1 : -1;
+      this.birds.push({
+        sx: startX - dir * rank * gapX,
+        sy: baseY + side * rank * gapY,
+        st: t,
+        vx,
+        scale: scale * (1 - rank * 0.06), // trailing birds read slightly smaller
+        phase: Math.random() * Math.PI * 2,
+        flap,
+        bob: Math.random() * Math.PI * 2,
+      });
+    }
   }
 
   // ---- world layers ------------------------------------------------------------
@@ -273,10 +356,21 @@ export class Renderer {
       const px = n.x * TILE + wob;
       if (n.kind === 'tree') {
         if (n.yieldLeft > 0) {
-          // hovered trees sway wider and lift toward the order
+          // hovered trees sway wider and lift toward the order. The sway is a
+          // horizontal shear pivoted at the trunk foot: zero drift at the base,
+          // full drift at the crown — so the trunk stays planted and only the
+          // treetop rocks in the wind.
           const sway = Math.sin(t * 1.2 + n.x) * (0.8 + anticip * 1.8 * osc);
           const lift = anticip * 1.2;
-          ctx.drawImage(sprite('tree').canvas, px + sway * 0.5, (n.y - 1) * TILE - lift, TILE, 32);
+          const top = (n.y - 1) * TILE - lift;
+          const baseY = top + 32; // trunk foot on the ground
+          const pivotX = px + TILE / 2;
+          ctx.save();
+          ctx.translate(pivotX, baseY);
+          ctx.transform(1, 0, -sway / 32, 1, 0, 0); // shear grows toward the crown
+          ctx.translate(-pivotX, -baseY);
+          ctx.drawImage(sprite('tree').canvas, px, top, TILE, 32);
+          ctx.restore();
         } else {
           ctx.drawImage(sprite('stump').canvas, n.x * TILE, n.y * TILE);
         }
