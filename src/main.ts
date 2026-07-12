@@ -17,7 +17,6 @@ import { LEVELS } from './game/levels';
 import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
-import { rampRunCells, bridgeRunCells } from './game/world';
 import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
@@ -1290,15 +1289,25 @@ let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
 
+const RUN_SPRITE: Record<'ramp' | 'platform' | 'ladder', string> = {
+  ramp: 'tile_ramp',
+  platform: 'tile_platform',
+  ladder: 'tile_ladder',
+};
+
 const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!runAnchor || !game) return;
-  const cells =
-    runAnchor.tool === 'ramp'
-      ? rampRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty)
-      : bridgeRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
-  const name = runAnchor.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
-  ctx.globalAlpha = 0.6;
-  for (const c of cells) ctx.drawImage(sprite(name).canvas, c.x * TILE, c.y * TILE);
+  const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+  const spr = sprite(RUN_SPRITE[runAnchor.tool as 'ramp' | 'platform' | 'ladder']).canvas;
+  plan.cells.forEach((c, i) => {
+    const affordable = i < plan.affordable;
+    ctx.globalAlpha = affordable ? 0.6 : 0.35;
+    ctx.drawImage(spr, c.x * TILE, c.y * TILE);
+    if (!affordable) {
+      ctx.fillStyle = 'rgba(255,122,107,0.35)';
+      ctx.fillRect(c.x * TILE, c.y * TILE, TILE, TILE);
+    }
+  });
   ctx.globalAlpha = 1;
 };
 
