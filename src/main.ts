@@ -1299,7 +1299,7 @@ let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
 
-const RUN_SPRITE: Record<'ramp' | 'platform' | 'ladder', string> = {
+const RUN_SPRITE: Partial<Record<Tool, string>> = {
   ramp: 'tile_ramp',
   platform: 'tile_platform',
   ladder: 'tile_ladder',
@@ -1307,8 +1307,10 @@ const RUN_SPRITE: Record<'ramp' | 'platform' | 'ladder', string> = {
 
 const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!runAnchor || !game) return;
+  const spriteName = RUN_SPRITE[runAnchor.tool];
+  if (!spriteName) return; // only the run tools have a ghost sprite
   const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
-  const spr = sprite(RUN_SPRITE[runAnchor.tool as 'ramp' | 'platform' | 'ladder']).canvas;
+  const spr = sprite(spriteName).canvas;
   plan.cells.forEach((c, i) => {
     const affordable = i < plan.affordable;
     ctx.globalAlpha = affordable ? 0.6 : 0.35;
