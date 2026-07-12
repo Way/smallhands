@@ -273,10 +273,21 @@ export class Renderer {
       const px = n.x * TILE + wob;
       if (n.kind === 'tree') {
         if (n.yieldLeft > 0) {
-          // hovered trees sway wider and lift toward the order
+          // hovered trees sway wider and lift toward the order. The sway is a
+          // horizontal shear pivoted at the trunk foot: zero drift at the base,
+          // full drift at the crown — so the trunk stays planted and only the
+          // treetop rocks in the wind.
           const sway = Math.sin(t * 1.2 + n.x) * (0.8 + anticip * 1.8 * osc);
           const lift = anticip * 1.2;
-          ctx.drawImage(sprite('tree').canvas, px + sway * 0.5, (n.y - 1) * TILE - lift, TILE, 32);
+          const top = (n.y - 1) * TILE - lift;
+          const baseY = top + 32; // trunk foot on the ground
+          const pivotX = px + TILE / 2;
+          ctx.save();
+          ctx.translate(pivotX, baseY);
+          ctx.transform(1, 0, -sway / 32, 1, 0, 0); // shear grows toward the crown
+          ctx.translate(-pivotX, -baseY);
+          ctx.drawImage(sprite('tree').canvas, px, top, TILE, 32);
+          ctx.restore();
         } else {
           ctx.drawImage(sprite('stump').canvas, n.x * TILE, n.y * TILE);
         }
