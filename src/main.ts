@@ -1304,6 +1304,7 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
     ctx.globalAlpha = affordable ? 0.6 : 0.35;
     ctx.drawImage(spr, c.x * TILE, c.y * TILE);
     if (!affordable) {
+      ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,122,107,0.35)';
       ctx.fillRect(c.x * TILE, c.y * TILE, TILE, TILE);
     }
