@@ -66,5 +66,54 @@ function wallWorld() {
   check('ladder floating anchor invalid', ladderRunCells(w, 2, 3, 2, 1).length === 0);
 }
 
+// --- Task 2: runPlan affordability + placement ---
+{
+  // ladder run of 6 up the wall; wood pooled (log first, then plank)
+  const g = new Game(LEVELS[0]);
+  g.world = wallWorld();
+  g.stock.log = 2; g.stock.plank = 1;
+  const lp = g.runPlan('ladder', 5, 9, 5, 4);
+  check('ladder plan: 6 cells', lp.cells.length === 6);
+  check('ladder plan: affordable = log+plank', lp.affordable === 3);
+  check('ladder plan: cost is log-then-plank mix', lp.cost.log === 2 && lp.cost.plank === 1);
+  check('ladder plan: row pools wood under log icon',
+    lp.rows.length === 1 && lp.rows[0].item === 'log' &&
+    lp.rows[0].have === 3 && lp.rows[0].need === 6 && lp.rows[0].short === true);
+
+  // plenty of planks, no logs => all 6 from planks
+  const g2 = new Game(LEVELS[0]);
+  g2.world = wallWorld();
+  g2.stock.log = 0; g2.stock.plank = 10;
+  const lp2 = g2.runPlan('ladder', 5, 9, 5, 4);
+  check('ladder plan: planks cover the run', lp2.affordable === 6 && lp2.cost.plank === 6 && lp2.cost.log === undefined);
+  check('ladder plan: affordable run not short', lp2.rows[0].short === false);
+
+  // placement lays only the affordable prefix and charges the mix
+  const g3 = new Game(LEVELS[0]);
+  g3.world = wallWorld();
+  g3.stock.log = 2; g3.stock.plank = 1;
+  const placed = g3.placeLadderRun(5, 9, 5, 4);
+  check('placeLadderRun places affordable count', placed === 3);
+  check('placeLadderRun spends all wood', g3.stock.log === 0 && g3.stock.plank === 0);
+  check('placeLadderRun fills the affordable prefix',
+    g3.world.get(5, 9) === T.LADDER && g3.world.get(5, 8) === T.LADDER &&
+    g3.world.get(5, 7) === T.LADDER && g3.world.get(5, 6) === T.AIR);
+
+  // bridge run: 1 plank per tile, clamps to stock
+  const g4 = new Game(LEVELS[0]);
+  g4.world = wallWorld();
+  g4.stock.plank = 3;
+  const bp = g4.runPlan('platform', 5, 4, 2, 4); // anchor touches the wall, run left
+  check('bridge plan: 4 cells', bp.cells.length === 4);
+  check('bridge plan: affordable clamps to planks', bp.affordable === 3 && bp.cost.plank === 3);
+  check('bridge plan: row shows plank need vs have',
+    bp.rows[0].item === 'plank' && bp.rows[0].have === 3 && bp.rows[0].need === 4 && bp.rows[0].short === true);
+  const placedB = g4.placeBridgeRun(5, 4, 2, 4);
+  check('placeBridgeRun places affordable count', placedB === 3 && g4.stock.plank === 0);
+  check('placeBridgeRun fills the affordable prefix',
+    g4.world.get(5, 4) === T.PLATFORM && g4.world.get(4, 4) === T.PLATFORM &&
+    g4.world.get(3, 4) === T.PLATFORM && g4.world.get(2, 4) === T.AIR);
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
 process.exit(failures ? 1 : 0);

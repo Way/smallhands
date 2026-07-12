@@ -25,10 +25,11 @@ import type {
   PathStep,
   ResourceNode,
   Role,
+  RunPlan,
   ShortfallRow,
   Tool,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, ladderRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -295,27 +296,62 @@ export class Game {
     return true;
   }
 
-  // Lay a drag-run of tiles, charging the tool's cost per tile and stopping when
-  // the player can no longer afford the next one. Shared by Ramp and Bridge.
-  private placeRun(toolId: Tool, cells: { x: number; y: number }[], tile: T): number {
-    const cost = TOOL_DEFS.find((t) => t.id === toolId)!.cost!;
-    let placed = 0;
-    for (const c of cells) {
-      if (!this.canAfford(cost)) break;
-      this.payCost(cost);
-      this.world.set(c.x, c.y, tile);
-      placed++;
+  // The cells a drag would fill, from the per-tool generator.
+  private runCells(tool: Tool, ax: number, ay: number, tx: number, ty: number): { x: number; y: number }[] {
+    if (tool === 'ladder') return ladderRunCells(this.world, ax, ay, tx, ty);
+    if (tool === 'ramp') return rampRunCells(this.world, ax, ay, tx, ty);
+    return bridgeRunCells(this.world, ax, ay, tx, ty); // platform (Bridge)
+  }
+
+  // Single source of truth for a drag-run — read by the ghost, placement and the
+  // cursor cost readout. `affordable` = how many leading cells the stock covers;
+  // `cost` = the resource total for that prefix (what a drop spends); `rows` =
+  // full-run need vs have for the readout badge.
+  runPlan(tool: Tool, ax: number, ay: number, tx: number, ty: number): RunPlan {
+    const cells = this.runCells(tool, ax, ay, tx, ty);
+    const n = cells.length;
+    if (tool === 'ladder') {
+      // 1 wood per rung: spend logs first, then planks (mirrors ladderWood).
+      const logsUsed = Math.min(n, this.stock.log);
+      const planksUsed = Math.min(n - logsUsed, this.stock.plank);
+      const cost: Partial<Record<ItemType, number>> = {};
+      if (logsUsed > 0) cost.log = logsUsed;
+      if (planksUsed > 0) cost.plank = planksUsed;
+      const wood = this.stock.log + this.stock.plank;
+      const rows: ShortfallRow[] =
+        n > 0 ? [{ item: 'log', have: wood, need: n, short: n > wood }] : [];
+      return { cells, affordable: logsUsed + planksUsed, cost, rows };
     }
-    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
-    return placed;
+    // ramp / platform: 1 plank per tile.
+    const planks = this.stock.plank;
+    const affordable = Math.min(n, planks);
+    const cost: Partial<Record<ItemType, number>> = affordable > 0 ? { plank: affordable } : {};
+    const rows: ShortfallRow[] =
+      n > 0 ? [{ item: 'plank', have: planks, need: n, short: n > planks }] : [];
+    return { cells, affordable, cost, rows };
+  }
+
+  // Lay a run's affordable prefix, paying its total cost once. The plan already
+  // encodes both terrain validity and affordability, so we just place.
+  private placeRun(plan: RunPlan, tile: T): number {
+    this.payCost(plan.cost);
+    for (let i = 0; i < plan.affordable; i++) {
+      this.world.set(plan.cells[i].x, plan.cells[i].y, tile);
+    }
+    this.onEvent({ type: plan.affordable > 0 ? 'place' : 'invalid' });
+    return plan.affordable;
   }
 
   placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
-    return this.placeRun('ramp', rampRunCells(this.world, ax, ay, tx, ty), T.RAMP);
+    return this.placeRun(this.runPlan('ramp', ax, ay, tx, ty), T.RAMP);
   }
 
   placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
-    return this.placeRun('platform', bridgeRunCells(this.world, ax, ay, tx, ty), T.PLATFORM);
+    return this.placeRun(this.runPlan('platform', ax, ay, tx, ty), T.PLATFORM);
+  }
+
+  placeLadderRun(ax: number, ay: number, tx: number, ty: number): number {
+    return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
   }
 
   placeBuilding(kind: 'sawmill' | 'forge', x: number, y: number): boolean {
