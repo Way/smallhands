@@ -1032,10 +1032,17 @@ canvas.addEventListener('pointermove', (e) => {
   hover.ty = t.y;
   hover.visible = true;
 
-  // hover hint for the town hall (Select tool, not while panning)
-  const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
-  if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
-  else hud?.hideBuildingHint();
+  // hover-to-inspect: a live tooltip for any building or resource node under
+  // the cursor (Inspect tool only, and not while panning)
+  if (!dragging && game && running && hover.tool === 'select') {
+    const b = game.buildingAt(t.x, t.y);
+    const n = b ? undefined : game.nodeAt(t.x, t.y);
+    if (b) hud?.showBuildingHint(b, e.clientX, e.clientY);
+    else if (n) hud?.showNodeHint(n, e.clientX, e.clientY);
+    else hud?.hideBuildingHint();
+  } else {
+    hud?.hideBuildingHint();
+  }
   // cursor cost badge: while placing a cost-bearing tool, spell out which
   // resource is short so a red ghost isn't a mystery (no-op when affordable)
   if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
@@ -1208,21 +1215,10 @@ function applyTool(tx: number, ty: number): void {
   const g = game!;
   switch (hover.tool) {
     case 'select': {
-      const n = g.nodeAt(tx, ty);
+      // Hover shows the live tooltip for everything now; the only click action
+      // left in Inspect is opening the town hall's interactive upgrade panel.
       const b = g.buildingAt(tx, ty);
-      if (n) {
-        hud!.toast(
-          `<b>${n.kind === 'tree' ? 'Tree' : n.kind === 'boulder' ? 'Boulder' : 'Iron vein'}</b> — ${n.yieldLeft} left. ${n.marked ? 'Marked for harvest.' : 'Use the Harvest tool to mark it.'}`,
-          false,
-          4
-        );
-      } else if (b) {
-        if (b.kind === 'townhall') {
-          hud!.showTownhall();
-        } else {
-          hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
-        }
-      }
+      if (b && b.kind === 'townhall') hud!.showTownhall();
       break;
     }
     case 'harvest': {

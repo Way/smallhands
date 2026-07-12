@@ -520,6 +520,7 @@ html, body {
 .tooltip .tt-cost span { display: inline-flex; align-items: center; gap: 3px; }
 .tooltip canvas { width: 14px; height: 14px; image-rendering: pixelated; vertical-align: -2px; }
 .tooltip .insufficient { color: var(--danger); }
+.tooltip .delivered { color: var(--accent2); }
 .tooltip .tt-desc { color: var(--text-dim); }
 .tooltip .tt-recipe {
   display: flex; align-items: center; justify-content: center; gap: 12px;

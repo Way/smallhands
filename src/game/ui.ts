@@ -1,4 +1,5 @@
 import {
+  BUILD_TIME,
   ITEM_NAMES,
   ITEM_TYPES,
   RECIPES,
@@ -8,7 +9,7 @@ import {
   TH_LEVELS,
   TOOL_DEFS,
 } from './types';
-import type { BuildingKind, ItemType, Role, Tool } from './types';
+import type { Building, BuildingKind, ItemType, NodeKind, Recipe, ResourceNode, Role, Tool } from './types';
 import { drawIconTo } from '../engine/sprites';
 import type { Game } from './sim';
 
@@ -20,6 +21,21 @@ const ITEM_ICON: Record<ItemType, string> = {
   stone: 'item_stone',
   iron: 'item_iron',
   spear: 'item_spear',
+};
+
+const BUILDING_LABEL: Record<BuildingKind, string> = {
+  townhall: 'Town Hall',
+  sawmill: 'Sawmill',
+  forge: 'Forge',
+  lift: 'Cargo Lift',
+  rope: 'Rope Anchor',
+  goal: 'Delivery target',
+};
+
+const NODE_LABEL: Record<NodeKind, string> = {
+  tree: 'Tree',
+  boulder: 'Boulder',
+  vein: 'Iron vein',
 };
 
 export const TOOL_ICON: Partial<Record<Tool, string>> = {
@@ -226,24 +242,7 @@ export class Hud {
     const desc = el('div', 'tt-desc', tip);
     desc.textContent = def.desc;
     const recipe = RECIPES[def.id as BuildingKind];
-    if (recipe) {
-      const rec = el('div', 'tt-recipe', tip);
-      const side = (label: string, items: Partial<Record<ItemType, number>>) => {
-        const col = el('div', 'tt-side', rec);
-        el('div', 'tt-side-label', col).textContent = label;
-        const row = el('div', 'tt-side-items', col);
-        for (const [k, v] of Object.entries(items)) {
-          const s = el('span', undefined, row);
-          icon(ITEM_ICON[k as ItemType], 14, s);
-          el('b', undefined, s).textContent = String(v);
-        }
-      };
-      side('Uses', recipe.inputs);
-      el('div', 'tt-arrow', rec).textContent = '→';
-      side('Makes', recipe.outputs);
-      const time = el('div', 'tt-time', tip);
-      time.textContent = `⏱ ${recipe.time}s per batch`;
-    }
+    if (recipe) this.renderRecipe(tip, recipe);
     if (def.thLevel && this.game.thLevel < def.thLevel) {
       const req = el('div', undefined, tip);
       req.innerHTML = `<span class="insufficient">Requires Town Hall level ${def.thLevel}</span>`;
@@ -377,49 +376,156 @@ export class Hud {
     build();
   }
 
-  // Hover hint for the town hall on the canvas (desktop discoverability).
-  showBuildingHint(clientX: number, clientY: number): void {
+  // Hover-to-inspect: a tiny live tooltip for whatever building sits under the
+  // cursor in Inspect mode. The town hall keeps its richer, actionable hint
+  // (crew + click-to-upgrade); the rest report what they make, move, or need.
+  showBuildingHint(b: Building, clientX: number, clientY: number): void {
     const g = this.game;
-    const lvl = TH_LEVELS[g.thLevel - 1];
-    const up = g.thUpgrade;
-    const sig = [
-      g.thLevel,
-      g.workers.length,
-      g.maxWorkers,
-      up ? Math.floor((up.progress / up.time) * 20) : 'x',
-      lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
-    ].join('|');
+    const sig = this.buildingHintSig(b);
+    const tip = this.ensureHint();
+    if (sig !== this.hintSig) {
+      this.hintSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML =
+        `<b>${BUILDING_LABEL[b.kind]}</b>` + (b.kind === 'townhall' ? ` · Lv ${g.thLevel}` : '');
+      if (b.kind === 'townhall') this.fillTownhallHint(tip);
+      else if (b.state === 'blueprint') {
+        const need = BUILD_TIME[b.kind] ?? 5;
+        el('div', 'tt-desc', tip).textContent = `Building… ${Math.floor((b.progress / need) * 100)}%`;
+      } else this.fillBuildingHint(tip, b);
+    }
+    this.positionHint(tip, clientX, clientY);
+  }
+
+  // Hover-to-inspect for resource nodes — the same info the tap used to give.
+  showNodeHint(n: ResourceNode, clientX: number, clientY: number): void {
+    const sig = ['n', n.id, n.yieldLeft, n.marked ? 1 : 0].join('|');
+    const tip = this.ensureHint();
+    if (sig !== this.hintSig) {
+      this.hintSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${NODE_LABEL[n.kind]}</b>`;
+      el('div', 'tt-desc', tip).textContent = `${n.yieldLeft} left`;
+      el('div', 'tt-desc', tip).textContent = n.marked ? 'Marked for harvest' : 'Use Harvest to mark';
+    }
+    this.positionHint(tip, clientX, clientY);
+  }
+
+  private ensureHint(): HTMLElement {
     if (!this.hint) {
       this.hint = el('div', 'tooltip', this.root);
       this.hintSig = '';
     }
-    const tip = this.hint;
-    if (sig !== this.hintSig) {
-      this.hintSig = sig;
-      tip.innerHTML = '';
-      el('div', undefined, tip).innerHTML = `<b>Town Hall</b> · Lv ${g.thLevel}`;
-      el('div', 'tt-desc', tip).textContent = `Crew ${g.workers.length}/${g.maxWorkers}`;
-      if (up) {
-        el('div', 'tt-desc', tip).textContent =
-          `Upgrading… ${Math.floor((up.progress / up.time) * 100)}%`;
-      } else if (lvl.upgradeCost) {
-        el('div', undefined, tip).textContent =
-          `Click: upgrade → Lv ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
-        const cost = el('div', 'tt-cost', tip);
-        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
-          const s = el('span', undefined, cost);
-          icon(ITEM_ICON[k as ItemType], 14, s);
-          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
-          n.textContent = String(v);
-        }
-      } else {
-        el('div', 'tt-desc', tip).textContent = 'Max level';
-      }
-    }
-    // follow the cursor, clamped to stay on screen
+    return this.hint;
+  }
+
+  // Cursor-following, clamped to stay on screen. Shared by the inspect hints.
+  private positionHint(tip: HTMLElement, clientX: number, clientY: number): void {
     tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
     tip.style.top = `${clientY + 16}px`;
     tip.style.bottom = 'auto';
+  }
+
+  private buildingHintSig(b: Building): string {
+    const g = this.game;
+    if (b.kind === 'townhall') {
+      const lvl = TH_LEVELS[g.thLevel - 1];
+      const up = g.thUpgrade;
+      return [
+        'th',
+        g.thLevel,
+        g.workers.length,
+        g.maxWorkers,
+        up ? Math.floor((up.progress / up.time) * 20) : 'x',
+        lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
+      ].join('|');
+    }
+    if (b.state === 'blueprint') {
+      const need = BUILD_TIME[b.kind] ?? 5;
+      return ['bp', b.id, b.kind, Math.floor((b.progress / need) * 20)].join('|');
+    }
+    const parts: (string | number)[] = ['b', b.id, b.kind];
+    const recipe = RECIPES[b.kind];
+    if (recipe) {
+      parts.push(b.processing ? Math.floor((b.processT / recipe.time) * 20) : 'idle');
+      for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0);
+    }
+    if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
+    if (b.kind === 'rope') parts.push(b.ropeBottomY - b.y);
+    if (b.kind === 'goal') for (const o of g.objectives) parts.push(o.delivered, o.amount);
+    return parts.join('|');
+  }
+
+  private fillTownhallHint(tip: HTMLElement): void {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    const up = g.thUpgrade;
+    el('div', 'tt-desc', tip).textContent = `Crew ${g.workers.length}/${g.maxWorkers}`;
+    if (up) {
+      el('div', 'tt-desc', tip).textContent = `Upgrading… ${Math.floor((up.progress / up.time) * 100)}%`;
+    } else if (lvl.upgradeCost) {
+      el('div', undefined, tip).textContent =
+        `Click: upgrade → Lv ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+      const cost = el('div', 'tt-cost', tip);
+      for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[k as ItemType], 14, s);
+        const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+        n.textContent = String(v);
+      }
+    } else {
+      el('div', 'tt-desc', tip).textContent = 'Max level';
+    }
+  }
+
+  private fillBuildingHint(tip: HTMLElement, b: Building): void {
+    const g = this.game;
+    const recipe = RECIPES[b.kind];
+    if (recipe) {
+      this.renderRecipe(tip, recipe);
+      // live status
+      let status: string;
+      if (b.processing) status = `Working ${Math.floor((b.processT / recipe.time) * 100)}%`;
+      else {
+        const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
+          (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
+        );
+        status = missing ? `Idle · needs ${ITEM_NAMES[missing]}` : 'Idle · ready';
+      }
+      el('div', 'tt-desc', tip).textContent = status;
+    } else if (b.kind === 'lift') {
+      el('div', 'tt-desc', tip).textContent = `Lifts crew up ${b.y - b.liftTopY} tiles · up only`;
+      el('div', 'tt-desc', tip).textContent = b.liftBusy ? 'Carrying…' : 'Idle';
+    } else if (b.kind === 'rope') {
+      el('div', 'tt-desc', tip).textContent = `Crew slide down ${b.ropeBottomY - b.y} tiles · down only`;
+    } else if (b.kind === 'goal') {
+      const row = el('div', 'tt-cost', tip);
+      for (const o of g.objectives) {
+        const s = el('span', o.delivered >= o.amount ? 'delivered' : undefined, row);
+        icon(ITEM_ICON[o.item], 14, s);
+        el('b', undefined, s).textContent = `${o.delivered}/${o.amount}`;
+      }
+    }
+  }
+
+  // Shared "Uses → Makes · ⏱ Ns per batch" recipe block, used by both the
+  // toolbar tooltip and the inspect hint so producers read the same everywhere.
+  private renderRecipe(tip: HTMLElement, recipe: Recipe): void {
+    const rec = el('div', 'tt-recipe', tip);
+    const side = (label: string, items: Partial<Record<ItemType, number>>): void => {
+      const col = el('div', 'tt-side', rec);
+      el('div', 'tt-side-label', col).textContent = label;
+      const row = el('div', 'tt-side-items', col);
+      for (const [k, v] of Object.entries(items)) {
+        const s = el('span', undefined, row);
+        icon(ITEM_ICON[k as ItemType], 14, s);
+        el('b', undefined, s).textContent = String(v);
+      }
+    };
+    side('Uses', recipe.inputs);
+    el('div', 'tt-arrow', rec).textContent = '→';
+    side('Makes', recipe.outputs);
+    el('div', 'tt-time', tip).textContent = `⏱ ${recipe.time}s per batch`;
   }
 
   hideBuildingHint(): void {
@@ -455,10 +561,7 @@ export class Hud {
         el('b', r.short ? 'insufficient' : '', s).textContent = `${r.have}/${r.need}`;
       }
     }
-    // follow the cursor, clamped to stay on screen (same as showBuildingHint)
-    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
-    tip.style.top = `${clientY + 16}px`;
-    tip.style.bottom = 'auto';
+    this.positionHint(tip, clientX, clientY);
   }
 
   hidePlacementNeeds(): void {
