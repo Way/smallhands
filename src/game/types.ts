@@ -150,7 +150,7 @@ export interface ToolDef {
 export const TOOL_DEFS: ToolDef[] = [
   { id: 'select', label: 'Inspect', key: '1', desc: 'Inspect things. Drag, scroll or use WASD to pan; +/− or pinch to zoom.' },
   { id: 'harvest', label: 'Harvest', key: '2', desc: 'Mark trees, boulders and iron veins for your crew to harvest. Click again to unmark.' },
-  { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder tile from 1 log — or a plank if you have no logs. Smallhands climb ladders, but never while carrying goods!', cost: { log: 1 } },
+  { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder from 1 log per rung — or planks if you have no logs. Drag up a wall to raise a whole ladder at once. Smallhands climb ladders, but never while carrying goods!', cost: { log: 1 } },
   { id: 'platform', label: 'Bridge', key: '4', desc: 'Build a wooden bridge to span a gap or hole — drag to lay a run.', cost: { plank: 1 } },
   { id: 'ramp', label: 'Ramp', key: '0', desc: 'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands can walk it (unlike ladders).', cost: { plank: 1 } },
   { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },

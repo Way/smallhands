@@ -987,7 +987,7 @@ let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
-const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform';
+const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder';
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
@@ -1071,6 +1071,7 @@ canvas.addEventListener('pointerup', (e) => {
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     if (game && running) {
       if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
+      else if (a.tool === 'ladder') game.placeLadderRun(a.x, a.y, t.x, t.y);
       else game.placeBridgeRun(a.x, a.y, t.x, t.y);
     }
     return;
@@ -1246,7 +1247,7 @@ function applyTool(tx: number, ty: number): void {
       break;
     }
     case 'ladder':
-      g.placeLadder(tx, ty);
+      g.placeLadderRun(tx, ty, tx, ty);
       break;
     case 'platform':
       g.placeBridgeRun(tx, ty, tx, ty);
