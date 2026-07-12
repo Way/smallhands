@@ -111,7 +111,8 @@ function medalSlotRow(key: string): HTMLElement {
 // something to show. `goldTime` is null when a card can't cheaply know its gold
 // threshold (the daily is generated on demand).
 function addMedalBits(card: HTMLElement, key: string, goldTime: number | null): void {
-  const anchor = card.querySelector('.lv-status');
+  const foot = card.querySelector('.lv-foot') as HTMLElement;
+  const anchor = foot.querySelector('.lv-status');
   const rec = save.records[key];
   const parts: string[] = [];
   if (rec) parts.push(`Best <b>${fmtTime(rec.bestTime)}</b>`);
@@ -120,9 +121,9 @@ function addMedalBits(card: HTMLElement, key: string, goldTime: number | null): 
     const best = document.createElement('div');
     best.className = 'lv-best';
     best.innerHTML = parts.join(' · ');
-    card.insertBefore(best, anchor);
+    foot.insertBefore(best, anchor);
   }
-  card.insertBefore(medalSlotRow(key), anchor);
+  foot.insertBefore(medalSlotRow(key), anchor);
 }
 
 // ---- editor ---------------------------------------------------------------------
@@ -306,7 +307,7 @@ function showLevelSelect(): void {
       <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
       <div class="lv-name">${lvl.name}</div>
       <div class="lv-desc">${lvl.desc}</div>
-      <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div></div>
     `;
     if (unlocked && lvl.medals) {
       addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
@@ -345,7 +346,7 @@ function showLevelSelect(): void {
       <div class="lv-num">📅</div>
       <div class="lv-name">Daily Challenge</div>
       <div class="lv-desc">${daily.label} · difficulty ★${daily.difficulty}. One shared seed per day — same mountain for everyone.</div>
-      <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div></div>
     `;
     // the daily's gold time isn't known until the level is generated, so pass
     // null; the empty medal/feat slots still show as the replay magnet
@@ -370,7 +371,7 @@ function showLevelSelect(): void {
       <div class="lv-num">🎲</div>
       <div class="lv-name">Generate a level</div>
       <div class="lv-desc">Roll a fresh, verified level from a seed. Pick your difficulty, share the seed with friends.</div>
-      <div class="lv-status">Endless</div>
+      <div class="lv-foot"><div class="lv-status">Endless</div></div>
     `;
     card.onclick = () => {
       audio.click();
@@ -387,7 +388,7 @@ function showLevelSelect(): void {
       <div class="lv-num">✎</div>
       <div class="lv-name">Level editor</div>
       <div class="lv-desc">Sculpt terrain, plant resources, set the delivery order — then playtest and share it as a code.</div>
-      <div class="lv-status">Create</div>
+      <div class="lv-foot"><div class="lv-status">Create</div></div>
     `;
     card.onclick = () => {
       audio.click();
@@ -404,7 +405,7 @@ function showLevelSelect(): void {
       <div class="lv-num">⇩</div>
       <div class="lv-name">Import code</div>
       <div class="lv-desc">Paste a shared level code (SMH1.…) to add someone else's level to your list.</div>
-      <div class="lv-status">Share</div>
+      <div class="lv-foot"><div class="lv-status">Share</div></div>
     `;
     card.onclick = () => {
       audio.click();
@@ -430,7 +431,7 @@ function showLevelSelect(): void {
       <div class="lv-num">★</div>
       <div class="lv-name"></div>
       <div class="lv-desc"></div>
-      <div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div></div>
     `;
     (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
     (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || 'A custom level.';
