@@ -1035,10 +1035,17 @@ canvas.addEventListener('pointermove', (e) => {
   const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
   if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
   else hud?.hideBuildingHint();
-  // cursor cost badge: while placing a cost-bearing tool, spell out which
-  // resource is short so a red ghost isn't a mystery (no-op when affordable)
-  if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
-  else hud?.hidePlacementNeeds();
+  // cursor cost readout: during a drag-run show the run's running total (always);
+  // otherwise, while placing a cost-bearing tool, spell out any shortfall.
+  if (runAnchor && game && running) {
+    const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, t.x, t.y);
+    hud?.hidePlacementNeeds();
+    hud?.showRunCost(e.clientX, e.clientY, plan.rows, runAnchor.tool);
+  } else {
+    hud?.hideRunCost();
+    if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
+    else hud?.hidePlacementNeeds();
+  }
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
@@ -1046,17 +1053,20 @@ canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
   hud?.hideBuildingHint();
   hud?.hidePlacementNeeds();
+  hud?.hideRunCost();
   editor.setHover(0, 0, false);
 });
 
 canvas.addEventListener('pointercancel', () => {
   dragging = false;
   runAnchor = null;
+  hud?.hideRunCost();
   applyToolCursor();
 });
 
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
+  hud?.hideRunCost();
   applyToolCursor(); // drop the grabbing hand back to the tool cursor
   if (painting) {
     painting = false;

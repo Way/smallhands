@@ -8,7 +8,7 @@ import {
   TH_LEVELS,
   TOOL_DEFS,
 } from './types';
-import type { BuildingKind, ItemType, Role, Tool } from './types';
+import type { BuildingKind, ItemType, Role, ShortfallRow, Tool } from './types';
 import { drawIconTo } from '../engine/sprites';
 import type { Game } from './sim';
 
@@ -82,6 +82,8 @@ export class Hud {
   private hintSig = '';
   private needs: HTMLElement | null = null;
   private needsSig = '';
+  private runCost: HTMLElement | null = null;
+  private runCostSig = '';
   private keepBadges = new Map<ItemType, HTMLElement>();
   private lastKeep: Record<string, number> = {};
   private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
@@ -465,6 +467,46 @@ export class Hud {
     this.needs?.remove();
     this.needs = null;
     this.needsSig = '';
+  }
+
+  // While dragging a build-run (Ladder/Ramp/Bridge), show the run's running
+  // total cost at the cursor. Unlike the shortfall badge this ALWAYS shows during
+  // a drag (the point is the total); a resource the full run can't afford flips
+  // to a red have/need. `rows` come straight from Game.runPlan.
+  showRunCost(clientX: number, clientY: number, rows: ShortfallRow[], tool: Tool): void {
+    if (rows.length === 0) {
+      this.hideRunCost();
+      return;
+    }
+    const label = TOOL_DEFS.find((t) => t.id === tool)?.label ?? '';
+    const sig = tool + rows.map((r) => `|${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`).join('');
+    if (!this.runCost) {
+      this.runCost = el('div', 'tooltip', this.root);
+      this.runCostSig = '';
+    }
+    const tip = this.runCost;
+    if (sig !== this.runCostSig) {
+      this.runCostSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${label}</b>`;
+      const cost = el('div', 'tt-cost', tip);
+      for (const r of rows) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[r.item], 14, s);
+        // affordable: just the total; short: red have/need (same as the badge)
+        el('b', r.short ? 'insufficient' : '', s).textContent = r.short ? `${r.have}/${r.need}` : `${r.need}`;
+      }
+    }
+    // follow the cursor, clamped to stay on screen (same as showPlacementNeeds)
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hideRunCost(): void {
+    this.runCost?.remove();
+    this.runCost = null;
+    this.runCostSig = '';
   }
 
   flashResource(item: ItemType): void {
