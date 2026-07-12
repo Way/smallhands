@@ -170,6 +170,33 @@ export function bridgeRunCells(
   return cells;
 }
 
+// The buildable vertical ladder column from anchor (ax,ay) toward ty (tx is
+// ignored — ladders climb straight up a wall, so the run snaps to the anchor's
+// column). The anchor must satisfy the ladder rule; each later cell attaches to
+// the run tile it abuts — a ladder above when descending, a ladder below (which
+// counts as support, see World.isSupport) when ascending — so like a bridge deck
+// it only needs clear air. Stops at the first non-air cell.
+export function ladderRunCells(
+  world: World,
+  ax: number,
+  ay: number,
+  _tx: number,
+  ty: number
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  if (!canPlaceLadder(world, ax, ay)) return cells;
+  cells.push({ x: ax, y: ay });
+  const sy = Math.sign(ty - ay);
+  if (sy === 0) return cells;
+  const n = Math.abs(ty - ay);
+  for (let i = 1; i <= n; i++) {
+    const cy = ay + i * sy;
+    if (world.get(ax, cy) !== T.AIR) break;
+    cells.push({ x: ax, y: cy });
+  }
+  return cells;
+}
+
 export function canPlaceBuilding(
   world: World,
   buildings: Building[],
