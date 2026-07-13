@@ -53,7 +53,12 @@ function check(name, cond) {
   const b1 = g.weatherBlend;
   check('post-flip from = phase 0 kind', b1.from === sched[0].kind);
   check('post-flip to = phase 1 kind', b1.to === sched[1].kind);
-  check('post-flip t is near 0 (fade just started)', b1.t < 0.2);
+  check('post-flip t is near 0 (fade just started)', b1.t < 0.05);
+
+  // the fade ramps in lockstep with real time: +1.5s of sim advances t by 1.5/WEATHER_FADE
+  for (let i = 0; i < Math.round(1.5 / dt); i++) g.tick(dt);
+  const b2 = g.weatherBlend;
+  check('blend t ramps at 1/WEATHER_FADE per second', Math.abs(b2.t - b1.t - 1.5 / WEATHER_FADE) < 0.05);
 
   // gameplay flips at the boundary, decoupled from the visual blend
   const expected = sched[1].kind === 'clear' ? 1 : WET_WORK_FACTOR;

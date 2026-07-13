@@ -880,7 +880,7 @@ export class Renderer {
   // and horizontal gust lines that fade in only once it's genuinely stormy.
   private drawWeatherFx(look: WeatherLook, W: number, H: number, t: number): void {
     const rain = look.rain;
-    if (rain < 0.01 && look.tint[3] < 0.01) return;
+    if (rain < 0.01 && look.tint[3] < 0.001) return; // nothing to draw (same tint epsilon as below)
     const { ctx } = this;
     if (look.tint[3] > 0.001) {
       ctx.fillStyle = rgbaCss(look.tint);

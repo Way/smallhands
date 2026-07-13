@@ -253,10 +253,10 @@ export class Game {
   // Continuous crossfade between the previous and current weather. `t` ramps
   // 0→1 across WEATHER_FADE after a flip, then holds at 1. Renderer-only.
   get weatherBlend(): { from: WeatherKind; to: WeatherKind; t: number } {
-    const to = this.weather;
-    if (!this.weatherSchedule) return { from: 'clear', to: 'clear', t: 1 };
+    // No schedule needs no special case: `weather` is 'clear', `weatherPrev`
+    // stays 'clear', and `weatherFadeT` stays at WEATHER_FADE, so t === 1.
     const t = Math.min(1, this.weatherFadeT / WEATHER_FADE);
-    return { from: this.weatherPrev, to, t };
+    return { from: this.weatherPrev, to: this.weather, t };
   }
 
   // Wet weather (rain or storm) slows outdoor harvest work.
