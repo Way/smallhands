@@ -4,6 +4,8 @@ import { sprite, tileHash } from '../engine/sprites';
 import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
+import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
+import type { WeatherLook } from './weather-look';
 
 export class Camera {
   x = 0; // world px at left edge
@@ -106,7 +108,10 @@ export class Renderer {
     ctx.imageSmoothingEnabled = false;
     this.lastT = timeSec;
 
-    this.drawSky(game, W, H, timeSec, cam);
+    const blend = game.weatherBlend;
+    const look = lerpLook(weatherLook(blend.from), weatherLook(blend.to), blend.t);
+
+    this.drawSky(game, look, W, H, timeSec, cam);
 
     ctx.save();
     ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
@@ -121,7 +126,7 @@ export class Renderer {
     this.harvestFocus += ((harvNode ? 1 : 0) - this.harvestFocus) * Math.min(1, dt * 14);
 
     this.drawTerrain(game, cam);
-    this.drawNodes(game, timeSec, harvNode?.id ?? -1, this.harvestFocus);
+    this.drawNodes(game, timeSec, harvNode?.id ?? -1, this.harvestFocus, look);
     this.drawBuildings(game, timeSec);
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
@@ -132,7 +137,7 @@ export class Renderer {
     ctx.restore();
 
     // screen-space atmosphere: rain/storm streaks, then the night's darkness
-    this.drawWeatherFx(game, W, H, timeSec);
+    this.drawWeatherFx(look, W, H, timeSec);
     this.drawDarkness(game, cam, W, H, timeSec);
 
     // the placement ghost and drag-run preview stay fully bright above the dark
@@ -146,12 +151,13 @@ export class Renderer {
 
   // ---- sky & parallax -------------------------------------------------------
 
-  private drawSky(game: Game, W: number, H: number, t: number, cam: Camera): void {
+  private drawSky(game: Game, look: WeatherLook, W: number, H: number, t: number, cam: Camera): void {
     const { ctx } = this;
     const night = !!game.level.night;
-    const wx = game.weather;
 
-    // gradient stops + hill/cloud palettes per mood
+    // gradient stops + hill/cloud palettes per mood. Night is a level flag, not
+    // weather: it overrides the sky palette, but the wet tint/streaks (drawn in
+    // drawWeatherFx) still crossfade on top.
     let stops: [string, string, string];
     let hills: [string, string];
     let cloudCol: string;
@@ -159,18 +165,10 @@ export class Renderer {
       stops = ['#0a1028', '#141e42', '#243654'];
       hills = ['#2a4a44', '#1d3833'];
       cloudCol = 'rgba(46,58,92,0.65)';
-    } else if (wx === 'storm') {
-      stops = ['#3a4658', '#566274', '#7a8494'];
-      hills = ['#5f7d70', '#48645a'];
-      cloudCol = 'rgba(88,98,114,0.95)';
-    } else if (wx === 'rain') {
-      stops = ['#5e7994', '#8298ac', '#aab8c0'];
-      hills = ['#7aa392', '#5c8a74'];
-      cloudCol = 'rgba(150,160,175,0.9)';
     } else {
-      stops = ['#7ec4e8', '#a8dcf0', '#d8f0e8'];
-      hills = ['#8fc7a8', '#6fae8c'];
-      cloudCol = 'rgba(255,255,255,0.85)';
+      stops = [rgbCss(look.sky[0]), rgbCss(look.sky[1]), rgbCss(look.sky[2])];
+      hills = [rgbCss(look.hills[0]), rgbCss(look.hills[1])];
+      cloudCol = rgbaCss(look.cloudCol);
     }
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, stops[0]);
@@ -206,16 +204,22 @@ export class Renderer {
         ctx.arc(mx + dx, my + dy, r, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else if (wx === 'clear') {
-      // sun
-      ctx.fillStyle = '#fff3c4';
-      ctx.beginPath();
-      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffe89a';
-      ctx.beginPath();
-      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
-      ctx.fill();
+    } else {
+      // the sun fades out as precipitation builds and returns as it clears
+      const sunA = 1 - Math.min(1, look.rain);
+      if (sunA > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = sunA;
+        ctx.fillStyle = '#fff3c4';
+        ctx.beginPath();
+        ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffe89a';
+        ctx.beginPath();
+        ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     // distant hills, two parallax layers
@@ -236,7 +240,7 @@ export class Renderer {
     }
 
     // clouds — the storm drives them hard across the sky
-    const cloudSpeed = wx === 'storm' ? 9 : wx === 'rain' ? 2.5 : 1;
+    const cloudSpeed = look.cloudSpeed;
     ctx.fillStyle = cloudCol;
     for (const c of this.cloudSeeds) {
       const cx = ((c.x + t * c.v * cloudSpeed - cam.x * 0.06) % (W + 320)) - 160;
@@ -251,20 +255,21 @@ export class Renderer {
       ctx.fill();
     }
 
-    // birds keep to fair daylight weather
-    if (!night && wx === 'clear') this.drawBirds(W, H, t, cam);
+    // birds keep to fair daylight skies; they stop spawning as rain builds but
+    // any already aloft finish crossing (no mid-air disappearance)
+    if (!night) this.drawBirds(W, H, t, cam, look.rain < 0.05);
   }
 
   // Occasional birds drifting across the upper sky and leaving. Purely decorative,
   // so reduced-motion skips them entirely. They share the clouds' slow parallax so
   // they sit in the sky plane, and are drawn as flapping seagull silhouettes.
-  private drawBirds(W: number, H: number, t: number, cam: Camera): void {
+  private drawBirds(W: number, H: number, t: number, cam: Camera, calm: boolean): void {
     if (this.reduceMotion) return;
     const { ctx } = this;
     const PAR = 0.06;
 
     if (this.nextBirdAt === 0) this.nextBirdAt = t + 2 + Math.random() * 5;
-    if (t >= this.nextBirdAt && this.birds.length < 12) {
+    if (calm && t >= this.nextBirdAt && this.birds.length < 12) {
       this.spawnBirds(W, H, t);
       this.nextBirdAt = t + 26 + Math.random() * 30;
     }
@@ -420,12 +425,12 @@ export class Renderer {
 
   // `hoveredId`/`focus` drive the Harvest-cursor anticipation: the node under the
   // cursor leans/lifts (tree) or shivers (boulder/vein) as `focus` (0..1) ramps.
-  private drawNodes(game: Game, t: number, hoveredId: number, focus: number): void {
+  private drawNodes(game: Game, t: number, hoveredId: number, focus: number, look: WeatherLook): void {
     const { ctx } = this;
     const osc = this.reduceMotion ? 0 : 1;
     // the wind leans on the treetops: gentle by default, hard in a storm
-    const wind = game.weather === 'storm' ? 2.6 : game.weather === 'rain' ? 1.5 : 1;
-    const windHz = game.weather === 'storm' ? 2.6 : 1.2;
+    const wind = look.wind;
+    const windHz = look.windHz;
     for (const n of game.nodes) {
       const anticip = n.id === hoveredId ? focus : 0;
       const wob = n.wobble > 0 ? Math.sin(t * 40) * 1.2 : 0;
@@ -870,22 +875,25 @@ export class Renderer {
     }
   }
 
-  // Screen-space rain/storm: falling streaks (slanted hard in a storm), a few
-  // horizontal gust lines, and a wet dimming of the whole scene.
-  private drawWeatherFx(game: Game, W: number, H: number, t: number): void {
-    const wx = game.weather;
-    if (wx === 'clear') return;
+  // Screen-space precipitation driven by the blended weather look: a wet tint,
+  // falling streaks (more, longer, faster and slanted harder as a storm builds),
+  // and horizontal gust lines that fade in only once it's genuinely stormy.
+  private drawWeatherFx(look: WeatherLook, W: number, H: number, t: number): void {
+    const rain = look.rain;
+    if (rain < 0.01 && look.tint[3] < 0.01) return;
     const { ctx } = this;
-    const storm = wx === 'storm';
-    ctx.fillStyle = storm ? 'rgba(18,26,44,0.24)' : 'rgba(40,60,90,0.12)';
-    ctx.fillRect(0, 0, W, H);
+    if (look.tint[3] > 0.001) {
+      ctx.fillStyle = rgbaCss(look.tint);
+      ctx.fillRect(0, 0, W, H);
+    }
     if (this.reduceMotion) return; // the tint alone carries the weather
     const mod = (v: number, m: number) => ((v % m) + m) % m;
-    const n = storm ? 190 : 130;
-    const fall = storm ? 950 : 640;
-    const slant = storm ? 0.55 : 0.14;
-    const len = storm ? 15 : 10;
-    ctx.strokeStyle = storm ? 'rgba(195,210,230,0.34)' : 'rgba(170,195,225,0.38)';
+    const stormy = Math.min(1, Math.max(0, (rain - 1) / 0.6)); // 0 at rain, 1 at storm
+    const n = Math.round(120 * Math.min(1.6, rain));
+    const fall = 640 + 310 * stormy;
+    const slant = look.slant;
+    const len = 10 + 5 * stormy;
+    ctx.strokeStyle = `rgba(188,206,228,${(0.36 * Math.min(1, rain)).toFixed(3)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
@@ -897,9 +905,9 @@ export class Renderer {
       ctx.lineTo(x - slant * len, y + len);
     }
     ctx.stroke();
-    if (storm) {
-      // gusts screaming past horizontally
-      ctx.strokeStyle = 'rgba(220,230,245,0.14)';
+    if (stormy > 0.01) {
+      // gusts screaming past horizontally, fading in with the storm
+      ctx.strokeStyle = `rgba(220,230,245,${(0.14 * stormy).toFixed(3)})`;
       ctx.beginPath();
       for (let i = 0; i < 9; i++) {
         const h = tileHash(i, 41);

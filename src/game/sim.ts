@@ -17,6 +17,7 @@ import {
   TOOL_DEFS,
   TOWNHALL_LIGHT_RADIUS,
   WALK_SPEED,
+  WEATHER_FADE,
   WET_WORK_FACTOR,
   WORKER_SPAWN_INTERVAL,
 } from './types';
@@ -138,6 +139,10 @@ export class Game {
   // weather: index + elapsed time within the level's looping schedule
   weatherIdx = 0;
   private weatherT = 0;
+  // visual crossfade: the kind we're leaving + seconds since the last flip.
+  // Initialised settled (fade already complete) so there's no fade-in on spawn.
+  private weatherPrev: WeatherKind = 'clear';
+  private weatherFadeT = WEATHER_FADE;
   // rising-water table: every AIR cell at y >= waterRow is flooded.
   // null = no water table (static water tiles may still exist).
   waterRow: number | null = null;
@@ -243,6 +248,15 @@ export class Game {
     const sched = this.weatherSchedule;
     if (!sched) return Infinity;
     return Math.max(0, sched[this.weatherIdx % sched.length].duration - this.weatherT);
+  }
+
+  // Continuous crossfade between the previous and current weather. `t` ramps
+  // 0→1 across WEATHER_FADE after a flip, then holds at 1. Renderer-only.
+  get weatherBlend(): { from: WeatherKind; to: WeatherKind; t: number } {
+    const to = this.weather;
+    if (!this.weatherSchedule) return { from: 'clear', to: 'clear', t: 1 };
+    const t = Math.min(1, this.weatherFadeT / WEATHER_FADE);
+    return { from: this.weatherPrev, to, t };
   }
 
   // Wet weather (rain or storm) slows outdoor harvest work.
@@ -1279,10 +1293,13 @@ export class Game {
     const sched = this.weatherSchedule;
     if (!sched) return;
     this.weatherT += dt;
+    this.weatherFadeT += dt;
     const phase = sched[this.weatherIdx % sched.length];
     if (this.weatherT >= phase.duration) {
       this.weatherT -= phase.duration;
+      this.weatherPrev = phase.kind; // the kind we're leaving
       this.weatherIdx = (this.weatherIdx + 1) % sched.length;
+      this.weatherFadeT = this.weatherT; // start the fade from the boundary (carry overflow)
       const kind = sched[this.weatherIdx].kind;
       this.onEvent({ type: 'weather', kind });
       // in flood levels, every downpour raises the water table one row

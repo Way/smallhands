@@ -251,6 +251,10 @@ export interface WeatherPhase {
 // Harvest progress multiplier while it rains or storms (wet axes bite slower).
 export const WET_WORK_FACTOR = 0.55;
 
+// Seconds to crossfade the weather visuals when a phase flips. Visual-only —
+// gameplay (workFactor, storm blow-off, flood rise) still flips at the boundary.
+export const WEATHER_FADE = 3;
+
 // Light radii (in tiles) for night levels. The town hall and the caravan keep
 // their own fires burning; everything else needs lanterns.
 export const LANTERN_RADIUS = 6.5;
