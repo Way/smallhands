@@ -18,7 +18,7 @@ const check = (name, cond) => {
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--no-sandbox', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto('http://localhost:4173/');
+await page.goto('http://localhost:4173/play/');
 await page.waitForTimeout(600);
 
 // English title by default (headless is en-US)
@@ -54,7 +54,10 @@ const toolLabel = await page.textContent('.tool-btn .tool-label');
 check('first tool label is German', toolLabel === 'Prüfen');
 
 
-// in-game options via the gear, switch back to English -> HUD rebuilds live
+// in-game options via the gear, switch back to English -> HUD rebuilds live.
+// The corner menu auto-hides behind a pill on hover-capable pointers, so reveal
+// it first (headless shell reports `hover: hover`).
+await page.hover('.menubar');
 await page.click('.menubar .speed-btn[title="Optionen"]');
 await page.waitForTimeout(200);
 await page.click('.seg-btn:has-text("English")');

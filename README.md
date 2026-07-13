@@ -89,11 +89,22 @@ skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
 | `Space` | Pause / resume |
 | `Esc` | Back to inspect tool |
 
+## Site layout
+
+The site is a two-page static build:
+
+- `/` — a small, playful **landing page** (`index.html` + `src/landing.ts`)
+  that pitches Smallhands as the sweet spot between Lemmings and The Settlers.
+  It is bilingual (English/German, toggle in the top bar) and draws its icons
+  from the game's own pixel-art atlas; the language choice is written to the
+  same save slot the game reads, so it carries straight into play.
+- `/play/` — the game itself (`play/index.html` + `src/main.ts`).
+
 ## Development
 
 ```bash
 npm install
-npm run dev      # dev server with HMR
+npm run dev      # dev server with HMR (landing at /, game at /play/)
 npm run build    # typecheck + production build into dist/
 npm run preview  # serve the production build locally
 ```
@@ -102,7 +113,8 @@ npm run preview  # serve the production build locally
 
 With a preview server running on port 4173, this drives a real browser through
 levels 1 and 2 (harvesting, sawmill production, goal deliveries, cargo lift and
-ladder logistics) and fails if the levels can't be completed:
+ladder logistics) and fails if the levels can't be completed. The browser
+suites target the game at `/play/`; override with `BASE_URL` if needed:
 
 ```bash
 npm run build && npm run preview &   # serve dist on :4173
@@ -132,9 +144,16 @@ A third browser suite (`npm run test:i18n`, preview server required) switches
 the game to German through the options menu and verifies every open surface —
 title, level select, in-game HUD — re-renders live and the choice persists.
 
+The landing page has its own smoke test (`npm run test:landing`, preview
+server required): it drives the front door at `/`, checks the bilingual toggle
+switches the copy and writes the shared save slot, that the pixel-art icons
+actually draw, and that the **Play** button reaches the game at `/play/` in the
+language the landing persisted.
+
 ## Hosting
 
 The build output in `dist/` is a fully static site with relative asset paths —
+the landing page at `dist/index.html` and the game at `dist/play/` — so you can
 host it anywhere (GitHub Pages, itch.io, Netlify, any static file server).
 A GitHub Actions workflow (`.github/workflows/deploy.yml`) is included that
 builds and publishes to GitHub Pages on every push to `main` — enable
