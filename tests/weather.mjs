@@ -75,5 +75,23 @@ function check(name, cond) {
   check('wrap restarted the fade (t < 1)', bw.t < 1);
 }
 
+// ---- pure WeatherLook lerp -------------------------------------------------
+{
+  const clr = weatherLook('clear');
+  const rn = weatherLook('rain');
+  check('clear look has rain intensity 0', clr.rain === 0);
+  check('rain look has rain intensity 1', rn.rain === 1);
+  check('storm look has rain intensity > 1', weatherLook('storm').rain > 1);
+
+  check('lerp at t=0 returns the "from" rain', lerpLook(clr, rn, 0).rain === clr.rain);
+  check('lerp at t=1 returns the "to" rain', lerpLook(clr, rn, 1).rain === rn.rain);
+
+  const mid = lerpLook(clr, rn, 0.5);
+  check('lerp midpoint rain is between the endpoints', mid.rain > clr.rain && mid.rain < rn.rain);
+  const avgR = (clr.sky[0][0] + rn.sky[0][0]) / 2;
+  check('lerp midpoint sky channel is the RGB average', Math.abs(mid.sky[0][0] - avgR) < 1e-6);
+  check('lerp midpoint tint alpha is between', mid.tint[3] > clr.tint[3] && mid.tint[3] < rn.tint[3]);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
