@@ -287,6 +287,7 @@ const D: Record<string, [string, string]> = {
     'Jeder Regen hebt das Wasser eine Stufe — für immer.',
   ],
   'hud.paused': ['Paused', 'Pausiert'],
+  'hud.zoom': ['zoom', 'Zoom'],
   'hud.upgradeBtn': ['Upgrade Town Hall → {n}', 'Rathaus ausbauen → {n}'],
   'hud.thMax': ['Town Hall {n} (max)', 'Rathaus {n} (max.)'],
   'hud.upgrading': ['Upgrading… {p}%', 'Ausbau… {p} %'],

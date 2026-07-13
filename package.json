@@ -13,6 +13,7 @@
     "test:i18n": "node tests/i18n.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:drag-tooltip": "node tests/drag-tooltip.mjs",
+    "test:landing": "node tests/landing.mjs",
     "test:weather": "node tests/weather.mjs",
     "test:weather-visual": "node tests/weather-visual.mjs"
   },

@@ -76,6 +76,7 @@ export class Hud {
   private upgradeBtn!: HTMLButtonElement;
   private toolBtns = new Map<Tool, HTMLButtonElement>();
   private speedBtns = new Map<number, HTMLButtonElement>();
+  private speedTrigger!: HTMLElement;
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
@@ -99,8 +100,7 @@ export class Hud {
     root.innerHTML = '';
     this.buildTopBar();
     this.buildToolbar();
-    this.buildSpeedBar();
-    this.buildZoomBar();
+    this.buildControlBar();
     this.buildMenuBar();
     this.toastWrap = el('div', 'toast-wrap', root);
     this.update();
@@ -198,28 +198,39 @@ export class Hud {
     }
   }
 
-  private buildSpeedBar(): void {
-    const bar = el('div', 'panel speedbar', this.root);
+  // Speed + zoom, merged into one bottom-right flyout. Collapsed on desktop to a
+  // single pill showing the current speed; hovering expands the full panel. On
+  // touch (no hover) the pill is hidden and the panel stays open — see the
+  // `@media (hover: hover)` block in style.css.
+  private buildControlBar(): void {
+    const bar = el('div', 'ctrlbar flyout', this.root);
+    this.speedTrigger = el('div', 'flyout-trigger panel', bar);
+    this.speedTrigger.textContent = '1×';
+    this.speedTrigger.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'flyout-body panel', bar);
+
+    const speedRow = el('div', 'ctrl-row speed-row', body);
     for (const [label, s] of [
       ['⏸', 0],
       ['1×', 1],
       ['2×', 2],
       ['4×', 4],
     ] as const) {
-      const btn = el('button', 'speed-btn', bar);
+      const btn = el('button', 'speed-btn', speedRow);
       btn.textContent = label;
       btn.onclick = () => this.cbs.onSpeed(s);
       this.speedBtns.set(s, btn);
     }
-  }
 
-  private buildZoomBar(): void {
-    const bar = el('div', 'panel zoombar', this.root);
+    el('div', 'ctrl-divider', body);
+
+    const zoomRow = el('div', 'ctrl-row zoom-row', body);
+    el('span', 'ctrl-label', zoomRow).textContent = t('hud.zoom');
     for (const [label, dir] of [
       ['−', -1],
       ['+', 1],
     ] as const) {
-      const btn = el('button', 'speed-btn', bar);
+      const btn = el('button', 'speed-btn', zoomRow);
       btn.textContent = label;
       btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
       btn.onclick = () => this.cbs.onZoom(dir);
@@ -227,14 +238,18 @@ export class Hud {
   }
 
   private buildMenuBar(): void {
-    const bar = el('div', 'panel menubar', this.root);
-    const menu = el('button', 'speed-btn', bar);
+    const bar = el('div', 'menubar flyout', this.root);
+    const trigger = el('div', 'flyout-trigger panel', bar);
+    trigger.textContent = '☰';
+    trigger.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'flyout-body panel', bar);
+    const menu = el('button', 'speed-btn', body);
     menu.textContent = t('menu.levels');
     menu.onclick = () => this.cbs.onMenu();
-    const restart = el('button', 'speed-btn', bar);
+    const restart = el('button', 'speed-btn', body);
     restart.textContent = t('menu.restart');
     restart.onclick = () => this.cbs.onRestart();
-    const opts = el('button', 'speed-btn', bar);
+    const opts = el('button', 'speed-btn', body);
     opts.textContent = '⚙';
     opts.title = t('opt.title');
     opts.onclick = () => this.cbs.onOptions();
@@ -550,6 +565,9 @@ export class Hud {
 
   setSpeed(s: number): void {
     for (const [sp, btn] of this.speedBtns) btn.classList.toggle('active', sp === s);
+    // keep the collapsed pill in sync — it doubles as a live speed readout
+    this.speedTrigger.textContent = s === 0 ? '⏸' : `${s}×`;
+    this.speedTrigger.classList.toggle('non-default', s !== 1);
     document.querySelector('.pause-note')?.remove();
     if (s === 0) {
       const note = el('div', 'pause-note', this.root);
