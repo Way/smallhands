@@ -12,7 +12,8 @@
     "test:campaign2": "node tests/campaign2.mjs",
     "test:i18n": "node tests/i18n.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "test:drag-tooltip": "node tests/drag-tooltip.mjs"
+    "test:drag-tooltip": "node tests/drag-tooltip.mjs",
+    "test:landing": "node tests/landing.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1",

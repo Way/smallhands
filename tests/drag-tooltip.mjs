@@ -11,7 +11,7 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/play/';
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;

@@ -18,7 +18,7 @@ const check = (name, cond) => {
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--no-sandbox', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto('http://localhost:4173/');
+await page.goto('http://localhost:4173/play/');
 await page.waitForTimeout(600);
 
 // English title by default (headless is en-US)
