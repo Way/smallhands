@@ -46,6 +46,12 @@ self-contained static site (~22 kB gzipped).
   thresholds and two feats (*No Demolish*, *Light Touch*). Wins end in a
   medal ceremony with an honest time gauge; the level select carries a
   trophy shelf and per-level medal slots. Records live in localStorage.
+- **Two languages & an options menu** — the whole game (levels, hints, HUD,
+  editor, verifier) ships in **English and German**; the language follows the
+  browser until the player picks one in the **Options** menu (reachable from
+  the title, the level select and in-game via ⚙). Options also cover sound,
+  a reduced-effects mode (rain streaks, sway, flicker off) and a progress
+  reset. Language switches apply live — even mid-level.
 
 ## The Workshop: editor, generator & daily challenge
 
@@ -121,6 +127,10 @@ scripted player and fails unless the win state is reached:
 npm run test:unit
 npm run test:campaign2
 ```
+
+A third browser suite (`npm run test:i18n`, preview server required) switches
+the game to German through the options menu and verifies every open surface —
+title, level select, in-game HUD — re-renders live and the choice persists.
 
 ## Hosting
 

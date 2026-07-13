@@ -5,6 +5,7 @@ import { FOOTPRINTS, ITEM_TYPES, ROLES, T, TOOL_DEFS } from './types';
 import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
+import { t } from '../engine/i18n';
 import type { LevelDef } from './levels';
 
 export interface CustomLevelData {
@@ -82,8 +83,8 @@ export function blankLevelData(width = 64, height = 28): CustomLevelData {
   return {
     v: 1,
     id: makeLevelId(),
-    name: 'My Level',
-    desc: 'A custom level.',
+    name: t('ed.defaultName'),
+    desc: t('custom.defaultDesc'),
     width,
     height,
     tiles: encodeTiles(world.tiles),
@@ -225,7 +226,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
   return {
     v: 1,
     id: typeof r.id === 'string' && r.id.length <= 40 ? r.id : makeLevelId(),
-    name: typeof r.name === 'string' ? r.name.slice(0, 40) : 'Imported level',
+    name: typeof r.name === 'string' ? r.name.slice(0, 40) : t('ed.defaultName'),
     desc: typeof r.desc === 'string' ? r.desc.slice(0, 140) : '',
     width,
     height,
@@ -282,17 +283,17 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
   const goal = data.goal;
   const fpTh = FOOTPRINTS.townhall;
   const fpGoal = FOOTPRINTS.goal;
-  if (!footprintOk(th.x, th.y, fpTh.w, fpTh.h)) problems.push('Town Hall is buried or floating — it needs clear air on solid, level ground.');
-  if (!footprintOk(goal.x, goal.y, fpGoal.w, fpGoal.h)) problems.push('The caravan (goal) is buried or floating — it needs clear air on solid, level ground.');
+  if (!footprintOk(th.x, th.y, fpTh.w, fpTh.h)) problems.push(t('verify.thBuried'));
+  if (!footprintOk(goal.x, goal.y, fpGoal.w, fpGoal.h)) problems.push(t('verify.goalBuried'));
 
   for (const n of data.nodes) {
     if (!world.isPassable(n.x, n.y) || !world.isSolid(n.x, n.y + 1)) {
-      problems.push(`A ${n.kind} at (${n.x}, ${n.y}) is not standing on solid ground.`);
+      problems.push(t('verify.nodeGround', { kind: t(`node.${n.kind}`), x: n.x, y: n.y }));
     }
   }
 
   const objectives = data.objectives.filter((o) => o.amount > 0);
-  if (objectives.length === 0) problems.push('No delivery objectives — the level cannot be won.');
+  if (objectives.length === 0) problems.push(t('verify.noObjectives'));
 
   // resource budget: raw yield + starting stock vs. what the order needs
   const yieldOf = (kind: NodeKind) => data.nodes.filter((n) => n.kind === kind).length * 4;
@@ -310,29 +311,29 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
   const planksToSaw = Math.max(0, planksNeeded - have.plank);
   // sawmill yields 2 planks per log; the mill itself costs 6 logs
   const logsNeeded = need.log + (planksToSaw > 0 ? Math.ceil(planksToSaw / 2) + 6 : 0);
-  if (have.log < logsNeeded) warnings.push(`Wood may run short: the order needs ~${logsNeeded} logs (incl. a sawmill) but only ${have.log} are obtainable.`);
-  if (have.stone < need.stone) problems.push(`Not enough stone in the level: order needs ${need.stone}, only ${have.stone} obtainable.`);
-  if (have.iron < spearsToMake) problems.push(`Not enough iron in the level: spears need ${spearsToMake}, only ${have.iron} obtainable.`);
+  if (have.log < logsNeeded) warnings.push(t('verify.wood', { need: logsNeeded, have: have.log }));
+  if (have.stone < need.stone) problems.push(t('verify.stone', { need: need.stone, have: have.stone }));
+  if (have.iron < spearsToMake) problems.push(t('verify.iron', { need: spearsToMake, have: have.iron }));
   if (spearsToMake > 0 && data.startThLevel < 2) {
     const thStone = 6; // TH1→2 upgrade stone cost
-    if (have.stone < need.stone + thStone + 4) warnings.push('Spears need a forge (Town Hall 2) — stone for the upgrade and forge may run short.');
+    if (have.stone < need.stone + thStone + 4) warnings.push(t('verify.spearStone'));
   }
 
   // reachability on the player-augmented graph
   const thDoor = settle(world, th.x + 1, th.y + fpTh.h - 1);
   if (!thDoor) {
-    problems.push('No standable spot at the Town Hall door.');
+    problems.push(t('verify.thDoor'));
   } else {
     const airReach = floodPassable(world, thDoor.x, thDoor.y);
     for (const n of data.nodes) {
       if (!airReach.has(world.key(n.x, n.y))) {
-        warnings.push(`The ${n.kind} at (${n.x}, ${n.y}) is sealed off from the Town Hall — no air path connects them.`);
+        warnings.push(t('verify.sealed', { kind: t(`node.${n.kind}`), x: n.x, y: n.y }));
       }
     }
     const cargoFromTh = cargoReach(world, thDoor.x, thDoor.y);
     const goalCells = approachKeys(world, goal.x, goal.y, fpGoal.w, fpGoal.h);
     if (![...goalCells].some((k) => cargoFromTh.has(k))) {
-      problems.push('Loaded smallhands can never reach the caravan from the Town Hall — even with platforms and lifts. Goods cannot be delivered.');
+      problems.push(t('verify.goalUnreachable'));
     }
     const thCells = approachKeys(world, th.x, th.y, fpTh.w, fpTh.h);
     for (const n of data.nodes) {
@@ -340,7 +341,7 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
       if (!spot) continue;
       const reach = cargoReach(world, spot.x, spot.y);
       if (![...thCells].some((k) => reach.has(k))) {
-        warnings.push(`Goods harvested at the ${n.kind} (${n.x}, ${n.y}) may never reach the stockpile — check for a lift-able cliff face or a platform route.`);
+        warnings.push(t('verify.stranded', { kind: t(`node.${n.kind}`), x: n.x, y: n.y }));
       }
     }
   }

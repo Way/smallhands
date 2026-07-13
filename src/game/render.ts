@@ -1,6 +1,7 @@
 import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash } from '../engine/sprites';
+import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 
@@ -55,8 +56,15 @@ export class Renderer {
   // node's anticipation. `lastGhostT` gives us a dt for the ease.
   private harvestFocus = 0;
   private lastGhostT = 0;
-  private readonly reduceMotion =
+  // effects can be dialed down via the options menu; the OS-level
+  // reduced-motion preference is always respected on top of that
+  effectsReduced = false;
+  private readonly reduceMotionPref =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  private get reduceMotion(): boolean {
+    return this.reduceMotionPref || this.effectsReduced;
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -697,12 +705,12 @@ export class Renderer {
     this.effects.push({ x: worldX, y: worldY, start: this.lastT, from, to });
   }
 
-  private drawEffects(t: number): void {
+  private drawEffects(now: number): void {
     const { ctx } = this;
     const DUR = 2.0;
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i];
-      const age = t - e.start;
+      const age = now - e.start;
       if (age < 0 || age > DUR) {
         this.effects.splice(i, 1);
         continue;
@@ -731,7 +739,7 @@ export class Renderer {
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = 'rgba(0,0,0,0.7)';
       ctx.fillStyle = '#ffd94d';
-      const txt = `Crew ${e.from} → ${e.to}`;
+      const txt = t('fx.crew', { a: e.from, b: e.to });
       ctx.strokeText(txt, e.x, ty);
       ctx.fillText(txt, e.x, ty);
       ctx.textAlign = 'left';

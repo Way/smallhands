@@ -17,24 +17,11 @@ export const enum T {
 
 export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear';
 export const ITEM_TYPES: ItemType[] = ['log', 'plank', 'stone', 'iron', 'spear'];
-
-export const ITEM_NAMES: Record<ItemType, string> = {
-  log: 'Log',
-  plank: 'Plank',
-  stone: 'Stone',
-  iron: 'Iron',
-  spear: 'Spear',
-};
+// display names live in the i18n table: t(`item.${itemType}`)
 
 export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner';
 export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner'];
-
-export const ROLE_NAMES: Record<Role, string> = {
-  hauler: 'Haulers',
-  builder: 'Builders',
-  woodcutter: 'Woodcutters',
-  miner: 'Miners',
-};
+// display names live in the i18n table: t(`role.${role}`)
 
 export const ROLE_COLORS: Record<Role, string> = {
   hauler: '#5aa2e8',
@@ -142,27 +129,26 @@ export type Tool =
   | 'lantern'
   | 'demolish';
 
+// Labels and descriptions live in the i18n table: t(`tool.${id}.label`) / .desc
 export interface ToolDef {
   id: Tool;
-  label: string;
   key: string;
-  desc: string;
   cost?: Partial<Record<ItemType, number>>;
   thLevel?: number; // required town hall level (for buildings)
 }
 
 export const TOOL_DEFS: ToolDef[] = [
-  { id: 'select', label: 'Inspect', key: '1', desc: 'Inspect things. Drag, scroll or use WASD to pan; +/− or pinch to zoom.' },
-  { id: 'harvest', label: 'Harvest', key: '2', desc: 'Mark trees, boulders and iron veins for your crew to harvest. Click again to unmark.' },
-  { id: 'ladder', label: 'Ladder', key: '3', desc: 'Build a ladder tile from 1 log — or a plank if you have no logs. Smallhands climb ladders, but never while carrying goods!', cost: { log: 1 } },
-  { id: 'platform', label: 'Bridge', key: '4', desc: 'Build a wooden bridge to span a gap or hole — drag to lay a run.', cost: { plank: 1 } },
-  { id: 'ramp', label: 'Ramp', key: '0', desc: 'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands can walk it (unlike ladders).', cost: { plank: 1 } },
-  { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
-  { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
-  { id: 'rope', label: 'Rope Anchor', key: '7', desc: 'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!', cost: { log: 2, plank: 1 } },
-  { id: 'lantern', label: 'Lantern', key: 'l', desc: 'Raises a lantern post that lights the night around it. Smallhands harvest and build only where there is light — but brave builders will raise a lantern anywhere.', cost: { log: 1, stone: 1 } },
-  { id: 'forge', label: 'Forge', key: '8', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
-  { id: 'demolish', label: 'Demolish', key: '9', desc: 'Remove a ladder, bridge, ramp or building. Refunds half the cost.' },
+  { id: 'select', key: '1' },
+  { id: 'harvest', key: '2' },
+  { id: 'ladder', key: '3', cost: { log: 1 } },
+  { id: 'platform', key: '4', cost: { plank: 1 } },
+  { id: 'ramp', key: '0', cost: { plank: 1 } },
+  { id: 'sawmill', key: '5', cost: { log: 6 }, thLevel: 1 },
+  { id: 'lift', key: '6', cost: { plank: 4, stone: 2 }, thLevel: 2 },
+  { id: 'rope', key: '7', cost: { log: 2, plank: 1 } },
+  { id: 'lantern', key: 'l', cost: { log: 1, stone: 1 } },
+  { id: 'forge', key: '8', cost: { plank: 4, stone: 4 }, thLevel: 2 },
+  { id: 'demolish', key: '9' },
 ];
 
 // Town hall levels. Index 0 = level 1.
@@ -241,16 +227,12 @@ export function bestTier(a: MedalTier | null, b: MedalTier | null): MedalTier | 
 
 // Feats: named side-goals, always the same two so every level (campaign,
 // generated, custom) can award them and players learn to hunt them.
+// Names/descriptions live in the i18n table: t(`feat.${id}.name`) / .desc
 export interface FeatDef {
   id: string;
-  name: string;
-  desc: string;
 }
 
-export const FEATS: FeatDef[] = [
-  { id: 'no-demolish', name: 'No Demolish', desc: 'Win without demolishing anything' },
-  { id: 'light-touch', name: 'Light Touch', desc: 'Leave half of all resource nodes untouched' },
-];
+export const FEATS: FeatDef[] = [{ id: 'no-demolish' }, { id: 'light-touch' }];
 
 // ---- weather, water & light -------------------------------------------------
 
@@ -264,11 +246,7 @@ export interface WeatherPhase {
   duration: number; // seconds
 }
 
-export const WEATHER_NAMES: Record<WeatherKind, string> = {
-  clear: 'Clear',
-  rain: 'Rain',
-  storm: 'Storm',
-};
+// display names live in the i18n table: t(`weather.${kind}`)
 
 // Harvest progress multiplier while it rains or storms (wet axes bite slower).
 export const WET_WORK_FACTOR = 0.55;

@@ -538,6 +538,56 @@ html, body {
 .confirm-msg { font-size: 16px; line-height: 1.5; text-align: center; }
 
 .win-stats { font-size: 14px; color: var(--text-dim); text-align: center; line-height: 1.7; }
+
+/* ---- options menu ---- */
+.options-box {
+  min-width: 340px;
+  max-width: 440px;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.opt-title {
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 4px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.opt-label { font-size: 14px; color: var(--text); }
+.opt-note { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: -4px; }
+.seg { display: inline-flex; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.15); }
+.seg-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  border: none;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.seg-btn + .seg-btn { border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active {
+  background: var(--accent);
+  color: #1c2333;
+  font-weight: 700;
+}
+.seg-btn.danger {
+  border: 1px solid rgba(255, 122, 107, 0.5);
+  border-radius: 8px;
+  color: #ff9a8b;
+}
+.seg-btn.danger:hover { background: rgba(255, 122, 107, 0.15); }
+.title-options { margin-top: 6px; }
 .win-stats.camp-unlock {
   border: 1px solid rgba(143, 198, 240, 0.4);
   background: rgba(43, 74, 110, 0.35);

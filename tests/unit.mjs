@@ -14,6 +14,7 @@ const res = await build({
       export { canPlaceLadder } from './src/game/world.ts';
       export { findPath } from './src/game/nav.ts';
       export { T } from './src/game/types.ts';
+      export { t, setLang, getLang } from './src/engine/i18n.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -26,7 +27,7 @@ const res = await build({
 const mod = await import(
   'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
 );
-const { Game, LEVELS, canPlaceLadder, findPath, T } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -290,6 +291,32 @@ function findLadderCells(g, count) {
   w.stepIdx = 0;
   g.tick(1 / 60);
   check('a smallhand built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+}
+
+// ---- i18n: keys translate, params substitute, unknown text passes through -----
+{
+  check('default language is English', getLang() === 'en');
+  check('a key resolves to English text', t('lvl5.name') === 'The Ford');
+  check('params substitute', t('win.next', { name: 'X' }) === 'Next: X →');
+  setLang('de');
+  check('the same key resolves to German', t('lvl5.name') === 'Die Furt');
+  check('tool labels translate', t('tool.lift.label') === 'Lastenaufzug');
+  check('weather names translate', t('weather.storm') === 'Sturm');
+  // custom level names are not keys — they must pass through unchanged
+  check('non-key text passes through untouched', t("Anna's Mountain") === "Anna's Mountain");
+  setLang('en');
+  check('switching back restores English', t('lvl5.name') === 'The Ford');
+  // every campaign level resolves in both languages (no missing dictionary rows)
+  let missing = 0;
+  for (const lvl of LEVELS) {
+    for (const lang of ['en', 'de']) {
+      setLang(lang);
+      if (t(lvl.name) === lvl.name || t(lvl.desc) === lvl.desc) missing++;
+      for (const h of lvl.hints ?? []) if (t(h.text) === h.text) missing++;
+    }
+  }
+  setLang('en');
+  check('every level name/desc/hint has EN and DE text', missing === 0);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

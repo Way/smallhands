@@ -15,6 +15,7 @@ const res = await build({
     contents: `
       export { Game } from './src/game/sim.ts';
       export { LEVELS } from './src/game/levels.ts';
+      export { t } from './src/engine/i18n.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -24,7 +25,7 @@ const res = await build({
   platform: 'node',
   write: false,
 });
-const { Game, LEVELS } = await import(
+const { Game, LEVELS, t } = await import(
   'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
 );
 
@@ -67,9 +68,9 @@ function dump(g) {
 
 function report(def, g) {
   if (g && g.won) {
-    console.log(`  ok   L${def.id} "${def.name}" completed in ${Math.round(g.time)}s of sim time`);
+    console.log(`  ok   L${def.id} "${t(def.name)}" completed in ${Math.round(g.time)}s of sim time`);
   } else if (g) {
-    console.log(`  FAIL L${def.id} "${def.name}" NOT completed`);
+    console.log(`  FAIL L${def.id} "${t(def.name)}" NOT completed`);
     dump(g);
     failures++;
   }

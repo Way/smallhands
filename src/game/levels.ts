@@ -100,8 +100,8 @@ function goal(g: Game, x: number): void {
 export const LEVELS: LevelDef[] = [
   {
     id: 1,
-    name: 'First Steps',
-    desc: 'Meet your smallhands. Chop wood, saw planks, and load the trade caravan.',
+    name: 'lvl1.name',
+    desc: 'lvl1.desc',
     width: 56,
     height: 26,
     objectives: [{ item: 'plank', amount: 8 }],
@@ -134,17 +134,17 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'welcome',
-        text: 'Welcome, overseer! You never control the <b>smallhands</b> directly — you shape the world, they do the work. Select the <b>Harvest</b> tool and mark a few trees.',
+        text: 'lvl1.hint.welcome',
         when: () => true,
       },
       {
         id: 'sawmill',
-        text: 'Logs are piling up! Place a <b>Sawmill</b> (costs 6 logs) on flat ground. A builder will construct it, then haulers will feed it logs — 1 log becomes 2 planks.',
+        text: 'lvl1.hint.sawmill',
         when: (g) => g.stock.log >= 6,
       },
       {
         id: 'deliver',
-        text: 'Planks are flowing! Haulers automatically carry them to the <b>caravan</b> on the right. Fill the order to finish the level.',
+        text: 'lvl1.hint.deliver',
         when: (g) => g.stock.plank >= 2,
       },
     ],
@@ -152,8 +152,8 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 2,
-    name: 'The Cliff Shrine',
-    desc: 'The shrine sits on a high ledge — and loaded smallhands refuse ladders. Send goods up anyway.',
+    name: 'lvl2.name',
+    desc: 'lvl2.desc',
     width: 64,
     height: 30,
     objectives: [
@@ -190,12 +190,12 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'ledge',
-        text: 'The shrine is <b>7 tiles up</b> that cliff. Ladders get empty-handed smallhands up and down — but a hauler carrying stone <b>will not touch a ladder</b>.',
+        text: 'lvl2.hint.ledge',
         when: () => true,
       },
       {
         id: 'lift',
-        text: 'To move goods up, build a <b>Cargo Lift</b> on the ground right beside the cliff face. It hoists a loaded hauler to the top. Add a <b>ladder</b> nearby so they can climb back down for the next load!',
+        text: 'lvl2.hint.lift',
         when: (g) => g.time > 20,
       },
     ],
@@ -203,8 +203,8 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 3,
-    name: 'Iron in the Deep',
-    desc: 'Iron waits at the bottom of an old pit. Upgrade the town hall, forge spears for the garrison.',
+    name: 'lvl3.name',
+    desc: 'lvl3.desc',
     width: 72,
     height: 32,
     objectives: [
@@ -250,22 +250,22 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'pit',
-        text: 'Iron veins glitter in <b>the pit</b>. Empty-handed smallhands can hop down safely (up to 5 tiles) — but hauling iron out again is the real puzzle. Plan your lift money!',
+        text: 'lvl3.hint.pit',
         when: () => true,
       },
       {
         id: 'reserve',
-        text: 'Stone fills the order <b>and</b> builds your Cargo Lift and Forge. Click the <b>stone counter</b> up top to <b>keep some back</b> before it all ships out.',
+        text: 'lvl3.hint.reserve',
         when: (g) => g.stock.stone >= 2 && g.thLevel < 2,
       },
       {
         id: 'th2',
-        text: 'The <b>Forge</b> and <b>Cargo Lift</b> need Town Hall level 2. Stockpile planks and stone, then press <b>Upgrade</b> in the crew panel.',
+        text: 'lvl3.hint.th2',
         when: (g) => g.stock.plank >= 6,
       },
       {
         id: 'forge',
-        text: 'Town Hall upgraded! Build a <b>Forge</b> — it turns 1 plank + 1 iron into a spear for the garrison.',
+        text: 'lvl3.hint.forge',
         when: (g) => g.thLevel >= 2,
       },
     ],
@@ -273,8 +273,8 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 4,
-    name: 'The Summit Beacon',
-    desc: 'A beacon must be raised on the mountain. Three terraces, one grand supply line.',
+    name: 'lvl4.name',
+    desc: 'lvl4.desc',
     width: 84,
     height: 36,
     objectives: [
@@ -326,17 +326,17 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'summit',
-        text: 'The <b>beacon site</b> is three terraces up. Every plank, stone and spear must climb the whole mountain — chain lifts and ladders into one supply line.',
+        text: 'lvl4.hint.summit',
         when: () => true,
       },
       {
         id: 'chain',
-        text: 'Tip: lifts only need Town Hall 2 — but each terrace needs its own lift. Consider moving production <b>up the mountain</b> instead of hauling everything from below.',
+        text: 'lvl4.hint.chain',
         when: (g) => g.thLevel >= 2,
       },
       {
         id: 'ramp',
-        text: 'Short steps a lift refuses? Build a <b>Ramp</b> — drag a diagonal from solid ground. Loaded smallhands walk ramps (unlike ladders), up <i>and</i> down.',
+        text: 'lvl4.hint.ramp',
         when: (g) => g.time > 15,
       },
     ],
@@ -349,8 +349,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 5,
     campaign: 2,
-    name: 'The Ford',
-    desc: 'A river splits the valley — smallhands cannot swim, and goods dropped in the water are gone for good.',
+    name: 'lvl5.name',
+    desc: 'lvl5.desc',
     width: 64,
     height: 28,
     objectives: [
@@ -390,12 +390,12 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'river',
-        text: 'A <b>river</b> cuts the valley in two. Smallhands cannot swim — and anything dropped in the water <b>sinks forever</b>. The caravan waits on the far side.',
+        text: 'lvl5.hint.river',
         when: () => true,
       },
       {
         id: 'bridge',
-        text: 'Span the river with the <b>Bridge</b> tool: start on the bank\'s edge and <b>drag straight across</b> the water. One plank per tile — save enough!',
+        text: 'lvl5.hint.bridge',
         when: (g) => g.stock.plank >= 4,
       },
     ],
@@ -404,8 +404,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 6,
     campaign: 2,
-    name: 'Monsoon Hollow',
-    desc: 'The monsoon rolls in on a schedule. Wet axes bite slow — read the forecast and plan the dry spells.',
+    name: 'lvl6.name',
+    desc: 'lvl6.desc',
     width: 68,
     height: 30,
     objectives: [
@@ -456,12 +456,12 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'forecast',
-        text: 'See the <b>forecast</b> up top? The monsoon is punctual. In the <b>rain</b>, chopping and mining take almost twice as long — fell in the sun, saw in the rain.',
+        text: 'lvl6.hint.forecast',
         when: () => true,
       },
       {
         id: 'pond',
-        text: 'The hollow holds a <b>pond</b> — and the caravan waits beyond it. Three <b>Bridge</b> planks across the gap open the road east.',
+        text: 'lvl6.hint.pond',
         when: (g) => g.time > 25,
       },
     ],
@@ -470,8 +470,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 7,
     campaign: 2,
-    name: 'Lantern Ridge',
-    desc: 'Night on the ridge. Smallhands work only in the light — push the darkness back, lantern by lantern.',
+    name: 'lvl7.name',
+    desc: 'lvl7.desc',
     width: 72,
     height: 30,
     objectives: [
@@ -514,12 +514,12 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'dark',
-        text: 'It is <b>pitch dark</b> beyond the town fires. Smallhands only harvest and build <b>in the light</b> — but a builder will raise a <b>Lantern</b> (1 log + 1 stone) anywhere. Chain lanterns toward the iron.',
+        text: 'lvl7.hint.dark',
         when: () => true,
       },
       {
         id: 'forge2',
-        text: 'The caravan wants <b>spears</b>: light a path to the veins, then build a <b>Forge</b> in a lit spot — 1 plank + 1 iron each.',
+        text: 'lvl7.hint.forge2',
         when: (g) => g.stock.iron >= 1,
       },
     ],
@@ -528,8 +528,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 8,
     campaign: 2,
-    name: 'The Rising Tide',
-    desc: 'Every rainfall lifts the water one step higher. The lowlands are rich — loot them before the tide takes them.',
+    name: 'lvl8.name',
+    desc: 'lvl8.desc',
     width: 72,
     height: 32,
     objectives: [
@@ -589,17 +589,17 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'tide',
-        text: 'Storm clouds hang over the lowlands — <b>every rainfall raises the water one step</b>, and it never goes back down. The forecast tells you exactly when. The basin drowns first!',
+        text: 'lvl8.hint.tide',
         when: () => true,
       },
       {
         id: 'rampout',
-        text: 'The hills are three tiles apart — <b>ramps</b> carry loaded smallhands up and down. Anyone caught by the tide scrambles home, dropping their load into the drink.',
+        text: 'lvl8.hint.rampout',
         when: (g) => g.time > 20,
       },
       {
         id: 'bridge2',
-        text: 'Once the basin drowns, the only road east is a <b>bridge at shelf height</b> across the new lake. Anchor it on the shelf edge and drag straight over.',
+        text: 'lvl8.hint.bridge2',
         when: (g) => g.waterRow !== null,
       },
     ],
@@ -608,8 +608,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 9,
     campaign: 2,
-    name: 'Tempest Summit',
-    desc: 'The grand finale: a night ascent through rain and storm. Lifts stop in the gusts — climb between the weathers.',
+    name: 'lvl9.name',
+    desc: 'lvl9.desc',
     width: 96,
     height: 36,
     objectives: [
@@ -664,17 +664,17 @@ export const LEVELS: LevelDef[] = [
     hints: [
       {
         id: 'finale',
-        text: 'The last ascent: <b>night</b>, <b>rain</b> and <b>storm</b> in turn. Lanterns light the terraces, rain slows the harvest — and in a <b>storm the lifts lock their brakes</b>. Watch the forecast and move cargo in the calm windows.',
+        text: 'lvl9.hint.finale',
         when: () => true,
       },
       {
         id: 'upgrade2',
-        text: 'The Forge (and any lift) needs <b>Town Hall 2</b> — bank 8 planks and 6 stone early. Ramps climb in any weather; lifts are faster but sit out every storm.',
+        text: 'lvl9.hint.upgrade2',
         when: (g) => g.time > 30 && g.thLevel < 2,
       },
       {
         id: 'stormplan',
-        text: 'A <b>storm</b> is rolling in! Haulers will queue at locked lifts until it passes — ramps keep walking, lifts wait it out.',
+        text: 'lvl9.hint.stormplan',
         when: (g) => g.weather === 'storm',
       },
     ],

@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test:unit": "node tests/unit.mjs",
     "test:campaign2": "node tests/campaign2.mjs",
+    "test:i18n": "node tests/i18n.mjs",
     "test:e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
