@@ -425,15 +425,12 @@ export class Renderer {
 
   // `hoveredId`/`focus` drive the Harvest-cursor anticipation: the node under the
   // cursor leans/lifts (tree) or shivers (boulder/vein) as `focus` (0..1) ramps.
-  // bridging note (Task 3): `_look` is threaded through now so the call site
-  // in draw() matches the brief, but the body still reads `game.weather`
-  // directly — Task 4 rewrites this body to read the blended look.
-  private drawNodes(game: Game, t: number, hoveredId: number, focus: number, _look: WeatherLook): void {
+  private drawNodes(game: Game, t: number, hoveredId: number, focus: number, look: WeatherLook): void {
     const { ctx } = this;
     const osc = this.reduceMotion ? 0 : 1;
     // the wind leans on the treetops: gentle by default, hard in a storm
-    const wind = game.weather === 'storm' ? 2.6 : game.weather === 'rain' ? 1.5 : 1;
-    const windHz = game.weather === 'storm' ? 2.6 : 1.2;
+    const wind = look.wind;
+    const windHz = look.windHz;
     for (const n of game.nodes) {
       const anticip = n.id === hoveredId ? focus : 0;
       const wob = n.wobble > 0 ? Math.sin(t * 40) * 1.2 : 0;
@@ -878,27 +875,25 @@ export class Renderer {
     }
   }
 
-  // Screen-space rain/storm: falling streaks (slanted hard in a storm), a few
-  // horizontal gust lines, and a wet dimming of the whole scene.
-  // bridging note (Task 3): the call site now passes the blended `look`
-  // instead of `game` (per the brief), so this derives a discrete kind from
-  // `look.rain` purely to keep the still-unrewritten body below compiling.
-  // Task 4 rewrites this body to read `look` continuously (tint, slant, etc.)
-  // instead of branching on a discrete weather kind.
+  // Screen-space precipitation driven by the blended weather look: a wet tint,
+  // falling streaks (more, longer, faster and slanted harder as a storm builds),
+  // and horizontal gust lines that fade in only once it's genuinely stormy.
   private drawWeatherFx(look: WeatherLook, W: number, H: number, t: number): void {
-    const wx = look.rain <= 0 ? 'clear' : look.rain > 1.3 ? 'storm' : 'rain';
-    if (wx === 'clear') return;
+    const rain = look.rain;
+    if (rain < 0.01 && look.tint[3] < 0.01) return;
     const { ctx } = this;
-    const storm = wx === 'storm';
-    ctx.fillStyle = storm ? 'rgba(18,26,44,0.24)' : 'rgba(40,60,90,0.12)';
-    ctx.fillRect(0, 0, W, H);
+    if (look.tint[3] > 0.001) {
+      ctx.fillStyle = rgbaCss(look.tint);
+      ctx.fillRect(0, 0, W, H);
+    }
     if (this.reduceMotion) return; // the tint alone carries the weather
     const mod = (v: number, m: number) => ((v % m) + m) % m;
-    const n = storm ? 190 : 130;
-    const fall = storm ? 950 : 640;
-    const slant = storm ? 0.55 : 0.14;
-    const len = storm ? 15 : 10;
-    ctx.strokeStyle = storm ? 'rgba(195,210,230,0.34)' : 'rgba(170,195,225,0.38)';
+    const stormy = Math.min(1, Math.max(0, (rain - 1) / 0.6)); // 0 at rain, 1 at storm
+    const n = Math.round(120 * Math.min(1.6, rain));
+    const fall = 640 + 310 * stormy;
+    const slant = look.slant;
+    const len = 10 + 5 * stormy;
+    ctx.strokeStyle = `rgba(188,206,228,${(0.36 * Math.min(1, rain)).toFixed(3)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
@@ -910,9 +905,9 @@ export class Renderer {
       ctx.lineTo(x - slant * len, y + len);
     }
     ctx.stroke();
-    if (storm) {
-      // gusts screaming past horizontally
-      ctx.strokeStyle = 'rgba(220,230,245,0.14)';
+    if (stormy > 0.01) {
+      // gusts screaming past horizontally, fading in with the storm
+      ctx.strokeStyle = `rgba(220,230,245,${(0.14 * stormy).toFixed(3)})`;
       ctx.beginPath();
       for (let i = 0; i < 9; i++) {
         const h = tileHash(i, 41);
