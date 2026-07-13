@@ -1251,10 +1251,17 @@ canvas.addEventListener('pointermove', (e) => {
   lastMx = e.clientX;
   lastMy = e.clientY;
 
-  // hover hint for the town hall (Select tool, not while panning)
-  const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
-  if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
-  else hud?.hideBuildingHint();
+  // hover-to-inspect: a live tooltip for any building or resource node under
+  // the cursor (Inspect tool only, and not while panning)
+  if (!dragging && game && running && hover.tool === 'select') {
+    const b = game.buildingAt(t.x, t.y);
+    const n = b ? undefined : game.nodeAt(t.x, t.y);
+    if (b) hud?.showBuildingHint(b, e.clientX, e.clientY);
+    else if (n) hud?.showNodeHint(n, e.clientX, e.clientY);
+    else hud?.hideBuildingHint();
+  } else {
+    hud?.hideBuildingHint();
+  }
   // cursor cost readout: during a drag-run the run's running total is refreshed
   // every frame (see frame()) so it tracks live stock even while the cursor is
   // held still — here we only clear the placement badge. Otherwise, while
@@ -1438,21 +1445,10 @@ function applyTool(tx: number, ty: number): void {
   const g = game!;
   switch (hover.tool) {
     case 'select': {
-      const n = g.nodeAt(tx, ty);
+      // Hover shows the live tooltip for everything now; the only click action
+      // left in Inspect is opening the town hall's interactive upgrade panel.
       const b = g.buildingAt(tx, ty);
-      if (n) {
-        hud!.toast(
-          `${t('inspect.left', { name: t(`node.${n.kind}`), n: n.yieldLeft })} ${n.marked ? t('inspect.marked') : t('inspect.unmarked')}`,
-          false,
-          4
-        );
-      } else if (b) {
-        if (b.kind === 'townhall') {
-          hud!.showTownhall();
-        } else {
-          hud!.toast(`<b>${t(`building.${b.kind}`)}</b>${b.state === 'blueprint' ? t('inspect.blueprint') : ''}`, false, 4);
-        }
-      }
+      if (b && b.kind === 'townhall') hud!.showTownhall();
       break;
     }
     case 'harvest': {
