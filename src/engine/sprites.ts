@@ -572,6 +572,26 @@ export function buildAtlas(): void {
     '................',
   ]);
 
+  // lantern post: iron cap, warm glass, wooden pole on a stone base
+  makeSprite('lantern', { k: '#3a3f47', y: '#ffd94d', Y: '#fff3c0', o: '#f0a92e', p: '#7c5830', P: '#9a7040', s: '#98a2b3', S: '#7b8494' }, [
+    '.......k........',
+    '......kkk.......',
+    '.....k...k......',
+    '....kyYYyk......',
+    '....kyYYyk......',
+    '....koyyok......',
+    '.....kkkk.......',
+    '......Pp........',
+    '......Pp........',
+    '......Pp........',
+    '......Pp........',
+    '......Pp........',
+    '......Pp........',
+    '.....PPpp.......',
+    '...sSssSss......',
+    '..sssSssSss.....',
+  ]);
+
   // medals: ribbon + disc with the amber ember of the Ember Road on every tier
   const medalRows = [
     '..rr........rr..',

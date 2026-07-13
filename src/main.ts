@@ -295,36 +295,59 @@ function showLevelSelect(): void {
     ov.appendChild(shelf);
   }
 
-  // ---- campaign ----
-  const grid = document.createElement('div');
-  grid.className = 'level-grid';
-  LEVELS.forEach((lvl, i) => {
-    const unlocked = i === 0 || save.completed.includes(LEVELS[i - 1].id);
-    const done = save.completed.includes(lvl.id);
-    const card = document.createElement('button');
-    card.className = 'level-card' + (unlocked ? '' : ' locked');
-    card.innerHTML = `
-      <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
-      <div class="lv-name">${lvl.name}</div>
-      <div class="lv-desc">${lvl.desc}</div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div></div>
-    `;
-    if (unlocked && lvl.medals) {
-      addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
+  // ---- campaigns ----
+  // Campaign 2 opens only once every Campaign 1 level is finished; within each
+  // campaign, levels unlock in sequence as before.
+  const campaign1 = LEVELS.filter((l) => (l.campaign ?? 1) === 1);
+  const campaign1Done = campaign1.every((l) => save.completed.includes(l.id));
+  const levelUnlocked = (i: number): boolean => {
+    if ((LEVELS[i].campaign ?? 1) >= 2 && !campaign1Done) return false;
+    return i === 0 || save.completed.includes(LEVELS[i - 1].id);
+  };
+  const buildCampaignGrid = (levels: typeof LEVELS): HTMLElement => {
+    const grid = document.createElement('div');
+    grid.className = 'level-grid';
+    for (const lvl of levels) {
+      const i = LEVELS.indexOf(lvl);
+      const unlocked = levelUnlocked(i);
+      const done = save.completed.includes(lvl.id);
+      const card = document.createElement('button');
+      card.className = 'level-card' + (unlocked ? '' : ' locked');
+      card.innerHTML = `
+        <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
+        <div class="lv-name">${lvl.name}</div>
+        <div class="lv-desc">${lvl.desc}</div>
+        <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div></div>
+      `;
+      if (unlocked && lvl.medals) {
+        addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
+      }
+      if (unlocked) {
+        card.onclick = () => {
+          audio.click();
+          confirmIfInProgress(
+            `Abandon "${game?.level.name}"? Progress in the current level will be lost.`,
+            'Abandon level',
+            () => startLevel(i)
+          );
+        };
+      }
+      grid.appendChild(card);
     }
-    if (unlocked) {
-      card.onclick = () => {
-        audio.click();
-        confirmIfInProgress(
-          `Abandon "${game?.level.name}"? Progress in the current level will be lost.`,
-          'Abandon level',
-          () => startLevel(i)
-        );
-      };
-    }
-    grid.appendChild(card);
-  });
-  ov.appendChild(grid);
+    return grid;
+  };
+  ov.appendChild(buildCampaignGrid(campaign1));
+
+  // campaign 2 — storm & tide
+  {
+    const sec = document.createElement('div');
+    sec.className = 'section-title';
+    sec.textContent = campaign1Done
+      ? 'Campaign 2 — Storm & Tide: water, weather and the dark of night'
+      : 'Campaign 2 — Storm & Tide 🔒 finish Campaign 1 to unlock';
+    ov.appendChild(sec);
+    ov.appendChild(buildCampaignGrid(LEVELS.filter((l) => (l.campaign ?? 1) === 2)));
+  }
 
   // ---- workshop: daily challenge, generator, editor, custom levels ----
   const sec = document.createElement('div');
@@ -724,6 +747,14 @@ function showWin(): void {
   } else if (!currentCustom) {
     const next = LEVELS[currentLevelIdx + 1];
     if (next) {
+      const cur = LEVELS[currentLevelIdx];
+      if ((next.campaign ?? 1) === 2 && (cur.campaign ?? 1) === 1) {
+        const unlock = document.createElement('div');
+        unlock.className = 'win-stats camp-unlock';
+        unlock.innerHTML =
+          '<b>🌩 Campaign 2 unlocked — Storm & Tide!</b><br/>Rivers to bridge, tides that rise with every rainfall, storms that stop the lifts — and nights worked by lantern light.';
+        ov.appendChild(unlock);
+      }
       const nb = document.createElement('button');
       nb.className = 'big-btn';
       nb.textContent = `Next: ${next.name} →`;
@@ -736,7 +767,7 @@ function showWin(): void {
       const done = document.createElement('div');
       done.className = 'win-stats';
       done.innerHTML =
-        '<b>You have finished every campaign level!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.';
+        '<b>You have finished both campaigns!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.';
       ov.appendChild(done);
     }
   } else {
@@ -865,6 +896,28 @@ function handleEvent(e: GameEvent): void {
       break;
     }
     case 'produce':
+      break;
+    case 'weather': {
+      const flood = !!game!.level.flood;
+      const msgs = {
+        clear: '☀️ The sky clears — full speed ahead.',
+        rain: flood
+          ? '🌧️ <b>Rain</b> — harvesting slows, and <b>the water rises!</b>'
+          : '🌧️ <b>Rain</b> sets in — chopping and mining slow down.',
+        storm: '🌩️ <b>Storm!</b> Cargo lifts lock their brakes until it passes.',
+      } as const;
+      audio.hint();
+      h.toast(msgs[e.kind], e.kind !== 'clear', 5);
+      break;
+    }
+    case 'flood':
+      audio.splash();
+      if (e.rescued > 0) {
+        h.toast(`🌊 <b>The tide swallows the low ground!</b> ${e.rescued} smallhand${e.rescued > 1 ? 's' : ''} scrambled home, dropping their load.`, true, 6);
+      }
+      break;
+    case 'splash':
+      audio.splash();
       break;
     case 'spawn':
       audio.spawn();
@@ -1259,6 +1312,9 @@ function applyTool(tx: number, ty: number): void {
       break;
     case 'forge':
       g.placeBuilding('forge', tx, ty);
+      break;
+    case 'lantern':
+      g.placeBuilding('lantern', tx, ty);
       break;
     case 'lift':
       g.placeLift(tx, ty);

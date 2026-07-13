@@ -7,8 +7,9 @@ import {
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
+  WEATHER_NAMES,
 } from './types';
-import type { BuildingKind, ItemType, Role, Tool } from './types';
+import type { BuildingKind, ItemType, Role, Tool, WeatherKind } from './types';
 import { drawIconTo } from '../engine/sprites';
 import type { Game } from './sim';
 
@@ -32,7 +33,14 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   forge: 'forge',
   lift: 'lift_car',
   rope: 'rope_anchor',
+  lantern: 'lantern',
   demolish: 'icon_demolish',
+};
+
+const WX_ICON: Record<WeatherKind, string> = {
+  clear: '☀️',
+  rain: '🌧️',
+  storm: '🌩️',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -85,6 +93,9 @@ export class Hud {
   private keepBadges = new Map<ItemType, HTMLElement>();
   private lastKeep: Record<string, number> = {};
   private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
+  private wxNow: HTMLElement | null = null;
+  private wxNext: HTMLElement | null = null;
+  private wxSig = '';
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -136,6 +147,20 @@ export class Hud {
       name.textContent = ITEM_NAMES[o.item];
       const cnt = el('span', 'obj-cnt', row);
       this.objRows.set(o.item, { row, cnt });
+    }
+
+    // weather forecast — deterministic, so showing it IS the strategy layer
+    if (this.game.weatherSchedule) {
+      const wx = el('div', 'panel weather', bar);
+      const wh = el('h3', undefined, wx);
+      wh.innerHTML =
+        `<span>Weather</span>` +
+        (this.game.level.flood
+          ? '<span class="wx-flood" title="Every rainfall raises the water one step — for good.">🌊 rain lifts the tide</span>'
+          : '');
+      const row = el('div', 'wx-row', wx);
+      this.wxNow = el('div', 'wx-now', row);
+      this.wxNext = el('div', 'wx-next', row);
     }
 
     // crew panel
@@ -512,6 +537,22 @@ export class Hud {
       if (!r) continue;
       r.cnt.textContent = `${o.delivered}/${o.amount}`;
       r.row.classList.toggle('done', o.delivered >= o.amount);
+    }
+    // weather strip: current phase + countdown, then the next two phases
+    if (this.wxNow && g.weatherSchedule) {
+      const rem = Math.max(0, Math.ceil(g.weatherRemaining));
+      const sig = `${g.weatherIdx}:${rem}`;
+      if (sig !== this.wxSig) {
+        this.wxSig = sig;
+        this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${WEATHER_NAMES[g.weather]}</span><b>${rem}s</b>`;
+        const sched = g.weatherSchedule;
+        let html = '<span class="wx-then">then</span>';
+        for (let i = 1; i <= Math.min(2, sched.length - 1); i++) {
+          const p = sched[(g.weatherIdx + i) % sched.length];
+          html += `<span class="wx-chip" title="${WEATHER_NAMES[p.kind]} · ${p.duration}s">${WX_ICON[p.kind]}<small>${p.duration}s</small></span>`;
+        }
+        if (this.wxNext) this.wxNext.innerHTML = html;
+      }
     }
     this.workerPop.textContent = `${g.workers.length}/${g.maxWorkers}`;
     for (const r of ROLES) {

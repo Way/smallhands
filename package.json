@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test:unit": "node tests/unit.mjs",
+    "test:campaign2": "node tests/campaign2.mjs",
     "test:e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {

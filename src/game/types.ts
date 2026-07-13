@@ -12,6 +12,7 @@ export const enum T {
   PLATFORM = 5, // player-built wooden floor
   LADDER = 6, // player-built ladder
   RAMP = 7, // player-built diagonal climb tile (support, like PLATFORM)
+  WATER = 8, // deep water: impassable, unbuildable — goods dropped in are lost
 }
 
 export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear';
@@ -67,7 +68,7 @@ export const NODE_ROLE: Record<NodeKind, Role> = {
   vein: 'miner',
 };
 
-export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'goal';
+export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'lantern' | 'goal';
 
 export type BuildingState = 'blueprint' | 'ready';
 
@@ -93,6 +94,7 @@ export const FOOTPRINTS: Record<BuildingKind, Footprint> = {
   forge: { w: 3, h: 2 },
   lift: { w: 1, h: 1 }, // base cell; the mast extends upward separately
   rope: { w: 1, h: 1 }, // anchor cell; the rope hangs down beside it
+  lantern: { w: 1, h: 1 },
   goal: { w: 4, h: 3 },
 };
 
@@ -124,6 +126,7 @@ export const BUILD_TIME: Partial<Record<BuildingKind, number>> = {
   forge: 8,
   lift: 7,
   rope: 4,
+  lantern: 3,
 };
 
 export type Tool =
@@ -136,6 +139,7 @@ export type Tool =
   | 'forge'
   | 'lift'
   | 'rope'
+  | 'lantern'
   | 'demolish';
 
 export interface ToolDef {
@@ -156,6 +160,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'sawmill', label: 'Sawmill', key: '5', desc: 'Saws logs into planks. Needs a builder to construct it.', cost: { log: 6 }, thLevel: 1 },
   { id: 'lift', label: 'Cargo Lift', key: '6', desc: 'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!', cost: { plank: 4, stone: 2 }, thLevel: 2 },
   { id: 'rope', label: 'Rope Anchor', key: '7', desc: 'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!', cost: { log: 2, plank: 1 } },
+  { id: 'lantern', label: 'Lantern', key: 'l', desc: 'Raises a lantern post that lights the night around it. Smallhands harvest and build only where there is light — but brave builders will raise a lantern anywhere.', cost: { log: 1, stone: 1 } },
   { id: 'forge', label: 'Forge', key: '8', desc: 'Forges spears from planks and iron. Needs a builder to construct it.', cost: { plank: 4, stone: 4 }, thLevel: 2 },
   { id: 'demolish', label: 'Demolish', key: '9', desc: 'Remove a ladder, bridge, ramp or building. Refunds half the cost.' },
 ];
@@ -246,6 +251,33 @@ export const FEATS: FeatDef[] = [
   { id: 'no-demolish', name: 'No Demolish', desc: 'Win without demolishing anything' },
   { id: 'light-touch', name: 'Light Touch', desc: 'Leave half of all resource nodes untouched' },
 ];
+
+// ---- weather, water & light -------------------------------------------------
+
+// Weather runs on a per-level looping schedule of phases. It is fully
+// deterministic — the HUD shows the forecast so the player can PLAN around it,
+// which keeps it a puzzle element rather than a dice roll.
+export type WeatherKind = 'clear' | 'rain' | 'storm';
+
+export interface WeatherPhase {
+  kind: WeatherKind;
+  duration: number; // seconds
+}
+
+export const WEATHER_NAMES: Record<WeatherKind, string> = {
+  clear: 'Clear',
+  rain: 'Rain',
+  storm: 'Storm',
+};
+
+// Harvest progress multiplier while it rains or storms (wet axes bite slower).
+export const WET_WORK_FACTOR = 0.55;
+
+// Light radii (in tiles) for night levels. The town hall and the caravan keep
+// their own fires burning; everything else needs lanterns.
+export const LANTERN_RADIUS = 6.5;
+export const TOWNHALL_LIGHT_RADIUS = 9;
+export const GOAL_LIGHT_RADIUS = 6.5;
 
 // One required resource for a placement, annotated with what you have vs need.
 // `short` marks the resource that's blocking the build (have < need).

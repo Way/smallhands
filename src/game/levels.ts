@@ -1,5 +1,5 @@
 import { T } from './types';
-import type { MedalTimes, ObjectiveReq, Role, Tool } from './types';
+import type { MedalTimes, ObjectiveReq, Role, Tool, WeatherPhase } from './types';
 import type { Game } from './sim';
 
 export interface LevelHint {
@@ -24,6 +24,10 @@ export interface LevelDef {
   hints?: LevelHint[];
   camera?: { x: number; y: number };
   medals?: MedalTimes; // completion-time thresholds in seconds
+  campaign?: number; // 1 (default) or 2 — grouping + unlock gate on the level select
+  weather?: WeatherPhase[]; // looping phase schedule; omit for an always-clear sky
+  night?: boolean; // night level: work only happens in the light (see lanterns)
+  flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
 }
 
 // ---- terrain authoring helpers ---------------------------------------------
@@ -50,6 +54,17 @@ function runs(spec: [number, number][]): number[] {
   const out: number[] = [];
   for (const [h, n] of spec) for (let i = 0; i < n; i++) out.push(h);
   return out;
+}
+
+// Fill a water body: every AIR cell in x0..x1 from row `top` down to the first
+// solid tile becomes water. Call after terrain() so banks are already in place.
+function water(g: Game, x0: number, x1: number, top: number): void {
+  const { world } = g;
+  for (let x = x0; x <= x1; x++) {
+    for (let y = top; y < world.h && !world.isSolid(x, y); y++) {
+      if (world.get(x, y) === T.AIR) world.set(x, y, T.WATER);
+    }
+  }
 }
 
 function surfaceY(g: Game, x: number): number {
@@ -326,5 +341,343 @@ export const LEVELS: LevelDef[] = [
       },
     ],
     camera: { x: 12, y: 22 },
+  },
+
+  // ============================ CAMPAIGN 2 — STORM & TIDE ============================
+  // Water, dynamic weather and night. Unlocked once every Campaign 1 level is done.
+
+  {
+    id: 5,
+    campaign: 2,
+    name: 'The Ford',
+    desc: 'A river splits the valley — smallhands cannot swim, and goods dropped in the water are gone for good.',
+    width: 64,
+    height: 28,
+    objectives: [
+      { item: 'plank', amount: 8 },
+      { item: 'stone', amount: 6 },
+    ],
+    medals: { gold: 300, silver: 420, bronze: 660 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'demolish'],
+    startStock: { log: 2, plank: 4 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [9, 22], // west bank: town, trees, boulders
+          [4, 8], // the river channel
+          [9, 20], // east bank
+          [8, 14], // caravan meadow, a step down
+        ])
+      );
+      water(g, 22, 29, 21); // the river: three tiles deep, flush under the banks
+      townhall(g, 6);
+      goal(g, 52);
+      tree(g, 10);
+      tree(g, 12);
+      tree(g, 14);
+      tree(g, 16);
+      boulder(g, 18);
+      boulder(g, 20);
+      // the far shore has its own riches — worth the second trip
+      tree(g, 34);
+      tree(g, 37);
+      boulder(g, 40);
+      boulder(g, 43);
+    },
+    hints: [
+      {
+        id: 'river',
+        text: 'A <b>river</b> cuts the valley in two. Smallhands cannot swim — and anything dropped in the water <b>sinks forever</b>. The caravan waits on the far side.',
+        when: () => true,
+      },
+      {
+        id: 'bridge',
+        text: 'Span the river with the <b>Bridge</b> tool: start on the bank\'s edge and <b>drag straight across</b> the water. One plank per tile — save enough!',
+        when: (g) => g.stock.plank >= 4,
+      },
+    ],
+    camera: { x: 10, y: 14 },
+  },
+  {
+    id: 6,
+    campaign: 2,
+    name: 'Monsoon Hollow',
+    desc: 'The monsoon rolls in on a schedule. Wet axes bite slow — read the forecast and plan the dry spells.',
+    width: 68,
+    height: 30,
+    objectives: [
+      { item: 'plank', amount: 10 },
+      { item: 'stone', amount: 8 },
+    ],
+    medals: { gold: 330, silver: 480, bronze: 720 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'demolish'],
+    startStock: { log: 2, plank: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    weather: [
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 30 },
+    ],
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [9, 12],
+          [8, 10],
+          [7, 5], // the hollow
+          [5, 3], // a sunken dip in the hollow floor…
+          [7, 4],
+          [8, 10],
+          [9, 12],
+          [10, 12], // caravan rise
+        ])
+      );
+      water(g, 27, 29, 24); // …holds a pond one step below the banks
+      townhall(g, 4);
+      goal(g, 58);
+      // west side of the pond
+      tree(g, 14);
+      tree(g, 17);
+      tree(g, 20);
+      tree(g, 24);
+      boulder(g, 9);
+      boulder(g, 11);
+      // east side
+      tree(g, 33);
+      tree(g, 46);
+      tree(g, 48);
+      boulder(g, 36);
+      boulder(g, 39);
+      boulder(g, 50);
+    },
+    hints: [
+      {
+        id: 'forecast',
+        text: 'See the <b>forecast</b> up top? The monsoon is punctual. In the <b>rain</b>, chopping and mining take almost twice as long — fell in the sun, saw in the rain.',
+        when: () => true,
+      },
+      {
+        id: 'pond',
+        text: 'The hollow holds a <b>pond</b> — and the caravan waits beyond it. Three <b>Bridge</b> planks across the gap open the road east.',
+        when: (g) => g.time > 25,
+      },
+    ],
+    camera: { x: 8, y: 16 },
+  },
+  {
+    id: 7,
+    campaign: 2,
+    name: 'Lantern Ridge',
+    desc: 'Night on the ridge. Smallhands work only in the light — push the darkness back, lantern by lantern.',
+    width: 72,
+    height: 30,
+    objectives: [
+      { item: 'spear', amount: 3 },
+      { item: 'plank', amount: 6 },
+    ],
+    medals: { gold: 420, silver: 600, bronze: 900 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lantern', 'demolish'],
+    startStock: { log: 3, plank: 2, stone: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    startThLevel: 2,
+    night: true,
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [9, 16], // the town fires
+          [10, 14],
+          [11, 14],
+          [12, 14],
+          [13, 14], // the iron ridge, far in the dark
+        ])
+      );
+      townhall(g, 4);
+      goal(g, 62);
+      tree(g, 10); // in the town light
+      tree(g, 13);
+      tree(g, 18); // from here on: darkness
+      tree(g, 21);
+      boulder(g, 25);
+      boulder(g, 28);
+      boulder(g, 31);
+      tree(g, 35);
+      boulder(g, 38);
+      vein(g, 44);
+      vein(g, 48);
+      vein(g, 52);
+    },
+    hints: [
+      {
+        id: 'dark',
+        text: 'It is <b>pitch dark</b> beyond the town fires. Smallhands only harvest and build <b>in the light</b> — but a builder will raise a <b>Lantern</b> (1 log + 1 stone) anywhere. Chain lanterns toward the iron.',
+        when: () => true,
+      },
+      {
+        id: 'forge2',
+        text: 'The caravan wants <b>spears</b>: light a path to the veins, then build a <b>Forge</b> in a lit spot — 1 plank + 1 iron each.',
+        when: (g) => g.stock.iron >= 1,
+      },
+    ],
+    camera: { x: 8, y: 16 },
+  },
+  {
+    id: 8,
+    campaign: 2,
+    name: 'The Rising Tide',
+    desc: 'Every rainfall lifts the water one step higher. The lowlands are rich — loot them before the tide takes them.',
+    width: 72,
+    height: 32,
+    objectives: [
+      { item: 'stone', amount: 10 },
+      { item: 'plank', amount: 8 },
+    ],
+    medals: { gold: 420, silver: 600, bronze: 900 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'lift', 'rope', 'demolish'],
+    startStock: { log: 2, plank: 6, stone: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 2, miner: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    weather: [
+      { kind: 'clear', duration: 90 },
+      { kind: 'rain', duration: 25 },
+    ],
+    // two rises: the basin floor drowns, then the water laps one row higher.
+    // The shelves stay dry forever, so a shelf-height bridge can always cross
+    // the new lake — the tide punishes slowness but never softlocks the level.
+    flood: { start: 25, min: 24 },
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [12, 14], // town hill — safe
+          [9, 12], // west shelf — stays dry
+          [6, 12], // the deep basin — drowns
+          [9, 12], // east shelf — stays dry
+          [13, 22], // caravan hill — safe
+        ])
+      );
+      townhall(g, 4);
+      goal(g, 60);
+      // town hill: wood to get the mill going
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      // west shelf
+      boulder(g, 18);
+      tree(g, 20);
+      tree(g, 22);
+      boulder(g, 24);
+      // the basin — richest ground, drowns first
+      boulder(g, 28);
+      tree(g, 31);
+      boulder(g, 35);
+      // east shelf
+      tree(g, 42);
+      boulder(g, 45);
+      // caravan hill
+      tree(g, 52);
+      boulder(g, 54);
+      tree(g, 66);
+      boulder(g, 68);
+      boulder(g, 70);
+    },
+    hints: [
+      {
+        id: 'tide',
+        text: 'Storm clouds hang over the lowlands — <b>every rainfall raises the water one step</b>, and it never goes back down. The forecast tells you exactly when. The basin drowns first!',
+        when: () => true,
+      },
+      {
+        id: 'rampout',
+        text: 'The hills are three tiles apart — <b>ramps</b> carry loaded smallhands up and down. Anyone caught by the tide scrambles home, dropping their load into the drink.',
+        when: (g) => g.time > 20,
+      },
+      {
+        id: 'bridge2',
+        text: 'Once the basin drowns, the only road east is a <b>bridge at shelf height</b> across the new lake. Anchor it on the shelf edge and drag straight over.',
+        when: (g) => g.waterRow !== null,
+      },
+    ],
+    camera: { x: 8, y: 18 },
+  },
+  {
+    id: 9,
+    campaign: 2,
+    name: 'Tempest Summit',
+    desc: 'The grand finale: a night ascent through rain and storm. Lifts stop in the gusts — climb between the weathers.',
+    width: 96,
+    height: 36,
+    objectives: [
+      { item: 'plank', amount: 10 },
+      { item: 'stone', amount: 10 },
+      { item: 'spear', amount: 5 },
+    ],
+    medals: { gold: 600, silver: 840, bronze: 1200 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'rope', 'lantern', 'demolish'],
+    startStock: { log: 4, plank: 6, stone: 4 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 2, miner: 1 },
+    startWorkers: 6,
+    night: true,
+    weather: [
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 30 },
+      { kind: 'storm', duration: 20 },
+    ],
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [10, 28], // base camp
+          [15, 22], // first terrace
+          [20, 22], // second terrace — the iron
+          [25, 24], // the summit
+        ])
+      );
+      townhall(g, 4);
+      goal(g, 80);
+      // base camp — the trees stand in the town light, the boulders just beyond
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      boulder(g, 15);
+      boulder(g, 17);
+      // first terrace
+      tree(g, 30);
+      tree(g, 33);
+      tree(g, 36);
+      tree(g, 39);
+      boulder(g, 41);
+      boulder(g, 44);
+      // second terrace — the iron, deepest in the dark
+      boulder(g, 52);
+      boulder(g, 54);
+      vein(g, 57);
+      vein(g, 60);
+      vein(g, 63);
+    },
+    hints: [
+      {
+        id: 'finale',
+        text: 'The last ascent: <b>night</b>, <b>rain</b> and <b>storm</b> in turn. Lanterns light the terraces, rain slows the harvest — and in a <b>storm the lifts lock their brakes</b>. Watch the forecast and move cargo in the calm windows.',
+        when: () => true,
+      },
+      {
+        id: 'upgrade2',
+        text: 'The Forge (and any lift) needs <b>Town Hall 2</b> — bank 8 planks and 6 stone early. Ramps climb in any weather; lifts are faster but sit out every storm.',
+        when: (g) => g.time > 30 && g.thLevel < 2,
+      },
+      {
+        id: 'stormplan',
+        text: 'A <b>storm</b> is rolling in! Haulers will queue at locked lifts until it passes — ramps keep walking, lifts wait it out.',
+        when: (g) => g.weather === 'storm',
+      },
+    ],
+    camera: { x: 10, y: 22 },
   },
 ];

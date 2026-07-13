@@ -1,7 +1,7 @@
 // Serializable custom-level format: created by the in-game editor or the
 // procedural generator, stored in localStorage and shareable as a text code.
 
-import { FOOTPRINTS, ITEM_TYPES, ROLES, T } from './types';
+import { FOOTPRINTS, ITEM_TYPES, ROLES, T, TOOL_DEFS } from './types';
 import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
@@ -124,6 +124,8 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     width: data.width,
     height: data.height,
     objectives: data.objectives.filter((o) => o.amount > 0),
+    // custom levels are daytime levels — the lantern (a night tool) is left out
+    allowedTools: TOOL_DEFS.map((t) => t.id).filter((id) => id !== 'lantern'),
     startStock: { ...data.startStock },
     startRoles: { ...data.startRoles },
     startWorkers: data.startWorkers,
@@ -416,9 +418,13 @@ function cargoReach(world: World, sx: number, sy: number): Set<number> {
     const y = Math.floor(key / world.w);
     for (const dx of [-1, 1]) {
       const nx = x + dx;
-      // walk / step up one
+      // walk / step up one (a ramp tile overhead counts as headroom — see nav.ts)
       if (world.isStandable(nx, y)) visit(nx, y);
-      if (world.isStandable(nx, y - 1) && world.isPassable(x, y - 1) && world.get(nx, y - 1) !== T.LADDER) {
+      if (
+        world.isStandable(nx, y - 1) &&
+        (world.isPassable(x, y - 1) || world.get(x, y - 1) === T.RAMP) &&
+        world.get(nx, y - 1) !== T.LADDER
+      ) {
         visit(nx, y - 1);
       }
       // walk off and fall (short falls only)
