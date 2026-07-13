@@ -54,7 +54,10 @@ const toolLabel = await page.textContent('.tool-btn .tool-label');
 check('first tool label is German', toolLabel === 'Prüfen');
 
 
-// in-game options via the gear, switch back to English -> HUD rebuilds live
+// in-game options via the gear, switch back to English -> HUD rebuilds live.
+// The corner menu auto-hides behind a pill on hover-capable pointers, so reveal
+// it first (headless shell reports `hover: hover`).
+await page.hover('.menubar');
 await page.click('.menubar .speed-btn[title="Optionen"]');
 await page.waitForTimeout(200);
 await page.click('.seg-btn:has-text("English")');
