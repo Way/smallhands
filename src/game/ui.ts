@@ -11,7 +11,6 @@ import type {
   Building,
   BuildingKind,
   ItemType,
-  NodeKind,
   Recipe,
   ResourceNode,
   Role,
@@ -31,22 +30,6 @@ const ITEM_ICON: Record<ItemType, string> = {
   stone: 'item_stone',
   iron: 'item_iron',
   spear: 'item_spear',
-};
-
-const BUILDING_LABEL: Record<BuildingKind, string> = {
-  townhall: 'Town Hall',
-  sawmill: 'Sawmill',
-  forge: 'Forge',
-  lift: 'Cargo Lift',
-  rope: 'Rope Anchor',
-  lantern: 'Lantern',
-  goal: 'Delivery target',
-};
-
-const NODE_LABEL: Record<NodeKind, string> = {
-  tree: 'Tree',
-  boulder: 'Boulder',
-  vein: 'Iron vein',
 };
 
 export const TOOL_ICON: Partial<Record<Tool, string>> = {
@@ -447,11 +430,11 @@ export class Hud {
       this.hintSig = sig;
       tip.innerHTML = '';
       el('div', undefined, tip).innerHTML =
-        `<b>${BUILDING_LABEL[b.kind]}</b>` + (b.kind === 'townhall' ? ` · Lv ${g.thLevel}` : '');
+        b.kind === 'townhall' ? t('th.hover', { n: g.thLevel }) : `<b>${t(`building.${b.kind}`)}</b>`;
       if (b.kind === 'townhall') this.fillTownhallHint(tip);
       else if (b.state === 'blueprint') {
         const need = BUILD_TIME[b.kind] ?? 5;
-        el('div', 'tt-desc', tip).textContent = `Building… ${Math.floor((b.progress / need) * 100)}%`;
+        el('div', 'tt-desc', tip).textContent = t('inspect.buildingPct', { p: Math.floor((b.progress / need) * 100) });
       } else this.fillBuildingHint(tip, b);
     }
     this.positionHint(tip, clientX, clientY);
@@ -464,9 +447,9 @@ export class Hud {
     if (sig !== this.hintSig) {
       this.hintSig = sig;
       tip.innerHTML = '';
-      el('div', undefined, tip).innerHTML = `<b>${NODE_LABEL[n.kind]}</b>`;
-      el('div', 'tt-desc', tip).textContent = `${n.yieldLeft} left`;
-      el('div', 'tt-desc', tip).textContent = n.marked ? 'Marked for harvest' : 'Use Harvest to mark';
+      el('div', undefined, tip).innerHTML = `<b>${t(`node.${n.kind}`)}</b>`;
+      el('div', 'tt-desc', tip).textContent = t('inspect.yieldLeft', { n: n.yieldLeft });
+      el('div', 'tt-desc', tip).textContent = n.marked ? t('inspect.marked') : t('inspect.unmarked');
     }
     this.positionHint(tip, clientX, clientY);
   }
@@ -520,12 +503,14 @@ export class Hud {
     const g = this.game;
     const lvl = TH_LEVELS[g.thLevel - 1];
     const up = g.thUpgrade;
-    el('div', 'tt-desc', tip).textContent = `Crew ${g.workers.length}/${g.maxWorkers}`;
+    el('div', 'tt-desc', tip).textContent = t('th.hoverCrew', { a: g.workers.length, b: g.maxWorkers });
     if (up) {
-      el('div', 'tt-desc', tip).textContent = `Upgrading… ${Math.floor((up.progress / up.time) * 100)}%`;
+      el('div', 'tt-desc', tip).textContent = t('hud.upgrading', { p: Math.floor((up.progress / up.time) * 100) });
     } else if (lvl.upgradeCost) {
-      el('div', undefined, tip).textContent =
-        `Click: upgrade → Lv ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
+      el('div', undefined, tip).textContent = t('th.hoverClick', {
+        n: g.thLevel + 1,
+        m: TH_LEVELS[g.thLevel].maxWorkers,
+      });
       const cost = el('div', 'tt-cost', tip);
       for (const [k, v] of Object.entries(lvl.upgradeCost)) {
         const s = el('span', undefined, cost);
@@ -534,7 +519,7 @@ export class Hud {
         n.textContent = String(v);
       }
     } else {
-      el('div', 'tt-desc', tip).textContent = 'Max level';
+      el('div', 'tt-desc', tip).textContent = t('th.hoverMax');
     }
   }
 
@@ -545,19 +530,19 @@ export class Hud {
       this.renderRecipe(tip, recipe);
       // live status
       let status: string;
-      if (b.processing) status = `Working ${Math.floor((b.processT / recipe.time) * 100)}%`;
+      if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
       else {
         const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
           (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
         );
-        status = missing ? `Idle · needs ${t(`item.${missing}`)}` : 'Idle · ready';
+        status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
       }
       el('div', 'tt-desc', tip).textContent = status;
     } else if (b.kind === 'lift') {
-      el('div', 'tt-desc', tip).textContent = `Lifts crew up ${b.y - b.liftTopY} tiles · up only`;
-      el('div', 'tt-desc', tip).textContent = b.liftBusy ? 'Carrying…' : 'Idle';
+      el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
+      el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');
     } else if (b.kind === 'rope') {
-      el('div', 'tt-desc', tip).textContent = `Crew slide down ${b.ropeBottomY - b.y} tiles · down only`;
+      el('div', 'tt-desc', tip).textContent = t('inspect.rope', { n: b.ropeBottomY - b.y });
     } else if (b.kind === 'goal') {
       const row = el('div', 'tt-cost', tip);
       for (const o of g.objectives) {
@@ -582,10 +567,10 @@ export class Hud {
         el('b', undefined, s).textContent = String(v);
       }
     };
-    side('Uses', recipe.inputs);
+    side(t('tt.uses'), recipe.inputs);
     el('div', 'tt-arrow', rec).textContent = '→';
-    side('Makes', recipe.outputs);
-    el('div', 'tt-time', tip).textContent = `⏱ ${recipe.time}s per batch`;
+    side(t('tt.makes'), recipe.outputs);
+    el('div', 'tt-time', tip).textContent = t('tt.perBatch', { n: recipe.time });
   }
 
   hideBuildingHint(): void {

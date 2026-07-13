@@ -459,6 +459,16 @@ const D: Record<string, [string, string]> = {
   'inspect.marked': ['Marked for harvest.', 'Zum Abbau markiert.'],
   'inspect.unmarked': ['Use the Harvest tool to mark it.', 'Markiere sie mit dem Ernten-Werkzeug.'],
   'inspect.blueprint': [' (under construction)', ' (im Bau)'],
+  // live hover-to-inspect tooltips (buildings + resource nodes)
+  'inspect.yieldLeft': ['{n} left', 'noch {n}'],
+  'inspect.buildingPct': ['Building… {p}%', 'Bau… {p} %'],
+  'inspect.working': ['Working {p}%', 'Arbeitet {p} %'],
+  'inspect.idleNeeds': ['Idle · needs {name}', 'Leerlauf · braucht {name}'],
+  'inspect.idleReady': ['Idle · ready', 'Leerlauf · bereit'],
+  'inspect.lift': ['Lifts crew up {n} tiles · up only', 'Hebt Trupp {n} Felder hoch · nur aufwärts'],
+  'inspect.carrying': ['Carrying…', 'Trägt…'],
+  'inspect.idle': ['Idle', 'Leerlauf'],
+  'inspect.rope': ['Crew slide down {n} tiles · down only', 'Trupp rutscht {n} Felder hinab · nur abwärts'],
   'sound.on': ['🔊 Sound on', '🔊 Ton an'],
   'sound.off': ['🔇 Sound off', '🔇 Ton aus'],
 
