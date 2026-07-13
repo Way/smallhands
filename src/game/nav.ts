@@ -107,8 +107,16 @@ export function findPath(
       } else if (world.isPassable(nx, y) && world.isPassable(nx, y - 1) === true) {
         // nothing — handled by fall below
       }
-      // Step up one tile (a little hop onto a ledge) — needs headroom.
-      if (world.isStandable(nx, y - 1) && world.isPassable(x, y - 1) && world.get(nx, y - 1) !== T.LADDER) {
+      // Step up one tile (a little hop onto a ledge) — needs headroom. A ramp
+      // tile overhead counts as headroom: its underside is a diagonal, so a
+      // smallhand in the pocket beneath a ramp run can duck out onto the ramp
+      // instead of being walled in by its own staircase.
+      const head = world.get(x, y - 1);
+      if (
+        world.isStandable(nx, y - 1) &&
+        (world.isPassable(x, y - 1) || head === T.RAMP) &&
+        world.get(nx, y - 1) !== T.LADDER
+      ) {
         consider(nx, y - 1, 'walk', 1.4);
       }
       // Walk off the edge and fall.

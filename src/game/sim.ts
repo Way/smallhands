@@ -4,6 +4,8 @@ import {
   CLIMB_SPEED,
   FALL_SPEED,
   FOOTPRINTS,
+  GOAL_LIGHT_RADIUS,
+  LANTERN_RADIUS,
   LIFT_SPEED,
   NODE_ROLE,
   NODE_YIELD,
@@ -13,7 +15,10 @@ import {
   T,
   TH_LEVELS,
   TOOL_DEFS,
+  TOWNHALL_LIGHT_RADIUS,
   WALK_SPEED,
+  WEATHER_FADE,
+  WET_WORK_FACTOR,
   WORKER_SPAWN_INTERVAL,
 } from './types';
 import type {
@@ -25,10 +30,13 @@ import type {
   PathStep,
   ResourceNode,
   Role,
+  RunPlan,
   ShortfallRow,
   Tool,
+  WeatherKind,
+  WeatherPhase,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, ladderRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -81,6 +89,9 @@ export type GameEvent =
   | { type: 'demolish' }
   | { type: 'spawn' }
   | { type: 'produce'; building: Building; item: ItemType }
+  | { type: 'weather'; kind: WeatherKind }
+  | { type: 'flood'; row: number; rescued: number }
+  | { type: 'splash'; item: ItemType }
   | { type: 'win' }
   | { type: 'hint'; text: string };
 
@@ -124,6 +135,17 @@ export class Game {
   speed = 1;
   paused = false;
   demolishCount = 0; // for the "No Demolish" feat
+
+  // weather: index + elapsed time within the level's looping schedule
+  weatherIdx = 0;
+  private weatherT = 0;
+  // visual crossfade: the kind we're leaving + seconds since the last flip.
+  // Initialised settled (fade already complete) so there's no fade-in on spawn.
+  private weatherPrev: WeatherKind = 'clear';
+  private weatherFadeT = WEATHER_FADE;
+  // rising-water table: every AIR cell at y >= waterRow is flooded.
+  // null = no water table (static water tiles may still exist).
+  waterRow: number | null = null;
 
   private nextId = 1;
   private spawnTimer = 1;
@@ -207,6 +229,67 @@ export class Game {
   // Buildings that add edges to the movement graph (lifts and rope anchors).
   get transits(): Building[] {
     return this.buildings.filter((b) => b.kind === 'lift' || b.kind === 'rope');
+  }
+
+  // ---- weather ---------------------------------------------------------------
+
+  get weatherSchedule(): WeatherPhase[] | null {
+    const sched = this.level.weather;
+    return sched && sched.length > 0 ? sched : null;
+  }
+
+  get weather(): WeatherKind {
+    const sched = this.weatherSchedule;
+    return sched ? sched[this.weatherIdx % sched.length].kind : 'clear';
+  }
+
+  // Seconds until the current phase ends (Infinity when weather is static).
+  get weatherRemaining(): number {
+    const sched = this.weatherSchedule;
+    if (!sched) return Infinity;
+    return Math.max(0, sched[this.weatherIdx % sched.length].duration - this.weatherT);
+  }
+
+  // Continuous crossfade between the previous and current weather. `t` ramps
+  // 0→1 across WEATHER_FADE after a flip, then holds at 1. Renderer-only.
+  get weatherBlend(): { from: WeatherKind; to: WeatherKind; t: number } {
+    const to = this.weather;
+    if (!this.weatherSchedule) return { from: 'clear', to: 'clear', t: 1 };
+    const t = Math.min(1, this.weatherFadeT / WEATHER_FADE);
+    return { from: this.weatherPrev, to, t };
+  }
+
+  // Wet weather (rain or storm) slows outdoor harvest work.
+  get workFactor(): number {
+    return this.weather === 'clear' ? 1 : WET_WORK_FACTOR;
+  }
+
+  // ---- light (night levels) ----------------------------------------------------
+
+  // Light sources: the town hall and caravan keep their own fires, plus every
+  // finished lantern. Radii are in tiles, measured from the source's centre.
+  lightSources(): { x: number; y: number; r: number }[] {
+    const out: { x: number; y: number; r: number }[] = [];
+    for (const b of this.buildings) {
+      if (b.kind === 'townhall') out.push({ x: b.x + 2, y: b.y + 1.5, r: TOWNHALL_LIGHT_RADIUS });
+      else if (b.kind === 'goal') out.push({ x: b.x + 2, y: b.y + 1.5, r: GOAL_LIGHT_RADIUS });
+      else if (b.kind === 'lantern' && b.state === 'ready') out.push({ x: b.x + 0.5, y: b.y + 0.5, r: LANTERN_RADIUS });
+    }
+    return out;
+  }
+
+  // Is the tile lit? Always true outside night levels. Smallhands only harvest
+  // and raise buildings in the light (lanterns themselves are the exception).
+  isLit(x: number, y: number): boolean {
+    if (!this.level.night) return true;
+    const cx = x + 0.5;
+    const cy = y + 0.5;
+    for (const s of this.lightSources()) {
+      const dx = cx - s.x;
+      const dy = cy - s.y;
+      if (dx * dx + dy * dy <= s.r * s.r) return true;
+    }
+    return false;
   }
 
   roleCount(role: Role): number {
@@ -295,33 +378,74 @@ export class Game {
     return true;
   }
 
-  // Lay a drag-run of tiles, charging the tool's cost per tile and stopping when
-  // the player can no longer afford the next one. Shared by Ramp and Bridge.
-  private placeRun(toolId: Tool, cells: { x: number; y: number }[], tile: T): number {
-    const cost = TOOL_DEFS.find((t) => t.id === toolId)!.cost!;
-    let placed = 0;
-    for (const c of cells) {
-      if (!this.canAfford(cost)) break;
-      this.payCost(cost);
-      this.world.set(c.x, c.y, tile);
-      placed++;
+  // The cells a drag would fill, from the per-tool generator.
+  private runCells(tool: Tool, ax: number, ay: number, tx: number, ty: number): { x: number; y: number }[] {
+    if (tool === 'ladder') return ladderRunCells(this.world, ax, ay, tx, ty);
+    if (tool === 'ramp') return rampRunCells(this.world, ax, ay, tx, ty);
+    return bridgeRunCells(this.world, ax, ay, tx, ty); // platform (Bridge)
+  }
+
+  // Single source of truth for a drag-run — read by the ghost, placement and the
+  // cursor cost readout. `affordable` = how many leading cells the stock covers;
+  // `cost` = the resource total for that prefix (what a drop spends); `rows` =
+  // full-run need vs have for the readout badge.
+  runPlan(tool: Tool, ax: number, ay: number, tx: number, ty: number): RunPlan {
+    const cells = this.runCells(tool, ax, ay, tx, ty);
+    const n = cells.length;
+    if (tool === 'ladder') {
+      // 1 wood per rung: spend logs first, then planks (mirrors ladderWood).
+      const logsUsed = Math.min(n, this.stock.log);
+      const planksUsed = Math.min(n - logsUsed, this.stock.plank);
+      const cost: Partial<Record<ItemType, number>> = {};
+      if (logsUsed > 0) cost.log = logsUsed;
+      if (planksUsed > 0) cost.plank = planksUsed;
+      const wood = this.stock.log + this.stock.plank;
+      const rows: ShortfallRow[] =
+        n > 0 ? [{ item: 'log', have: wood, need: n, short: n > wood }] : [];
+      return { cells, affordable: logsUsed + planksUsed, cost, rows };
     }
-    this.onEvent({ type: placed > 0 ? 'place' : 'invalid' });
-    return placed;
+    // ramp / platform: 1 plank per tile.
+    const planks = this.stock.plank;
+    const affordable = Math.min(n, planks);
+    const cost: Partial<Record<ItemType, number>> = affordable > 0 ? { plank: affordable } : {};
+    const rows: ShortfallRow[] =
+      n > 0 ? [{ item: 'plank', have: planks, need: n, short: n > planks }] : [];
+    return { cells, affordable, cost, rows };
+  }
+
+  // Lay a run's affordable prefix, paying its total cost once. The plan already
+  // encodes both terrain validity and affordability, so we just place.
+  private placeRun(plan: RunPlan, tile: T): number {
+    this.payCost(plan.cost);
+    for (let i = 0; i < plan.affordable; i++) {
+      this.world.set(plan.cells[i].x, plan.cells[i].y, tile);
+    }
+    this.onEvent({ type: plan.affordable > 0 ? 'place' : 'invalid' });
+    return plan.affordable;
   }
 
   placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
-    return this.placeRun('ramp', rampRunCells(this.world, ax, ay, tx, ty), T.RAMP);
+    return this.placeRun(this.runPlan('ramp', ax, ay, tx, ty), T.RAMP);
   }
 
   placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
-    return this.placeRun('platform', bridgeRunCells(this.world, ax, ay, tx, ty), T.PLATFORM);
+    return this.placeRun(this.runPlan('platform', ax, ay, tx, ty), T.PLATFORM);
   }
 
-  placeBuilding(kind: 'sawmill' | 'forge', x: number, y: number): boolean {
+  placeLadderRun(ax: number, ay: number, tx: number, ty: number): number {
+    return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
+  }
+
+  placeBuilding(kind: 'sawmill' | 'forge' | 'lantern', x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === kind)!;
     const fp = FOOTPRINTS[kind];
     if (!this.toolUnlocked(kind) || !this.canAfford(def.cost!) || !canPlaceBuilding(this.world, this.buildings, this.nodes, x, y, fp.w, fp.h)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    // At night, workshops rise only in the light. Lanterns are the exception —
+    // that is how the player pushes the frontier of light outward.
+    if (kind !== 'lantern' && !this.isLit(x + Math.floor(fp.w / 2), y + fp.h - 1)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -424,6 +548,11 @@ export class Game {
   toggleMark(x: number, y: number): boolean {
     const n = this.nodeAt(x, y);
     if (!n || n.yieldLeft <= 0) return false;
+    // in the dark nobody would find the flag — light it first
+    if (!n.marked && !this.isLit(n.x, n.y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
     n.marked = !n.marked;
     if (!n.marked && n.workerId !== null) {
       const w = this.workers.find((wk) => wk.id === n.workerId);
@@ -484,9 +613,23 @@ export class Game {
       spot = settle(this.world, x + dx, y);
       if (spot) break;
     }
-    spot ??= { x, y };
+    if (!spot) {
+      // no resting spot — if the drop column ends in water, the goods are lost
+      let fy = y;
+      while (this.world.inBounds(x, fy) && this.world.get(x, fy) === T.AIR) fy++;
+      if (this.world.get(x, fy) === T.WATER) {
+        this.sinkItem(item, x, fy);
+        return;
+      }
+      spot = { x, y };
+    }
     this.groundItems.push({ id: this.id(), item, x: spot.x, y: spot.y, reserved: false, bounce: 0.4 });
     this.onEvent({ type: 'itemSpawn', item });
+  }
+
+  private sinkItem(item: ItemType, x: number, y: number): void {
+    this.spawnBurst(x + 0.5, y + 0.2, '#9fd0f0', 7);
+    this.onEvent({ type: 'splash', item });
   }
 
   // ---- worker lifecycle --------------------------------------------------------
@@ -757,6 +900,8 @@ export class Game {
     for (const n of this.nodes) {
       if (!n.marked || n.yieldLeft <= 0 || n.workerId !== null) continue;
       if (NODE_ROLE[n.kind] !== w.role) continue;
+      if (!this.isLit(n.x, n.y)) continue; // no harvest in the dark
+      if (this.world.get(n.x, n.y) === T.WATER) continue; // submerged by the flood
       const cells = nodeApproachCells(this.world, n.x, n.y);
       if (cells.size === 0) continue;
       const path = findPath(this.world, this.transits, w.cx, w.cy, cells, false);
@@ -940,7 +1085,7 @@ export class Game {
         return;
       }
       n.wobble = 0.2;
-      w.workT += dt;
+      w.workT += dt * this.workFactor; // wet weather slows the swing
       const def = NODE_YIELD[n.kind];
       if (w.workT >= def.workTime) {
         w.workT = 0;
@@ -1016,6 +1161,10 @@ export class Game {
       const lift = this.lifts.find((l) => l.state === 'ready' && l.x === w.cx && l.y === w.cy && l.liftTopY === step.y);
       if (!lift) {
         this.repath(w);
+        return;
+      }
+      if (this.weather === 'storm' && lift.liftRiderId !== w.id) {
+        w.waiting = true; // storm brake: nobody boards until the gust passes
         return;
       }
       if (lift.liftBusy && lift.liftRiderId !== w.id) {
@@ -1138,8 +1287,98 @@ export class Game {
     }
   }
 
+  // ---- weather & flood -------------------------------------------------------
+
+  private tickWeather(dt: number): void {
+    const sched = this.weatherSchedule;
+    if (!sched) return;
+    this.weatherT += dt;
+    this.weatherFadeT += dt;
+    const phase = sched[this.weatherIdx % sched.length];
+    if (this.weatherT >= phase.duration) {
+      this.weatherT -= phase.duration;
+      this.weatherPrev = phase.kind; // the kind we're leaving
+      this.weatherIdx = (this.weatherIdx + 1) % sched.length;
+      this.weatherFadeT = this.weatherT; // start the fade from the boundary (carry overflow)
+      const kind = sched[this.weatherIdx].kind;
+      this.onEvent({ type: 'weather', kind });
+      // in flood levels, every downpour raises the water table one row
+      if (kind === 'rain' && this.level.flood) this.riseWater();
+    }
+  }
+
+  // Raise the water table one row: AIR at or below the new row floods, goods
+  // in the water are lost, and smallhands caught wading scramble home.
+  riseWater(): void {
+    const f = this.level.flood;
+    if (!f) return;
+    const next = this.waterRow === null ? f.start : this.waterRow - 1;
+    if (next < f.min) return;
+    this.waterRow = next;
+    const { world } = this;
+    for (let x = 0; x < world.w; x++) {
+      for (let y = next; y < world.h; y++) {
+        if (world.get(x, y) === T.AIR) world.set(x, y, T.WATER);
+      }
+    }
+    this.groundItems = this.groundItems.filter((gi) => {
+      if (world.get(gi.x, gi.y) !== T.WATER) return true;
+      this.sinkItem(gi.item, gi.x, gi.y);
+      return false;
+    });
+    let rescued = 0;
+    for (const w of this.workers) {
+      if (world.get(w.cx, w.cy) === T.WATER || world.get(Math.round(w.px), Math.round(w.py)) === T.WATER) {
+        this.rescueWorker(w);
+        rescued++;
+      }
+    }
+    this.onEvent({ type: 'flood', row: next, rescued });
+  }
+
+  // A smallhand caught by the water scrambles back to the town hall, dropping
+  // whatever they carried into the drink.
+  private rescueWorker(w: Worker): void {
+    if (w.task) this.abortTask(w); // drops cargo — over water it sinks
+    const th = this.townhall;
+    const door = settle(this.world, th.x + 1 + (w.id % 2), th.y + FOOTPRINTS.townhall.h - 1);
+    if (door) {
+      w.cx = door.x;
+      w.cy = door.y;
+      w.px = door.x;
+      w.py = door.y;
+    }
+    w.path = [];
+    w.stepIdx = 0;
+    w.spawnT = 0.6; // pop back in, soggy but safe
+  }
+
   private tickGravity(): void {
     for (const w of this.workers) {
+      if (this.world.get(w.cx, w.cy) === T.WATER) {
+        // washed out mid-path (e.g. the tide rose under a route) — scramble home
+        this.rescueWorker(w);
+        continue;
+      }
+      // A support tile (ramp or bridge) was built into the worker's cell —
+      // pop them up on top of the new tile instead of entombing them.
+      if (!this.world.isPassable(w.cx, w.cy)) {
+        let freed = false;
+        for (let ny = w.cy - 1; ny >= w.cy - 3; ny--) {
+          if (this.world.isStandable(w.cx, ny)) {
+            if (w.task) this.abortTask(w);
+            w.cy = ny;
+            w.px = w.cx;
+            w.py = ny;
+            w.path = [];
+            w.stepIdx = 0;
+            freed = true;
+            break;
+          }
+          if (!this.world.isPassable(w.cx, ny)) break;
+        }
+        if (freed) continue;
+      }
       if (w.stepIdx < w.path.length) continue; // mid-path, handled there
       if (!this.world.isStandable(w.cx, w.cy)) {
         const spot = settle(this.world, w.cx, w.cy);
@@ -1245,6 +1484,7 @@ export class Game {
       else w.animT += dt;
     }
 
+    this.tickWeather(dt);
     this.tickBuildings(dt);
     this.tickGravity();
     this.tickParticles(dt);

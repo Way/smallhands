@@ -1,16 +1,26 @@
 import {
   BUILD_TIME,
-  ITEM_NAMES,
   ITEM_TYPES,
   RECIPES,
   ROLE_COLORS,
-  ROLE_NAMES,
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
 } from './types';
-import type { Building, BuildingKind, ItemType, NodeKind, Recipe, ResourceNode, Role, Tool } from './types';
+import type {
+  Building,
+  BuildingKind,
+  ItemType,
+  NodeKind,
+  Recipe,
+  ResourceNode,
+  Role,
+  ShortfallRow,
+  Tool,
+  WeatherKind,
+} from './types';
 import { drawIconTo } from '../engine/sprites';
+import { t } from '../engine/i18n';
 import type { Game } from './sim';
 
 // DOM-based HUD. Rebuilt per level; light incremental updates each frame.
@@ -29,6 +39,7 @@ const BUILDING_LABEL: Record<BuildingKind, string> = {
   forge: 'Forge',
   lift: 'Cargo Lift',
   rope: 'Rope Anchor',
+  lantern: 'Lantern',
   goal: 'Delivery target',
 };
 
@@ -48,7 +59,14 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   forge: 'forge',
   lift: 'lift_car',
   rope: 'rope_anchor',
+  lantern: 'lantern',
   demolish: 'icon_demolish',
+};
+
+const WX_ICON: Record<WeatherKind, string> = {
+  clear: '☀️',
+  rain: '🌧️',
+  storm: '🌩️',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -77,6 +95,7 @@ export interface HudCallbacks {
   onUpgrade: () => void;
   onMenu: () => void;
   onRestart: () => void;
+  onOptions: () => void;
 }
 
 export class Hud {
@@ -92,15 +111,21 @@ export class Hud {
   private upgradeBtn!: HTMLButtonElement;
   private toolBtns = new Map<Tool, HTMLButtonElement>();
   private speedBtns = new Map<number, HTMLButtonElement>();
+  private speedTrigger!: HTMLElement;
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
   private hintSig = '';
   private needs: HTMLElement | null = null;
   private needsSig = '';
+  private runCost: HTMLElement | null = null;
+  private runCostSig = '';
   private keepBadges = new Map<ItemType, HTMLElement>();
   private lastKeep: Record<string, number> = {};
   private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
+  private wxNow: HTMLElement | null = null;
+  private wxNext: HTMLElement | null = null;
+  private wxSig = '';
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -110,8 +135,7 @@ export class Hud {
     root.innerHTML = '';
     this.buildTopBar();
     this.buildToolbar();
-    this.buildSpeedBar();
-    this.buildZoomBar();
+    this.buildControlBar();
     this.buildMenuBar();
     this.toastWrap = el('div', 'toast-wrap', root);
     this.update();
@@ -124,7 +148,7 @@ export class Hud {
     const res = el('div', 'panel res-bar', bar);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
-      chip.title = `${ITEM_NAMES[it]} — click to keep some in store`;
+      chip.title = t('hud.chipTitle', { name: t(`item.${it}`) });
       icon(ITEM_ICON[it], 20, chip);
       const cnt = el('span', 'cnt', chip);
       cnt.textContent = '0';
@@ -144,27 +168,41 @@ export class Hud {
     // objectives
     const obj = el('div', 'panel objectives', bar);
     const h = el('h3', undefined, obj);
-    h.innerHTML = `<span>Deliver</span><span class="lvlname">${this.game.level.name}</span>`;
+    h.innerHTML = `<span>${t('hud.deliver')}</span><span class="lvlname">${t(this.game.level.name)}</span>`;
     for (const o of this.game.objectives) {
       const row = el('div', 'obj-row', obj);
       icon(ITEM_ICON[o.item], 18, row);
       const name = el('span', 'obj-name', row);
-      name.textContent = ITEM_NAMES[o.item];
+      name.textContent = t(`item.${o.item}`);
       const cnt = el('span', 'obj-cnt', row);
       this.objRows.set(o.item, { row, cnt });
+    }
+
+    // weather forecast — deterministic, so showing it IS the strategy layer
+    if (this.game.weatherSchedule) {
+      const wx = el('div', 'panel weather', bar);
+      const wh = el('h3', undefined, wx);
+      wh.innerHTML =
+        `<span>${t('hud.weather')}</span>` +
+        (this.game.level.flood
+          ? `<span class="wx-flood" title="${t('wx.floodTitle')}">${t('wx.flood')}</span>`
+          : '');
+      const row = el('div', 'wx-row', wx);
+      this.wxNow = el('div', 'wx-now', row);
+      this.wxNext = el('div', 'wx-next', row);
     }
 
     // crew panel
     const crew = el('div', 'panel crew', bar);
     const ch = el('h3', undefined, crew);
-    ch.innerHTML = `<span>Crew</span><span class="pop"></span>`;
+    ch.innerHTML = `<span>${t('hud.crew')}</span><span class="pop"></span>`;
     this.workerPop = ch.querySelector('.pop')!;
     for (const r of ROLES) {
       const row = el('div', 'role-row', crew);
       const dot = el('span', 'role-dot', row);
       dot.style.background = ROLE_COLORS[r];
       const name = el('span', 'role-name', row);
-      name.textContent = ROLE_NAMES[r];
+      name.textContent = t(`role.${r}`);
       const minus = el('button', 'role-btn', row);
       minus.textContent = '−';
       minus.onclick = () => this.cbs.onRole(r, -1);
@@ -187,7 +225,7 @@ export class Hud {
       const key = el('span', 'tool-key', btn);
       key.textContent = def.key;
       const label = el('span', 'tool-label', btn);
-      label.textContent = def.label;
+      label.textContent = t(`tool.${def.id}.label`);
       btn.onclick = () => this.cbs.onTool(def.id);
       btn.onmouseenter = (e) => this.showTooltip(def.id, e.currentTarget as HTMLElement);
       btn.onmouseleave = () => this.hideTooltip();
@@ -195,28 +233,39 @@ export class Hud {
     }
   }
 
-  private buildSpeedBar(): void {
-    const bar = el('div', 'panel speedbar', this.root);
+  // Speed + zoom, merged into one bottom-right flyout. Collapsed on desktop to a
+  // single pill showing the current speed; hovering expands the full panel. On
+  // touch (no hover) the pill is hidden and the panel stays open — see the
+  // `@media (hover: hover)` block in style.css.
+  private buildControlBar(): void {
+    const bar = el('div', 'ctrlbar flyout', this.root);
+    this.speedTrigger = el('div', 'flyout-trigger panel', bar);
+    this.speedTrigger.textContent = '1×';
+    this.speedTrigger.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'flyout-body panel', bar);
+
+    const speedRow = el('div', 'ctrl-row speed-row', body);
     for (const [label, s] of [
       ['⏸', 0],
       ['1×', 1],
       ['2×', 2],
       ['4×', 4],
     ] as const) {
-      const btn = el('button', 'speed-btn', bar);
+      const btn = el('button', 'speed-btn', speedRow);
       btn.textContent = label;
       btn.onclick = () => this.cbs.onSpeed(s);
       this.speedBtns.set(s, btn);
     }
-  }
 
-  private buildZoomBar(): void {
-    const bar = el('div', 'panel zoombar', this.root);
+    el('div', 'ctrl-divider', body);
+
+    const zoomRow = el('div', 'ctrl-row zoom-row', body);
+    el('span', 'ctrl-label', zoomRow).textContent = t('hud.zoom');
     for (const [label, dir] of [
       ['−', -1],
       ['+', 1],
     ] as const) {
-      const btn = el('button', 'speed-btn', bar);
+      const btn = el('button', 'speed-btn', zoomRow);
       btn.textContent = label;
       btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
       btn.onclick = () => this.cbs.onZoom(dir);
@@ -224,13 +273,21 @@ export class Hud {
   }
 
   private buildMenuBar(): void {
-    const bar = el('div', 'panel menubar', this.root);
-    const menu = el('button', 'speed-btn', bar);
-    menu.textContent = '☰ Levels';
+    const bar = el('div', 'menubar flyout', this.root);
+    const trigger = el('div', 'flyout-trigger panel', bar);
+    trigger.textContent = '☰';
+    trigger.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'flyout-body panel', bar);
+    const menu = el('button', 'speed-btn', body);
+    menu.textContent = t('menu.levels');
     menu.onclick = () => this.cbs.onMenu();
-    const restart = el('button', 'speed-btn', bar);
-    restart.textContent = '↺ Restart';
+    const restart = el('button', 'speed-btn', body);
+    restart.textContent = t('menu.restart');
     restart.onclick = () => this.cbs.onRestart();
+    const opts = el('button', 'speed-btn', body);
+    opts.textContent = '⚙';
+    opts.title = t('opt.title');
+    opts.onclick = () => this.cbs.onOptions();
   }
 
   private showTooltip(tool: Tool, anchor: HTMLElement): void {
@@ -238,14 +295,14 @@ export class Hud {
     const def = TOOL_DEFS.find((t) => t.id === tool)!;
     const tip = el('div', 'tooltip', this.root);
     const title = el('div', undefined, tip);
-    title.innerHTML = `<b>${def.label}</b>`;
+    title.innerHTML = `<b>${t(`tool.${def.id}.label`)}</b>`;
     const desc = el('div', 'tt-desc', tip);
-    desc.textContent = def.desc;
+    desc.textContent = t(`tool.${def.id}.desc`);
     const recipe = RECIPES[def.id as BuildingKind];
     if (recipe) this.renderRecipe(tip, recipe);
     if (def.thLevel && this.game.thLevel < def.thLevel) {
       const req = el('div', undefined, tip);
-      req.innerHTML = `<span class="insufficient">Requires Town Hall level ${def.thLevel}</span>`;
+      req.innerHTML = `<span class="insufficient">${t('tt.requiresTh', { n: def.thLevel })}</span>`;
     }
     if (def.cost) {
       const cost = el('div', 'tt-cost', tip);
@@ -298,13 +355,13 @@ export class Hud {
     // would make the browser silently drop the click).
     const nameEl = el('div', 'res-pop-name', pop);
     const row = el('div', 'res-pop-row', pop);
-    el('span', undefined, row).textContent = 'Keep';
+    el('span', undefined, row).textContent = t('hud.keep');
     const minus = el('button', 'res-step', row);
     minus.textContent = '−';
     const val = el('b', 'res-keep-val', row);
     const plus = el('button', 'res-step', row);
     plus.textContent = '+';
-    el('div', 'res-pop-note', pop).textContent = 'Haulers ship only the surplus to the caravan.';
+    el('div', 'res-pop-note', pop).textContent = t('hud.keepNote');
     const step = (delta: number): void => {
       g.setKeep(item, g.keep[item] + delta);
       val.textContent = String(g.keep[item]);
@@ -313,7 +370,7 @@ export class Hud {
     minus.onclick = () => step(-1);
     plus.onclick = () => step(1);
     const refresh = (): void => {
-      nameEl.textContent = `${ITEM_NAMES[item]} · ${g.stock[item]} in store`;
+      nameEl.textContent = t('hud.inStore', { name: t(`item.${item}`), n: g.stock[item] });
       val.textContent = String(g.keep[item]);
     };
     refresh();
@@ -327,13 +384,13 @@ export class Hud {
   toast(html: string, warn = false, autoDismiss = 0): void {
     // keep at most 2 stacked hints
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
-    const t = el('div', warn ? 'toast warn' : 'toast', this.toastWrap);
-    const span = el('span', undefined, t);
+    const box = el('div', warn ? 'toast warn' : 'toast', this.toastWrap);
+    const span = el('span', undefined, box);
     span.innerHTML = html;
-    const d = el('span', 'dismiss', t);
-    d.textContent = 'dismiss';
-    d.onclick = () => t.remove();
-    if (autoDismiss > 0) setTimeout(() => t.remove(), autoDismiss * 1000);
+    const d = el('span', 'dismiss', box);
+    d.textContent = t('ui.dismiss');
+    d.onclick = () => box.remove();
+    if (autoDismiss > 0) setTimeout(() => box.remove(), autoDismiss * 1000);
   }
 
   // Interactive town-hall panel shown when the building is tapped with Select.
@@ -341,37 +398,40 @@ export class Hud {
     const g = this.game;
     const lvl = TH_LEVELS[g.thLevel - 1];
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
-    const t = el('div', 'toast th-toast', this.toastWrap);
+    const box = el('div', 'toast th-toast', this.toastWrap);
     const build = (): void => {
-      t.innerHTML = '';
-      const head = el('div', undefined, t);
-      head.innerHTML = `<b>Town Hall</b> · Level ${g.thLevel} · ${g.workers.length}/${g.maxWorkers} crew`;
+      box.innerHTML = '';
+      const head = el('div', undefined, box);
+      head.innerHTML = t('th.status', { n: g.thLevel, a: g.workers.length, b: g.maxWorkers });
       if (g.thUpgrade) {
-        el('div', 'th-toast-body', t).textContent =
-          `Upgrading… ${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100)}% — a builder is on the way.`;
+        el('div', 'th-toast-body', box).textContent = t('th.upgradingBody', {
+          p: Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100),
+        });
       } else if (!lvl.upgradeCost) {
-        el('div', 'th-toast-body', t).textContent = 'Fully upgraded — max crew reached.';
+        el('div', 'th-toast-body', box).textContent = t('th.maxBody');
       } else {
-        el('div', 'th-toast-body', t).textContent =
-          `Upgrade → Level ${g.thLevel + 1} (${TH_LEVELS[g.thLevel].maxWorkers} crew)`;
-        const cost = el('div', 'th-toast-cost', t);
+        el('div', 'th-toast-body', box).textContent = t('th.upgradeTo', {
+          n: g.thLevel + 1,
+          m: TH_LEVELS[g.thLevel].maxWorkers,
+        });
+        const cost = el('div', 'th-toast-cost', box);
         for (const [k, v] of Object.entries(lvl.upgradeCost)) {
           const s = el('span', 'cost-item', cost);
           icon(ITEM_ICON[k as ItemType], 16, s);
           const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
           n.textContent = String(v);
         }
-        const btn = el('button', 'th-mini', t);
-        btn.textContent = 'Upgrade';
+        const btn = el('button', 'th-mini', box);
+        btn.textContent = t('th.upgradeShort');
         btn.disabled = !g.canAfford(lvl.upgradeCost);
         btn.onclick = () => {
           this.cbs.onUpgrade();
           build(); // re-render to reflect the in-progress state
         };
       }
-      const d = el('span', 'dismiss', t);
-      d.textContent = 'dismiss';
-      d.onclick = () => t.remove();
+      const d = el('span', 'dismiss', box);
+      d.textContent = t('ui.dismiss');
+      d.onclick = () => box.remove();
     };
     build();
   }
@@ -490,7 +550,7 @@ export class Hud {
         const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
           (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
         );
-        status = missing ? `Idle · needs ${ITEM_NAMES[missing]}` : 'Idle · ready';
+        status = missing ? `Idle · needs ${t(`item.${missing}`)}` : 'Idle · ready';
       }
       el('div', 'tt-desc', tip).textContent = status;
     } else if (b.kind === 'lift') {
@@ -543,7 +603,7 @@ export class Hud {
       this.hidePlacementNeeds();
       return;
     }
-    const label = TOOL_DEFS.find((t) => t.id === tool)?.label ?? '';
+    const label = t(`tool.${tool}.label`);
     const sig = tool + rows.map((r) => `|${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`).join('');
     if (!this.needs) {
       this.needs = el('div', 'tooltip', this.root);
@@ -553,7 +613,7 @@ export class Hud {
     if (sig !== this.needsSig) {
       this.needsSig = sig;
       tip.innerHTML = '';
-      el('div', undefined, tip).innerHTML = `<b>${label}</b> needs`;
+      el('div', undefined, tip).innerHTML = t('hud.needs', { label });
       const cost = el('div', 'tt-cost', tip);
       for (const r of rows) {
         const s = el('span', undefined, cost);
@@ -568,6 +628,46 @@ export class Hud {
     this.needs?.remove();
     this.needs = null;
     this.needsSig = '';
+  }
+
+  // While dragging a build-run (Ladder/Ramp/Bridge), show the run's running
+  // total cost at the cursor. Unlike the shortfall badge this ALWAYS shows during
+  // a drag (the point is the total); a resource the full run can't afford flips
+  // to a red have/need. `rows` come straight from Game.runPlan.
+  showRunCost(clientX: number, clientY: number, rows: ShortfallRow[], tool: Tool): void {
+    if (rows.length === 0) {
+      this.hideRunCost();
+      return;
+    }
+    const label = t(`tool.${tool}.label`);
+    const sig = tool + rows.map((r) => `|${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`).join('');
+    if (!this.runCost) {
+      this.runCost = el('div', 'tooltip', this.root);
+      this.runCostSig = '';
+    }
+    const tip = this.runCost;
+    if (sig !== this.runCostSig) {
+      this.runCostSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${label}</b>`;
+      const cost = el('div', 'tt-cost', tip);
+      for (const r of rows) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[r.item], 14, s);
+        // affordable: just the total; short: red have/need (same as the badge)
+        el('b', r.short ? 'insufficient' : '', s).textContent = r.short ? `${r.have}/${r.need}` : `${r.need}`;
+      }
+    }
+    // follow the cursor, clamped to stay on screen (same as showPlacementNeeds)
+    tip.style.left = `${Math.min(window.innerWidth - 240, clientX + 14)}px`;
+    tip.style.top = `${clientY + 16}px`;
+    tip.style.bottom = 'auto';
+  }
+
+  hideRunCost(): void {
+    this.runCost?.remove();
+    this.runCost = null;
+    this.runCostSig = '';
   }
 
   flashResource(item: ItemType): void {
@@ -586,10 +686,13 @@ export class Hud {
 
   setSpeed(s: number): void {
     for (const [sp, btn] of this.speedBtns) btn.classList.toggle('active', sp === s);
+    // keep the collapsed pill in sync — it doubles as a live speed readout
+    this.speedTrigger.textContent = s === 0 ? '⏸' : `${s}×`;
+    this.speedTrigger.classList.toggle('non-default', s !== 1);
     document.querySelector('.pause-note')?.remove();
     if (s === 0) {
       const note = el('div', 'pause-note', this.root);
-      note.textContent = 'Paused';
+      note.textContent = t('hud.paused');
     }
   }
 
@@ -616,6 +719,22 @@ export class Hud {
       r.cnt.textContent = `${o.delivered}/${o.amount}`;
       r.row.classList.toggle('done', o.delivered >= o.amount);
     }
+    // weather strip: current phase + countdown, then the next two phases
+    if (this.wxNow && g.weatherSchedule) {
+      const rem = Math.max(0, Math.ceil(g.weatherRemaining));
+      const sig = `${g.weatherIdx}:${rem}`;
+      if (sig !== this.wxSig) {
+        this.wxSig = sig;
+        this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${t(`weather.${g.weather}`)}</span><b>${rem}s</b>`;
+        const sched = g.weatherSchedule;
+        let html = `<span class="wx-then">${t('hud.then')}</span>`;
+        for (let i = 1; i <= Math.min(2, sched.length - 1); i++) {
+          const p = sched[(g.weatherIdx + i) % sched.length];
+          html += `<span class="wx-chip" title="${t(`weather.${p.kind}`)} · ${p.duration}s">${WX_ICON[p.kind]}<small>${p.duration}s</small></span>`;
+        }
+        if (this.wxNext) this.wxNext.innerHTML = html;
+      }
+    }
     this.workerPop.textContent = `${g.workers.length}/${g.maxWorkers}`;
     for (const r of ROLES) {
       this.roleCnts.get(r)!.textContent = String(g.desiredRoles[r]);
@@ -629,14 +748,14 @@ export class Hud {
       this.upgradeSig = sig;
       if (g.thUpgrade) {
         this.upgradeBtn.disabled = true;
-        this.upgradeBtn.textContent = `Upgrading… ${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100)}%`;
+        this.upgradeBtn.textContent = t('hud.upgrading', { p: Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100) });
       } else if (!lvl.upgradeCost) {
         this.upgradeBtn.disabled = true;
-        this.upgradeBtn.textContent = `Town Hall ${g.thLevel} (max)`;
+        this.upgradeBtn.textContent = t('hud.thMax', { n: g.thLevel });
       } else {
         this.upgradeBtn.innerHTML = '';
         const label = el('span', undefined, this.upgradeBtn);
-        label.textContent = `Upgrade Town Hall → ${g.thLevel + 1}`;
+        label.textContent = t('hud.upgradeBtn', { n: g.thLevel + 1 });
         for (const [k, v] of Object.entries(lvl.upgradeCost)) {
           const s = el('span', 'cost-item', this.upgradeBtn);
           icon(ITEM_ICON[k as ItemType], 16, s);

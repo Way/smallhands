@@ -14,6 +14,7 @@ const res = await build({
       export { Game } from './src/game/sim.ts';
       export { LEVELS } from './src/game/levels.ts';
       export { TOOL_DEFS } from './src/game/types.ts';
+      export { t } from './src/engine/i18n.ts';
       export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
     `,
     resolveDir: root,
@@ -22,7 +23,7 @@ const res = await build({
   bundle: true, format: 'esm', platform: 'node', write: false,
 });
 const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -174,7 +175,7 @@ function stepWorld() {
   const ramp = TOOL_DEFS.find((t) => t.id === 'ramp');
   const bridge = TOOL_DEFS.find((t) => t.id === 'platform');
   check('ramp tool defined, 1 plank', !!ramp && ramp.cost && ramp.cost.plank === 1);
-  check('platform tool relabelled Bridge', !!bridge && bridge.label === 'Bridge');
+  check('platform tool relabelled Bridge', !!bridge && t('tool.platform.label') === 'Bridge');
 
   // placeRampRun charges a plank per placed tile and lays RAMP tiles.
   // Columns 12-29 of Level 1 are one flat run, so pick a safe column there.

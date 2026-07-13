@@ -28,12 +28,30 @@ self-contained static site (~22 kB gzipped).
   iron veins → forge (plank + iron → spear).
 - **Town Hall progression** — upgrade to unlock the forge and cargo lift and to
   grow your crew.
-- **Four handcrafted levels** — from a gentle tutorial to a three-terrace summit
-  supply line, each verified completable end-to-end.
+- **Two handcrafted campaigns** — nine levels, each verified completable
+  end-to-end. Campaign 1 (four levels) teaches the logistics core, from a
+  gentle tutorial to a three-terrace summit supply line. **Campaign 2 —
+  Storm & Tide** (five levels, unlocked by finishing Campaign 1) adds:
+  - **Water** — rivers and ponds are impassable and goods dropped in are lost
+    for good; bridge them or lose the cargo.
+  - **Dynamic weather on a visible forecast** — rain slows chopping and
+    mining, storms lock the cargo lifts' brakes. The schedule is
+    deterministic and shown in the HUD, so planning around it *is* the puzzle.
+  - **The rising tide** — in flood levels every rainfall raises the water one
+    permanent step; loot the lowlands before they drown, then bridge the lake.
+  - **Night & lanterns** — smallhands only harvest and build in the light.
+    Lantern posts (1 log + 1 stone) can be raised anywhere, pushing the
+    frontier of light toward the far resources.
 - **Medals & personal bests** — every level has gold/silver/bronze time
   thresholds and two feats (*No Demolish*, *Light Touch*). Wins end in a
   medal ceremony with an honest time gauge; the level select carries a
   trophy shelf and per-level medal slots. Records live in localStorage.
+- **Two languages & an options menu** — the whole game (levels, hints, HUD,
+  editor, verifier) ships in **English and German**; the language follows the
+  browser until the player picks one in the **Options** menu (reachable from
+  the title, the level select and in-game via ⚙). Options also cover sound,
+  a reduced-effects mode (rain streaks, sway, flicker off) and a progress
+  reset. Language switches apply live — even mid-level.
 
 ## The Workshop: editor, generator & daily challenge
 
@@ -67,15 +85,26 @@ skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
 | Left click | Use selected tool / place |
 | Drag / WASD / arrows | Pan camera |
 | Mouse wheel | Zoom (pixel-perfect steps) |
-| `1`–`8` | Select tool |
+| `1`–`9`, `0`, `L` | Select tool |
 | `Space` | Pause / resume |
 | `Esc` | Back to inspect tool |
+
+## Site layout
+
+The site is a two-page static build:
+
+- `/` — a small, playful **landing page** (`index.html` + `src/landing.ts`)
+  that pitches Smallhands as the sweet spot between Lemmings and The Settlers.
+  It is bilingual (English/German, toggle in the top bar) and draws its icons
+  from the game's own pixel-art atlas; the language choice is written to the
+  same save slot the game reads, so it carries straight into play.
+- `/play/` — the game itself (`play/index.html` + `src/main.ts`).
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # dev server with HMR
+npm run dev      # dev server with HMR (landing at /, game at /play/)
 npm run build    # typecheck + production build into dist/
 npm run preview  # serve the production build locally
 ```
@@ -84,7 +113,8 @@ npm run preview  # serve the production build locally
 
 With a preview server running on port 4173, this drives a real browser through
 levels 1 and 2 (harvesting, sawmill production, goal deliveries, cargo lift and
-ladder logistics) and fails if the levels can't be completed:
+ladder logistics) and fails if the levels can't be completed. The browser
+suites target the game at `/play/`; override with `BASE_URL` if needed:
 
 ```bash
 npm run build && npm run preview &   # serve dist on :4173
@@ -100,9 +130,30 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
+Two headless suites need no browser at all: `tests/unit.mjs` covers pure
+simulation logic (ladders, reserves, medals, water, weather, flood, night),
+and `tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
+scripted player and fails unless the win state is reached:
+
+```bash
+npm run test:unit
+npm run test:campaign2
+```
+
+A third browser suite (`npm run test:i18n`, preview server required) switches
+the game to German through the options menu and verifies every open surface —
+title, level select, in-game HUD — re-renders live and the choice persists.
+
+The landing page has its own smoke test (`npm run test:landing`, preview
+server required): it drives the front door at `/`, checks the bilingual toggle
+switches the copy and writes the shared save slot, that the pixel-art icons
+actually draw, and that the **Play** button reaches the game at `/play/` in the
+language the landing persisted.
+
 ## Hosting
 
 The build output in `dist/` is a fully static site with relative asset paths —
+the landing page at `dist/index.html` and the game at `dist/play/` — so you can
 host it anywhere (GitHub Pages, itch.io, Netlify, any static file server).
 A GitHub Actions workflow (`.github/workflows/deploy.yml`) is included that
 builds and publishes to GitHub Pages on every push to `main` — enable
