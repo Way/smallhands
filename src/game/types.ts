@@ -265,3 +265,14 @@ export interface ShortfallRow {
   need: number;
   short: boolean;
 }
+
+// A drag-run's cells, how many the current stock can pay for (`affordable`), the
+// resource total for that affordable prefix (`cost`, what a drop spends), and
+// display rows for the cursor readout (`rows`, sized to the FULL run so the badge
+// can warn). Single source of truth for the ghost, placement and readout.
+export interface RunPlan {
+  cells: { x: number; y: number }[];
+  affordable: number;
+  cost: Partial<Record<ItemType, number>>;
+  rows: ShortfallRow[];
+}

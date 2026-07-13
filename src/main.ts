@@ -19,7 +19,6 @@ import { LEVELS } from './game/levels';
 import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
-import { rampRunCells, bridgeRunCells } from './game/world';
 import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
@@ -1205,7 +1204,7 @@ let lastMx = 0;
 let lastMy = 0;
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
-const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform';
+const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder';
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
@@ -1254,10 +1253,17 @@ canvas.addEventListener('pointermove', (e) => {
   const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
   if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
   else hud?.hideBuildingHint();
-  // cursor cost badge: while placing a cost-bearing tool, spell out which
-  // resource is short so a red ghost isn't a mystery (no-op when affordable)
-  if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
-  else hud?.hidePlacementNeeds();
+  // cursor cost readout: during a drag-run show the run's running total (always);
+  // otherwise, while placing a cost-bearing tool, spell out any shortfall.
+  if (runAnchor && game && running) {
+    const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, t.x, t.y);
+    hud?.hidePlacementNeeds();
+    hud?.showRunCost(e.clientX, e.clientY, plan.rows, runAnchor.tool);
+  } else {
+    hud?.hideRunCost();
+    if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
+    else hud?.hidePlacementNeeds();
+  }
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
@@ -1265,17 +1271,20 @@ canvas.addEventListener('pointerleave', () => {
   hover.visible = false;
   hud?.hideBuildingHint();
   hud?.hidePlacementNeeds();
+  hud?.hideRunCost();
   editor.setHover(0, 0, false);
 });
 
 canvas.addEventListener('pointercancel', () => {
   dragging = false;
   runAnchor = null;
+  hud?.hideRunCost();
   applyToolCursor();
 });
 
 canvas.addEventListener('pointerup', (e) => {
   dragging = false;
+  hud?.hideRunCost();
   applyToolCursor(); // drop the grabbing hand back to the tool cursor
   if (painting) {
     painting = false;
@@ -1289,6 +1298,7 @@ canvas.addEventListener('pointerup', (e) => {
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     if (game && running) {
       if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
+      else if (a.tool === 'ladder') game.placeLadderRun(a.x, a.y, t.x, t.y);
       else game.placeBridgeRun(a.x, a.y, t.x, t.y);
     }
     return;
@@ -1464,7 +1474,7 @@ function applyTool(tx: number, ty: number): void {
       break;
     }
     case 'ladder':
-      g.placeLadder(tx, ty);
+      g.placeLadderRun(tx, ty, tx, ty);
       break;
     case 'platform':
       g.placeBridgeRun(tx, ty, tx, ty);
@@ -1510,15 +1520,28 @@ let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
 
+const RUN_SPRITE: Partial<Record<Tool, string>> = {
+  ramp: 'tile_ramp',
+  platform: 'tile_platform',
+  ladder: 'tile_ladder',
+};
+
 const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!runAnchor || !game) return;
-  const cells =
-    runAnchor.tool === 'ramp'
-      ? rampRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty)
-      : bridgeRunCells(game.world, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
-  const name = runAnchor.tool === 'ramp' ? 'tile_ramp' : 'tile_platform';
-  ctx.globalAlpha = 0.6;
-  for (const c of cells) ctx.drawImage(sprite(name).canvas, c.x * TILE, c.y * TILE);
+  const spriteName = RUN_SPRITE[runAnchor.tool];
+  if (!spriteName) return; // only the run tools have a ghost sprite
+  const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+  const spr = sprite(spriteName).canvas;
+  plan.cells.forEach((c, i) => {
+    const affordable = i < plan.affordable;
+    ctx.globalAlpha = affordable ? 0.6 : 0.35;
+    ctx.drawImage(spr, c.x * TILE, c.y * TILE);
+    if (!affordable) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(255,122,107,0.35)';
+      ctx.fillRect(c.x * TILE, c.y * TILE, TILE, TILE);
+    }
+  });
   ctx.globalAlpha = 1;
 };
 

@@ -83,8 +83,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.ladder.label': ['Ladder', 'Leiter'],
   'tool.ladder.desc': [
-    'Build a ladder tile from 1 log — or a plank if you have no logs. Smallhands climb ladders, but never while carrying goods!',
-    'Baue eine Leiter aus 1 Stamm — oder einem Brett, wenn keine Stämme mehr da sind. Smallhands klettern Leitern, aber nie mit Fracht!',
+    'Build a ladder from 1 log per rung — or planks if you have no logs. Drag up a wall to raise a whole ladder at once. Smallhands climb ladders, but never while carrying goods!',
+    'Baue eine Leiter — 1 Stamm je Sprosse, oder Bretter, wenn keine Stämme mehr da sind. Zieh an einer Wand hoch, um eine ganze Leiter auf einmal zu bauen. Smallhands klettern Leitern, aber nie mit Fracht!',
   ],
   'tool.platform.label': ['Bridge', 'Brücke'],
   'tool.platform.desc': [
