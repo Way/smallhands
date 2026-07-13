@@ -304,15 +304,7 @@ html, body {
 .tool-btn.locked:hover { border-color: var(--panel-border-light); color: var(--text-dim); }
 .tool-btn:disabled { opacity: 0.35; cursor: default; }
 
-/* ---- speed controls ---- */
-.speedbar {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-}
+/* ---- speed / zoom / menu buttons (shared) ---- */
 .speed-btn {
   min-width: 34px;
   height: 34px;
@@ -328,24 +320,70 @@ html, body {
 .speed-btn:hover { color: var(--text); border-color: var(--accent); }
 .speed-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
 
-/* ---- zoom controls ---- */
-.zoombar {
-  position: absolute;
-  bottom: 58px;
-  right: 12px;
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-}
+/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ---- */
+.flyout { position: absolute; }
+.menubar { bottom: 12px; left: 12px; }
+.ctrlbar { bottom: 12px; right: 12px; }
 
-/* ---- menu button ---- */
-.menubar {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
-  gap: 4px;
-  padding: 6px;
+/* the collapsed pill (.panel supplies bg/border/shadow/blur) — only rendered
+   where a hover pointer exists (see below) */
+.flyout-trigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px; /* tighter than .panel's 10px for the small pill */
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, opacity 0.14s;
+}
+.flyout-trigger:hover { border-color: var(--accent); }
+.flyout-trigger.non-default { color: var(--accent); border-color: var(--accent); }
+
+/* the expanded menu panel */
+.flyout-body { display: flex; gap: 4px; padding: 6px; }
+.ctrlbar .flyout-body { flex-direction: column; gap: 6px; min-width: 172px; }
+
+.ctrl-row { display: flex; align-items: center; gap: 4px; }
+.ctrl-row.speed-row .speed-btn { flex: 1; }
+.ctrl-divider { height: 1px; background: var(--panel-border); margin: 1px 2px; }
+.ctrl-row.zoom-row { gap: 6px; }
+.ctrl-label {
+  margin-right: auto;
+  padding-left: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.zoom-row .speed-btn { min-width: 40px; }
+
+/* hover pointers: collapse each menu to its pill, expand on hover.
+   touch (hover: none) falls through — trigger stays hidden, body stays open. */
+@media (hover: hover) {
+  .flyout-trigger { display: inline-flex; }
+  .flyout-body {
+    position: absolute;
+    bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+  .menubar .flyout-body { left: 0; }
+  .ctrlbar .flyout-body { right: 0; }
+  /* :focus-within so keyboard users reveal the menu they tab into — otherwise
+     the buttons stay in the tab order but invisible (hover-only reveal). */
+  .flyout:hover .flyout-body,
+  .flyout:focus-within .flyout-body { opacity: 1; pointer-events: auto; transform: none; }
+  .flyout:hover .flyout-trigger,
+  .flyout:focus-within .flyout-trigger { opacity: 0; }
 }
 
 /* ---- toast / hints ---- */
@@ -910,4 +948,6 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 }
 @media (prefers-reduced-motion: reduce) {
   .stamp, .newrec, .confetti { animation: none; }
+  .flyout-body, .flyout-trigger { transition: none; }
+  .flyout-body { transform: none; }
 }
