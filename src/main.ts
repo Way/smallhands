@@ -1,5 +1,7 @@
 import './style.css';
 import { FEATS, TILE, TOOL_DEFS, bestTier, medalFor } from './game/types';
+import { detectLang, getLang, setLang, t } from './engine/i18n';
+import type { Lang } from './engine/i18n';
 import type { MedalTier, Tool } from './game/types';
 import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio } from './engine/audio';
@@ -38,8 +40,11 @@ buildAtlas();
 const save = loadSave();
 let customLevels = loadCustomLevels();
 audio.muted = save.muted;
+// language: an explicit choice from the options menu wins; otherwise follow the browser
+setLang(save.lang ?? detectLang());
 
 const renderer = new Renderer(canvas);
+renderer.effectsReduced = save.effects === 'reduced';
 const cam = new Camera();
 
 let game: Game | null = null;
@@ -90,14 +95,14 @@ function medalSlotRow(key: string): HTMLElement {
   row.className = 'medal-row';
   const medalSlot = document.createElement('span');
   medalSlot.className = 'mslot' + (rec?.medal ? ' filled' : '');
-  medalSlot.title = rec?.medal ? `${rec.medal[0].toUpperCase()}${rec.medal.slice(1)} medal` : 'No medal yet';
+  medalSlot.title = rec?.medal ? t('slot.medal', { tier: t(`medal.${rec.medal}`) }) : t('slot.none');
   if (rec?.medal) medalSlot.appendChild(mkIcon(`medal_${rec.medal}`, 26));
   row.appendChild(medalSlot);
   for (const feat of FEATS) {
     const got = rec?.feats.includes(feat.id) ?? false;
     const slot = document.createElement('span');
     slot.className = 'mslot pin' + (got ? ' filled' : '');
-    slot.title = `${feat.name} — ${feat.desc}`;
+    slot.title = `${t(`feat.${feat.id}.name`)} — ${t(`feat.${feat.id}.desc`)}`;
     if (got) slot.appendChild(mkIcon('pin_feat', 20));
     row.appendChild(slot);
   }
@@ -114,8 +119,8 @@ function addMedalBits(card: HTMLElement, key: string, goldTime: number | null): 
   const anchor = foot.querySelector('.lv-status');
   const rec = save.records[key];
   const parts: string[] = [];
-  if (rec) parts.push(`Best <b>${fmtTime(rec.bestTime)}</b>`);
-  if (goldTime != null) parts.push(`Gold ${fmtTime(goldTime)}`);
+  if (rec) parts.push(`${t('card.best')} <b>${fmtTime(rec.bestTime)}</b>`);
+  if (goldTime != null) parts.push(`${t('card.gold')} ${fmtTime(goldTime)}`);
   if (parts.length) {
     const best = document.createElement('div');
     best.className = 'lv-best';
@@ -133,7 +138,7 @@ const editor = new Editor(uiRoot, {
       editor.close();
       showLevelSelect();
     };
-    if (editor.dirty) showConfirm('Leave the editor? Unsaved changes will be lost.', 'Leave editor', leave);
+    if (editor.dirty) showConfirm(t('confirm.leaveEditor'), t('btn.leaveEditor'), leave);
     else leave();
   },
   onPlaytest: (data) => {
@@ -175,11 +180,11 @@ function showTitle(): void {
   ov.className = 'overlay';
   ov.innerHTML = `
     <div class="title-logo">SMALLHANDS</div>
-    <div class="title-sub">Tiny workers · Big plans</div>
+    <div class="title-sub">${t('title.sub')}</div>
   `;
   const play = document.createElement('button');
   play.className = 'big-btn';
-  play.textContent = save.completed.length ? 'Continue' : 'Play';
+  play.textContent = save.completed.length ? t('btn.continue') : t('btn.play');
   play.onclick = () => {
     audio.click();
     showLevelSelect();
@@ -187,9 +192,16 @@ function showTitle(): void {
   ov.appendChild(play);
   const blurb = document.createElement('div');
   blurb.className = 'win-stats';
-  blurb.innerHTML =
-    'You never control the smallhands directly.<br/>Shape the world — ladders, lifts, workshops — and they do the rest.';
+  blurb.innerHTML = t('title.blurb');
   ov.appendChild(blurb);
+  const opts = document.createElement('button');
+  opts.className = 'big-btn secondary title-options';
+  opts.textContent = t('menu.options');
+  opts.onclick = () => {
+    audio.click();
+    showOptions(showTitle);
+  };
+  ov.appendChild(opts);
   uiRoot.appendChild(ov);
   drawIdleBackdrop();
 }
@@ -221,7 +233,7 @@ function showConfirm(message: string, confirmLabel: string, onYes: () => void): 
   row.appendChild(yes);
   const no = document.createElement('button');
   no.className = 'big-btn secondary';
-  no.textContent = 'Cancel';
+  no.textContent = t('btn.cancel');
   no.autofocus = true;
   no.onclick = () => {
     audio.click();
@@ -248,6 +260,153 @@ function resumeGame(): void {
   setSpeed(prevSpeed > 0 ? prevSpeed : 1);
 }
 
+// ---- options menu -------------------------------------------------------------
+
+// Language switch re-renders every open surface: the HUD is rebuilt in place
+// (the sim is untouched), and the options overlay re-opens on top.
+function applyLanguage(l: Lang): void {
+  if (getLang() === l) return;
+  setLang(l);
+  save.lang = l;
+  persistSave(save);
+  if (game) attachHud(); // wipes uiRoot — the caller re-opens its overlay
+}
+
+function showOptions(returnTo: () => void): void {
+  clearOverlay();
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  const box = document.createElement('div');
+  box.className = 'panel options-box';
+  const h = document.createElement('h2');
+  h.className = 'opt-title';
+  h.textContent = t('opt.title');
+  box.appendChild(h);
+
+  // a labelled row with a segmented control
+  const segRow = <T extends string>(
+    label: string,
+    choices: { value: T; label: string }[],
+    active: T,
+    onPick: (v: T) => void,
+    note?: string
+  ): void => {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    const lab = document.createElement('span');
+    lab.className = 'opt-label';
+    lab.textContent = label;
+    row.appendChild(lab);
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    for (const c of choices) {
+      const b = document.createElement('button');
+      b.className = 'seg-btn' + (c.value === active ? ' active' : '');
+      b.textContent = c.label;
+      b.onclick = () => {
+        audio.click();
+        onPick(c.value);
+      };
+      seg.appendChild(b);
+    }
+    row.appendChild(seg);
+    box.appendChild(row);
+    if (note) {
+      const n = document.createElement('div');
+      n.className = 'opt-note';
+      n.textContent = note;
+      box.appendChild(n);
+    }
+  };
+
+  segRow(
+    t('opt.language'),
+    [
+      { value: 'en' as Lang, label: t('opt.lang.en') },
+      { value: 'de' as Lang, label: t('opt.lang.de') },
+    ],
+    getLang(),
+    (l) => {
+      applyLanguage(l);
+      showOptions(returnTo); // re-open with the new labels
+    }
+  );
+
+  segRow(
+    t('opt.sound'),
+    [
+      { value: 'on', label: t('opt.on') },
+      { value: 'off', label: t('opt.off') },
+    ],
+    audio.muted ? 'off' : 'on',
+    (v) => {
+      audio.muted = v === 'off';
+      save.muted = audio.muted;
+      persistSave(save);
+      showOptions(returnTo);
+    }
+  );
+
+  segRow(
+    t('opt.effects'),
+    [
+      { value: 'full', label: t('opt.effects.full') },
+      { value: 'reduced', label: t('opt.effects.reduced') },
+    ],
+    save.effects === 'reduced' ? 'reduced' : 'full',
+    (v) => {
+      save.effects = v as 'full' | 'reduced';
+      renderer.effectsReduced = v === 'reduced';
+      persistSave(save);
+      showOptions(returnTo);
+    },
+    t('opt.effectsNote')
+  );
+
+  // reset progress
+  {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    const lab = document.createElement('span');
+    lab.className = 'opt-label';
+    lab.textContent = t('opt.reset');
+    row.appendChild(lab);
+    const btn = document.createElement('button');
+    btn.className = 'seg-btn danger';
+    btn.textContent = t('btn.reset');
+    btn.onclick = () => {
+      audio.click();
+      showConfirm(t('confirm.reset'), t('btn.reset'), () => {
+        save.completed = [];
+        save.completedCustom = [];
+        save.records = {};
+        persistSave(save);
+        showOptions(returnTo);
+      });
+    };
+    row.appendChild(btn);
+    box.appendChild(row);
+    const n = document.createElement('div');
+    n.className = 'opt-note';
+    n.textContent = t('opt.resetDesc');
+    box.appendChild(n);
+  }
+
+  const rowBtns = document.createElement('div');
+  rowBtns.className = 'btn-row';
+  const back = document.createElement('button');
+  back.className = 'big-btn';
+  back.textContent = t('opt.back');
+  back.onclick = () => {
+    audio.click();
+    returnTo();
+  };
+  rowBtns.appendChild(back);
+  box.appendChild(rowBtns);
+  ov.appendChild(box);
+  uiRoot.appendChild(ov);
+}
+
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
@@ -256,7 +415,7 @@ function showLevelSelect(): void {
   const h = document.createElement('div');
   h.className = 'title-logo';
   h.style.fontSize = '38px';
-  h.textContent = 'Choose a level';
+  h.textContent = t('select.title');
   ov.appendChild(h);
 
   // ---- trophy shelf: the collection at a glance ----
@@ -289,46 +448,67 @@ function showLevelSelect(): void {
     const campaignGold = LEVELS.filter((l) => save.records[`c${l.id}`]?.medal === 'gold').length;
     const pct = document.createElement('span');
     pct.className = 'pct';
-    pct.innerHTML = `<b>${campaignGold}/${LEVELS.length}</b> campaign gold`;
+    pct.innerHTML = t('shelf.gold', { a: campaignGold, b: LEVELS.length });
     shelf.appendChild(pct);
     ov.appendChild(shelf);
   }
 
-  // ---- campaign ----
-  const grid = document.createElement('div');
-  grid.className = 'level-grid';
-  LEVELS.forEach((lvl, i) => {
-    const unlocked = i === 0 || save.completed.includes(LEVELS[i - 1].id);
-    const done = save.completed.includes(lvl.id);
-    const card = document.createElement('button');
-    card.className = 'level-card' + (unlocked ? '' : ' locked');
-    card.innerHTML = `
-      <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
-      <div class="lv-name">${lvl.name}</div>
-      <div class="lv-desc">${lvl.desc}</div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : unlocked ? 'Ready' : 'Locked'}</div></div>
-    `;
-    if (unlocked && lvl.medals) {
-      addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
+  // ---- campaigns ----
+  // Campaign 2 opens only once every Campaign 1 level is finished; within each
+  // campaign, levels unlock in sequence as before.
+  const campaign1 = LEVELS.filter((l) => (l.campaign ?? 1) === 1);
+  const campaign1Done = campaign1.every((l) => save.completed.includes(l.id));
+  const levelUnlocked = (i: number): boolean => {
+    if ((LEVELS[i].campaign ?? 1) >= 2 && !campaign1Done) return false;
+    return i === 0 || save.completed.includes(LEVELS[i - 1].id);
+  };
+  const buildCampaignGrid = (levels: typeof LEVELS): HTMLElement => {
+    const grid = document.createElement('div');
+    grid.className = 'level-grid';
+    for (const lvl of levels) {
+      const i = LEVELS.indexOf(lvl);
+      const unlocked = levelUnlocked(i);
+      const done = save.completed.includes(lvl.id);
+      const card = document.createElement('button');
+      card.className = 'level-card' + (unlocked ? '' : ' locked');
+      card.innerHTML = `
+        <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
+        <div class="lv-name">${t(lvl.name)}</div>
+        <div class="lv-desc">${t(lvl.desc)}</div>
+        <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : unlocked ? t('status.ready') : t('status.locked')}</div></div>
+      `;
+      if (unlocked && lvl.medals) {
+        addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
+      }
+      if (unlocked) {
+        card.onclick = () => {
+          audio.click();
+          confirmIfInProgress(
+            t('confirm.abandonNamed', { name: t(game?.level.name ?? '') }),
+            t('btn.abandon'),
+            () => startLevel(i)
+          );
+        };
+      }
+      grid.appendChild(card);
     }
-    if (unlocked) {
-      card.onclick = () => {
-        audio.click();
-        confirmIfInProgress(
-          `Abandon "${game?.level.name}"? Progress in the current level will be lost.`,
-          'Abandon level',
-          () => startLevel(i)
-        );
-      };
-    }
-    grid.appendChild(card);
-  });
-  ov.appendChild(grid);
+    return grid;
+  };
+  ov.appendChild(buildCampaignGrid(campaign1));
+
+  // campaign 2 — storm & tide
+  {
+    const sec = document.createElement('div');
+    sec.className = 'section-title';
+    sec.textContent = campaign1Done ? t('camp2.unlocked') : t('camp2.locked');
+    ov.appendChild(sec);
+    ov.appendChild(buildCampaignGrid(LEVELS.filter((l) => (l.campaign ?? 1) === 2)));
+  }
 
   // ---- workshop: daily challenge, generator, editor, custom levels ----
   const sec = document.createElement('div');
   sec.className = 'section-title';
-  sec.textContent = 'Workshop — endless levels, daily challenge & your own creations';
+  sec.textContent = t('workshop.title');
   ov.appendChild(sec);
 
   const wgrid = document.createElement('div');
@@ -343,19 +523,19 @@ function showLevelSelect(): void {
     card.className = 'level-card daily';
     card.innerHTML = `
       <div class="lv-num">📅</div>
-      <div class="lv-name">Daily Challenge</div>
-      <div class="lv-desc">${daily.label} · difficulty ★${daily.difficulty}. One shared seed per day — same mountain for everyone.</div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div></div>
+      <div class="lv-name">${t('daily.name')}</div>
+      <div class="lv-desc">${t('daily.desc', { label: daily.label, d: daily.difficulty })}</div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
     `;
     // the daily's gold time isn't known until the level is generated, so pass
     // null; the empty medal/feat slots still show as the replay magnet
     addMedalBits(card, daily.seed, null);
     card.onclick = () => {
       audio.click();
-      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => {
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => {
         const data = generateVerifiedLevel({ seed: daily.seed, difficulty: daily.difficulty });
         data.id = daily.seed; // stable id so completion sticks
-        data.name = `Daily · ${daily.label}`;
+        data.name = t('daily.title', { label: daily.label });
         startCustomLevel(data, {});
       });
     };
@@ -368,9 +548,9 @@ function showLevelSelect(): void {
     card.className = 'level-card action';
     card.innerHTML = `
       <div class="lv-num">🎲</div>
-      <div class="lv-name">Generate a level</div>
-      <div class="lv-desc">Roll a fresh, verified level from a seed. Pick your difficulty, share the seed with friends.</div>
-      <div class="lv-foot"><div class="lv-status">Endless</div></div>
+      <div class="lv-name">${t('gen.cardName')}</div>
+      <div class="lv-desc">${t('gen.cardDesc')}</div>
+      <div class="lv-foot"><div class="lv-status">${t('status.endless')}</div></div>
     `;
     card.onclick = () => {
       audio.click();
@@ -385,13 +565,13 @@ function showLevelSelect(): void {
     card.className = 'level-card action';
     card.innerHTML = `
       <div class="lv-num">✎</div>
-      <div class="lv-name">Level editor</div>
-      <div class="lv-desc">Sculpt terrain, plant resources, set the delivery order — then playtest and share it as a code.</div>
-      <div class="lv-foot"><div class="lv-status">Create</div></div>
+      <div class="lv-name">${t('editor.cardName')}</div>
+      <div class="lv-desc">${t('editor.cardDesc')}</div>
+      <div class="lv-foot"><div class="lv-status">${t('status.create')}</div></div>
     `;
     card.onclick = () => {
       audio.click();
-      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => openEditor());
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor());
     };
     wgrid.appendChild(card);
   }
@@ -402,17 +582,17 @@ function showLevelSelect(): void {
     card.className = 'level-card action';
     card.innerHTML = `
       <div class="lv-num">⇩</div>
-      <div class="lv-name">Import code</div>
-      <div class="lv-desc">Paste a shared level code (SMH1.…) to add someone else's level to your list.</div>
-      <div class="lv-foot"><div class="lv-status">Share</div></div>
+      <div class="lv-name">${t('import.cardName')}</div>
+      <div class="lv-desc">${t('import.cardDesc')}</div>
+      <div class="lv-foot"><div class="lv-status">${t('status.share')}</div></div>
     `;
     card.onclick = () => {
       audio.click();
-      const code = window.prompt('Paste a Smallhands level code:');
+      const code = window.prompt(t('import.prompt'));
       if (!code) return;
       const data = decodeShareCode(code);
       if (!data) {
-        window.alert('That code could not be read — make sure the whole SMH1.… string was copied.');
+        window.alert(t('import.error'));
         return;
       }
       customLevels = upsertCustomLevel(customLevels, data);
@@ -430,14 +610,14 @@ function showLevelSelect(): void {
       <div class="lv-num">★</div>
       <div class="lv-name"></div>
       <div class="lv-desc"></div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? '✓ Complete' : 'Ready'}</div></div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
     `;
     (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
-    (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || 'A custom level.';
+    (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || t('custom.defaultDesc');
     addMedalBits(card, lvl.id, medalTimesFor(lvl).gold);
     card.onclick = () => {
       audio.click();
-      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => startCustomLevel(lvl, {}));
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => startCustomLevel(lvl, {}));
     };
     const actions = document.createElement('div');
     actions.className = 'lv-actions';
@@ -453,15 +633,15 @@ function showLevelSelect(): void {
       };
       actions.appendChild(b);
     };
-    mkBtn('✎', 'Edit this level', () =>
-      confirmIfInProgress('Abandon the current level?', 'Abandon level', () => openEditor(lvl))
+    mkBtn('✎', t('action.edit'), () =>
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor(lvl))
     );
-    mkBtn('⧉', 'Copy share code', () => {
+    mkBtn('⧉', t('action.copy'), () => {
       const code = encodeShareCode(lvl);
-      navigator.clipboard?.writeText(code).catch(() => window.prompt('Copy this level code:', code));
+      navigator.clipboard?.writeText(code).catch(() => window.prompt(t('ed.copyPrompt'), code));
     });
-    mkBtn('✕', 'Delete this level', () =>
-      showConfirm(`Delete "${lvl.name}"? This cannot be undone.`, 'Delete level', () => {
+    mkBtn('✕', t('action.delete'), () =>
+      showConfirm(t('confirm.delete', { name: lvl.name }), t('btn.delete'), () => {
         customLevels = deleteCustomLevel(customLevels, lvl.id);
         showLevelSelect();
       })
@@ -475,7 +655,7 @@ function showLevelSelect(): void {
   if (gameInProgress()) {
     const resume = document.createElement('button');
     resume.className = 'big-btn';
-    resume.textContent = `▶ Resume ${game!.level.name}`;
+    resume.textContent = t('btn.resume', { name: t(game!.level.name) });
     resume.onclick = () => {
       audio.click();
       resumeGame();
@@ -484,19 +664,17 @@ function showLevelSelect(): void {
   }
   const back = document.createElement('button');
   back.className = 'big-btn secondary';
-  back.textContent = 'Title';
+  back.textContent = t('btn.title');
   back.onclick = () => showTitle();
   row.appendChild(back);
-  const mute = document.createElement('button');
-  mute.className = 'big-btn secondary';
-  mute.textContent = audio.muted ? '🔇 Sound off' : '🔊 Sound on';
-  mute.onclick = () => {
-    audio.muted = !audio.muted;
-    save.muted = audio.muted;
-    persistSave(save);
-    mute.textContent = audio.muted ? '🔇 Sound off' : '🔊 Sound on';
+  const opts = document.createElement('button');
+  opts.className = 'big-btn secondary';
+  opts.textContent = t('menu.options');
+  opts.onclick = () => {
+    audio.click();
+    showOptions(showLevelSelect);
   };
-  row.appendChild(mute);
+  row.appendChild(opts);
   ov.appendChild(row);
   uiRoot.appendChild(ov);
 }
@@ -508,7 +686,7 @@ function showGenerateDialog(): void {
   box.className = 'panel confirm-box gen-box';
   const msg = document.createElement('div');
   msg.className = 'confirm-msg';
-  msg.innerHTML = '<b>Generate a level</b><br/>The same seed and difficulty always build the same level.';
+  msg.innerHTML = t('gen.title');
   box.appendChild(msg);
 
   const seedRow = document.createElement('div');
@@ -521,7 +699,7 @@ function showGenerateDialog(): void {
   const reroll = document.createElement('button');
   reroll.className = 'ed-btn';
   reroll.textContent = '↻';
-  reroll.title = 'New random seed';
+  reroll.title = t('gen.reroll');
   reroll.onclick = () => {
     seedIn.value = randomSeed();
     audio.click();
@@ -532,11 +710,11 @@ function showGenerateDialog(): void {
   const diffRow = document.createElement('div');
   diffRow.className = 'gen-row';
   const diffLbl = document.createElement('span');
-  diffLbl.textContent = 'Difficulty';
+  diffLbl.textContent = t('gen.difficulty');
   diffRow.appendChild(diffLbl);
   const diffSel = document.createElement('select');
   diffSel.className = 'ed-input ed-select';
-  const names = ['★1 Stroll', '★2 Hike', '★3 Climb', '★4 Expedition', '★5 Ascent'];
+  const names = [1, 2, 3, 4, 5].map((n) => t(`diff.${n}`));
   names.forEach((n, i) => {
     const opt = document.createElement('option');
     opt.value = String(i + 1);
@@ -558,23 +736,23 @@ function showGenerateDialog(): void {
   };
   const play = document.createElement('button');
   play.className = 'big-btn';
-  play.textContent = '▶ Play';
+  play.textContent = t('gen.play');
   play.onclick = () => {
     audio.click();
-    confirmIfInProgress('Abandon the current level?', 'Abandon level', () => gen(false));
+    confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => gen(false));
   };
   row.appendChild(play);
   const edit = document.createElement('button');
   edit.className = 'big-btn secondary';
-  edit.textContent = '✎ Open in editor';
+  edit.textContent = t('gen.openEditor');
   edit.onclick = () => {
     audio.click();
-    confirmIfInProgress('Abandon the current level?', 'Abandon level', () => gen(true));
+    confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => gen(true));
   };
   row.appendChild(edit);
   const cancel = document.createElement('button');
   cancel.className = 'big-btn secondary';
-  cancel.textContent = 'Cancel';
+  cancel.textContent = t('btn.cancel');
   cancel.onclick = () => {
     audio.click();
     ov.remove();
@@ -600,9 +778,9 @@ function buildCeremony(ov: HTMLElement): void {
   const line = document.createElement('div');
   line.className = 'cer-line';
   const nm = document.createElement('b');
-  nm.textContent = g.level.name;
+  nm.textContent = t(g.level.name);
   line.appendChild(nm);
-  line.appendChild(document.createTextNode(` · ${fmtTime(g.time)} · Crew ${g.workers.length} · Town Hall ${g.thLevel}`));
+  line.appendChild(document.createTextNode(t('cer.line', { time: fmtTime(g.time), n: g.workers.length, m: g.thLevel })));
   cer.appendChild(line);
 
   const medal = win?.medal ?? null;
@@ -615,20 +793,20 @@ function buildCeremony(ov: HTMLElement): void {
   } else {
     const none = document.createElement('span');
     none.className = 'mslot big-empty';
-    none.title = 'Beat the bronze time for a medal';
+    none.title = t('win.beatBronze');
     big.appendChild(none);
   }
   cer.appendChild(big);
 
   const name = document.createElement('div');
   name.className = 'medal-name' + (medal ? ` ${medal}` : '');
-  name.textContent = medal ? `${medal.toUpperCase()} MEDAL` : 'ORDER DELIVERED';
+  name.textContent = medal ? t(`medalname.${medal}`) : t('win.orderDelivered');
   cer.appendChild(name);
 
   if (win && !playtesting && (win.newRecord || win.firstClear)) {
     const chip = document.createElement('span');
     chip.className = 'newrec';
-    chip.textContent = win.firstClear ? '★ First clear' : '★ New record';
+    chip.textContent = win.firstClear ? t('win.firstClear') : t('win.newRecord');
     cer.appendChild(chip);
   }
 
@@ -657,9 +835,9 @@ function buildCeremony(ov: HTMLElement): void {
     const labels = document.createElement('div');
     labels.className = 'labels';
     labels.innerHTML =
-      `<span style="width:${pct(medals.gold)}"><b>Gold</b> ${fmtTime(medals.gold)}</span>` +
-      `<span style="width:${(((medals.silver - medals.gold) / max) * 100).toFixed(1)}%"><b>Silver</b> ${fmtTime(medals.silver)}</span>` +
-      `<span><b>Bronze</b> ${fmtTime(medals.bronze)}</span>`;
+      `<span style="width:${pct(medals.gold)}"><b>${t('medal.gold')}</b> ${fmtTime(medals.gold)}</span>` +
+      `<span style="width:${(((medals.silver - medals.gold) / max) * 100).toFixed(1)}%"><b>${t('medal.silver')}</b> ${fmtTime(medals.silver)}</span>` +
+      `<span><b>${t('medal.bronze')}</b> ${fmtTime(medals.bronze)}</span>`;
     gauge.appendChild(labels);
     cer.appendChild(gauge);
   }
@@ -674,9 +852,10 @@ function buildCeremony(ov: HTMLElement): void {
     f.appendChild(mkIcon('pin_feat', 24));
     const txt = document.createElement('div');
     const t1 = document.createElement('span');
-    t1.textContent = def.name;
+    t1.textContent = t(`feat.${def.id}.name`);
     const t2 = document.createElement('small');
-    t2.textContent = got ? `${def.desc} — done!` : def.desc;
+    const fdesc = t(`feat.${def.id}.desc`);
+    t2.textContent = got ? t('feat.done', { desc: fdesc }) : fdesc;
     txt.appendChild(t1);
     txt.appendChild(t2);
     f.appendChild(txt);
@@ -706,7 +885,7 @@ function showWin(): void {
   ov.className = 'overlay';
   const title = document.createElement('div');
   title.className = 'win-title';
-  title.textContent = 'Level complete!';
+  title.textContent = t('win.title');
   ov.appendChild(title);
   buildCeremony(ov);
   const row = document.createElement('div');
@@ -714,7 +893,7 @@ function showWin(): void {
   if (playtesting && currentCustom) {
     const back = document.createElement('button');
     back.className = 'big-btn';
-    back.textContent = '✎ Back to editor';
+    back.textContent = t('win.backToEditor');
     back.onclick = () => {
       audio.click();
       openEditor(currentCustom!);
@@ -723,9 +902,16 @@ function showWin(): void {
   } else if (!currentCustom) {
     const next = LEVELS[currentLevelIdx + 1];
     if (next) {
+      const cur = LEVELS[currentLevelIdx];
+      if ((next.campaign ?? 1) === 2 && (cur.campaign ?? 1) === 1) {
+        const unlock = document.createElement('div');
+        unlock.className = 'win-stats camp-unlock';
+        unlock.innerHTML = t('win.campaign2');
+        ov.appendChild(unlock);
+      }
       const nb = document.createElement('button');
       nb.className = 'big-btn';
-      nb.textContent = `Next: ${next.name} →`;
+      nb.textContent = t('win.next', { name: t(next.name) });
       nb.onclick = () => {
         audio.click();
         startLevel(currentLevelIdx + 1);
@@ -734,14 +920,13 @@ function showWin(): void {
     } else {
       const done = document.createElement('div');
       done.className = 'win-stats';
-      done.innerHTML =
-        '<b>You have finished every campaign level!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.';
+      done.innerHTML = t('win.allDone');
       ov.appendChild(done);
     }
   } else {
     const again = document.createElement('button');
     again.className = 'big-btn';
-    again.textContent = '🎲 Another one';
+    again.textContent = t('win.again');
     again.onclick = () => {
       audio.click();
       showGenerateDialog();
@@ -750,7 +935,7 @@ function showWin(): void {
   }
   const lv = document.createElement('button');
   lv.className = 'big-btn secondary';
-  lv.textContent = 'Levels';
+  lv.textContent = t('btn.levels');
   lv.onclick = () => showLevelSelect();
   row.appendChild(lv);
   ov.appendChild(row);
@@ -772,19 +957,9 @@ function startCustomLevel(data: CustomLevelData, opts: { playtest?: boolean }): 
   startGame(levelDefFromData(data));
 }
 
-function startGame(def: LevelDef): void {
-  clearOverlay();
-  editor.close();
-  cam.rightInset = 0;
-  game = new Game(def);
-  speed = 1;
-  cam.zoom = 2;
-  const c = def.camera ?? { x: 0, y: 0 };
-  cam.x = c.x * TILE * cam.zoom - renderer.viewW / 3;
-  cam.y = c.y * TILE * cam.zoom - renderer.viewH / 2;
-  cam.clamp(game, renderer.viewW, renderer.viewH);
-
-  hud = new Hud(uiRoot, game, {
+// Build (or rebuild, e.g. after a language change) the HUD for the running game.
+function attachHud(): void {
+  hud = new Hud(uiRoot, game!, {
     onTool: setTool,
     onSpeed: (s) => setSpeed(s),
     onZoom: (dir) => zoomStep(dir),
@@ -802,18 +977,41 @@ function startGame(def: LevelDef): void {
       setSpeed(0);
       showLevelSelect();
     },
+    onOptions: () => {
+      prevSpeed = speed;
+      setSpeed(0);
+      running = false;
+      showOptions(resumeGame);
+    },
     onRestart: () =>
       confirmIfInProgress(
-        `Restart "${game!.level.name}"? Progress in the current level will be lost.`,
-        'Restart level',
+        t('confirm.restart', { name: t(game!.level.name) }),
+        t('btn.restart'),
         () => {
           if (currentCustom) startCustomLevel(currentCustom, { playtest: playtesting });
           else startLevel(currentLevelIdx);
         }
       ),
   });
-  setTool('select');
   hud.setSpeed(speed);
+  hud.setActiveTool(hover.tool);
+}
+
+function startGame(def: LevelDef): void {
+  clearOverlay();
+  editor.close();
+  cam.rightInset = 0;
+  game = new Game(def);
+  speed = 1;
+  cam.zoom = 2;
+  const c = def.camera ?? { x: 0, y: 0 };
+  cam.x = c.x * TILE * cam.zoom - renderer.viewW / 3;
+  cam.y = c.y * TILE * cam.zoom - renderer.viewH / 2;
+  cam.clamp(game, renderer.viewW, renderer.viewH);
+
+  attachHud();
+  setTool('select');
+  hud!.setSpeed(speed);
 
   game.onEvent = handleEvent;
   running = true;
@@ -858,12 +1056,32 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'upgraded': {
       audio.upgraded();
-      h.toast(`<b>Town Hall level ${e.level}!</b> New buildings unlocked and a bigger crew.`, false, 6);
+      h.toast(t('toast.upgraded', { n: e.level }), false, 6);
       const th = game!.townhall;
       renderer.addUpgradeEffect((th.x + 2) * TILE, th.y * TILE + 4, e.level);
       break;
     }
     case 'produce':
+      break;
+    case 'weather': {
+      const flood = !!game!.level.flood;
+      const msgs = {
+        clear: t('toast.wx.clear'),
+        rain: flood ? t('toast.wx.rainFlood') : t('toast.wx.rain'),
+        storm: t('toast.wx.storm'),
+      } as const;
+      audio.hint();
+      h.toast(msgs[e.kind], e.kind !== 'clear', 5);
+      break;
+    }
+    case 'flood':
+      audio.splash();
+      if (e.rescued > 0) {
+        h.toast(e.rescued > 1 ? t('toast.flood.many', { n: e.rescued }) : t('toast.flood.one'), true, 6);
+      }
+      break;
+    case 'splash':
+      audio.splash();
       break;
     case 'spawn':
       audio.spawn();
@@ -873,7 +1091,7 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'hint':
       audio.hint();
-      h.toast(e.text);
+      h.toast(t(e.text));
       break;
     case 'win': {
       audio.win();
@@ -955,16 +1173,16 @@ function applyToolCursor(): void {
   canvas.style.cursor = editor.active ? 'crosshair' : toolCursorCss(hover.tool);
 }
 
-function setTool(t: Tool): void {
+function setTool(tool: Tool): void {
   if (!game || !hud) return;
-  const def = TOOL_DEFS.find((d) => d.id === t)!;
+  const def = TOOL_DEFS.find((d) => d.id === tool)!;
   if (def.thLevel && game.thLevel < def.thLevel) {
-    hud.toast(`<b>${def.label}</b> unlocks at Town Hall level ${def.thLevel}.`, true, 4);
+    hud.toast(t('toast.locked', { label: t(`tool.${def.id}.label`), n: def.thLevel }), true, 4);
     audio.invalid();
     return;
   }
-  hover.tool = t;
-  hud.setActiveTool(t);
+  hover.tool = tool;
+  hud.setActiveTool(tool);
   runAnchor = null;
   applyToolCursor();
   audio.click();
@@ -1222,7 +1440,7 @@ function applyTool(tx: number, ty: number): void {
       const b = g.buildingAt(tx, ty);
       if (n) {
         hud!.toast(
-          `<b>${n.kind === 'tree' ? 'Tree' : n.kind === 'boulder' ? 'Boulder' : 'Iron vein'}</b> — ${n.yieldLeft} left. ${n.marked ? 'Marked for harvest.' : 'Use the Harvest tool to mark it.'}`,
+          `${t('inspect.left', { name: t(`node.${n.kind}`), n: n.yieldLeft })} ${n.marked ? t('inspect.marked') : t('inspect.unmarked')}`,
           false,
           4
         );
@@ -1230,7 +1448,7 @@ function applyTool(tx: number, ty: number): void {
         if (b.kind === 'townhall') {
           hud!.showTownhall();
         } else {
-          hud!.toast(`<b>${b.kind === 'goal' ? 'Delivery target' : b.kind[0].toUpperCase() + b.kind.slice(1)}</b>${b.state === 'blueprint' ? ' (under construction)' : ''}`, false, 4);
+          hud!.toast(`<b>${t(`building.${b.kind}`)}</b>${b.state === 'blueprint' ? t('inspect.blueprint') : ''}`, false, 4);
         }
       }
       break;
@@ -1269,6 +1487,9 @@ function applyTool(tx: number, ty: number): void {
       break;
     case 'forge':
       g.placeBuilding('forge', tx, ty);
+      break;
+    case 'lantern':
+      g.placeBuilding('lantern', tx, ty);
       break;
     case 'lift':
       g.placeLift(tx, ty);

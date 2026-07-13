@@ -12,7 +12,9 @@ const res = await build({
       export { Game } from './src/game/sim.ts';
       export { LEVELS } from './src/game/levels.ts';
       export { canPlaceLadder } from './src/game/world.ts';
+      export { findPath } from './src/game/nav.ts';
       export { T } from './src/game/types.ts';
+      export { t, setLang, getLang } from './src/engine/i18n.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -25,7 +27,7 @@ const res = await build({
 const mod = await import(
   'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
 );
-const { Game, LEVELS, canPlaceLadder, T } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -182,6 +184,139 @@ function findLadderCells(g, count) {
   check('ladder affordable via the plank fallback shows nothing', g.placementShortfall('ladder').length === 0);
   g.stock = { log: 3, plank: 0, stone: 0, iron: 0, spear: 0 };
   check('ladder affordable via logs shows nothing', g.placementShortfall('ladder').length === 0);
+}
+
+// ============================ Campaign 2 mechanics ===========================
+
+// ---- campaign structure -----------------------------------------------------
+{
+  check('nine campaign levels ship', LEVELS.length === 9);
+  check('level ids stay sequential', LEVELS.every((l, i) => l.id === i + 1));
+  check('campaign 1 keeps its four levels', LEVELS.filter((l) => (l.campaign ?? 1) === 1).length === 4);
+  check('campaign 2 brings five levels', LEVELS.filter((l) => l.campaign === 2).length === 5);
+}
+
+// ---- water: impassable, unbuildable, bridgeable -----------------------------
+{
+  const g = new Game(LEVELS[4]); // The Ford
+  check('the river holds water', g.world.get(25, 22) === T.WATER);
+  check('water is not passable', g.world.isPassable(25, 22) === false);
+  check('water is not standable', g.world.isStandable(25, 22) === false);
+  check('no ladder builds in water', canPlaceLadder(g.world, 25, 22) === false);
+  g.stock.plank = 20;
+  check('a bridge spans the river bank to bank', g.placeBridgeRun(22, 19, 29, 19) === 8);
+}
+
+// ---- weather: deterministic schedule, wet work is slower ---------------------
+{
+  const g = new Game(LEVELS[5]); // Monsoon Hollow: clear 45s -> rain 30s, looping
+  check('weather starts on the first phase', g.weather === 'clear');
+  check('clear skies work at full speed', g.workFactor === 1);
+  for (let i = 0; i < 46 * 30; i++) g.tick(1 / 30);
+  check('rain arrives on the forecast', g.weather === 'rain');
+  check('rain slows harvest work', g.workFactor < 1);
+  for (let i = 0; i < 30 * 30; i++) g.tick(1 / 30);
+  check('the sky clears again on schedule', g.weather === 'clear');
+}
+
+// ---- storm phase reads as storm (lift brake + slow work) ---------------------
+{
+  const g = new Game(LEVELS[8]); // Tempest Summit: clear/rain/clear/storm
+  g.weatherIdx = 3;
+  check('storm phase reads as storm', g.weather === 'storm');
+  check('storm also slows harvest', g.workFactor < 1);
+}
+
+// ---- the rising tide: floods, sinks goods, rescues smallhands, then stops ----
+{
+  const g = new Game(LEVELS[7]); // The Rising Tide; basin floor stands at row 25
+  const w = g.workers[0];
+  w.cx = 31;
+  w.cy = 25;
+  w.px = 31;
+  w.py = 25;
+  g.groundItems.push({ id: 9999, item: 'stone', x: 33, y: 25, reserved: false, bounce: 0 });
+  check('the basin floor starts dry', g.world.get(31, 25) === T.AIR);
+  g.riseWater();
+  check('the first rise floods the basin floor', g.world.get(31, 25) === T.WATER);
+  check('goods caught by the tide sink', !g.groundItems.some((i) => i.id === 9999));
+  check('a smallhand caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
+  g.riseWater();
+  check('the second rise laps one row higher', g.world.get(31, 24) === T.WATER);
+  g.riseWater();
+  check('the tide never climbs past its ceiling', g.world.get(31, 23) === T.AIR);
+  g.stock.plank = 20;
+  check('a shelf-height bridge still crosses the lake', g.placeBridgeRun(26, 23, 37, 23) === 12);
+}
+
+// ---- night: work only in the light; lanterns push the frontier ---------------
+{
+  const g = new Game(LEVELS[6]); // Lantern Ridge
+  check('the town keeps its own fires', g.isLit(10, 20) === true);
+  check('the far ridge lies in darkness', g.isLit(44, 17) === false);
+  const vein = g.nodes.find((n) => n.kind === 'vein');
+  check('an unlit node cannot be marked', g.toggleMark(vein.x, vein.y) === false && vein.marked === false);
+  g.stock = { log: 99, plank: 99, stone: 99, iron: 0, spear: 0 };
+  check('no workshop rises in the dark', g.placeBuilding('sawmill', 40, 17) === false);
+  check('a lantern may be raised anywhere in the dark', g.placeBuilding('lantern', 47, 17) === true);
+  const lantern = g.buildings.find((b) => b.kind === 'lantern');
+  check('an unbuilt lantern sheds no light yet', g.isLit(48, 17) === false);
+  lantern.state = 'ready';
+  check('a finished lantern lights its surroundings', g.isLit(48, 17) === true);
+  check('the lit vein can now be marked', g.toggleMark(vein.x, vein.y) === true && vein.marked === true);
+  check('day levels are always lit', new Game(LEVELS[0]).isLit(0, 0) === true);
+}
+
+// ---- no smallhand prison under a ramp -----------------------------------------
+// A ramp run laid against a wall roofs over the floor pocket beneath its
+// diagonal. Workers standing there when it lands must still be able to step
+// out onto the ramp (a ramp tile overhead counts as headroom in the nav).
+{
+  const g = new Game(LEVELS[8]); // Tempest Summit: wall at x50, terrace floor row 20
+  g.stock.plank = 10;
+  check('ramp run against the wall places fully', g.placeRampRun(49, 16, 45, 20) === 5);
+  // a worker in the pocket under the diagonal (x46..49, row 20)
+  const targets = new Set([g.world.key(50, 15)]); // the terrace above
+  const path = findPath(g.world, g.transits, 48, 20, targets, false);
+  check('a smallhand under the ramp can still climb out', path !== null);
+
+  // a worker whose very cell was built over pops up on top of the new tile
+  const w = g.workers[0];
+  w.cx = 45;
+  w.cy = 20; // this cell is now a ramp tile
+  w.px = 45;
+  w.py = 20;
+  w.task = null;
+  w.path = [];
+  w.stepIdx = 0;
+  g.tick(1 / 60);
+  check('a smallhand built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+}
+
+// ---- i18n: keys translate, params substitute, unknown text passes through -----
+{
+  check('default language is English', getLang() === 'en');
+  check('a key resolves to English text', t('lvl5.name') === 'The Ford');
+  check('params substitute', t('win.next', { name: 'X' }) === 'Next: X →');
+  setLang('de');
+  check('the same key resolves to German', t('lvl5.name') === 'Die Furt');
+  check('tool labels translate', t('tool.lift.label') === 'Lastenaufzug');
+  check('weather names translate', t('weather.storm') === 'Sturm');
+  // custom level names are not keys — they must pass through unchanged
+  check('non-key text passes through untouched', t("Anna's Mountain") === "Anna's Mountain");
+  setLang('en');
+  check('switching back restores English', t('lvl5.name') === 'The Ford');
+  // every campaign level resolves in both languages (no missing dictionary rows)
+  let missing = 0;
+  for (const lvl of LEVELS) {
+    for (const lang of ['en', 'de']) {
+      setLang(lang);
+      if (t(lvl.name) === lvl.name || t(lvl.desc) === lvl.desc) missing++;
+      for (const h of lvl.hints ?? []) if (t(h.text) === h.text) missing++;
+    }
+  }
+  setLang('en');
+  check('every level name/desc/hint has EN and DE text', missing === 0);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

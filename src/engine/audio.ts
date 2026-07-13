@@ -123,6 +123,11 @@ class AudioEngine {
     this.tone(988, 0.09, 'sine', 0.35);
     this.tone(1319, 0.12, 'sine', 0.3, 0, 0.08);
   }
+
+  splash(): void {
+    this.noise(0.22, 0.7);
+    this.tone(240, 0.16, 'sine', 0.4, -140);
+  }
 }
 
 export const audio = new AudioEngine();

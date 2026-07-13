@@ -28,12 +28,30 @@ self-contained static site (~22 kB gzipped).
   iron veins → forge (plank + iron → spear).
 - **Town Hall progression** — upgrade to unlock the forge and cargo lift and to
   grow your crew.
-- **Four handcrafted levels** — from a gentle tutorial to a three-terrace summit
-  supply line, each verified completable end-to-end.
+- **Two handcrafted campaigns** — nine levels, each verified completable
+  end-to-end. Campaign 1 (four levels) teaches the logistics core, from a
+  gentle tutorial to a three-terrace summit supply line. **Campaign 2 —
+  Storm & Tide** (five levels, unlocked by finishing Campaign 1) adds:
+  - **Water** — rivers and ponds are impassable and goods dropped in are lost
+    for good; bridge them or lose the cargo.
+  - **Dynamic weather on a visible forecast** — rain slows chopping and
+    mining, storms lock the cargo lifts' brakes. The schedule is
+    deterministic and shown in the HUD, so planning around it *is* the puzzle.
+  - **The rising tide** — in flood levels every rainfall raises the water one
+    permanent step; loot the lowlands before they drown, then bridge the lake.
+  - **Night & lanterns** — smallhands only harvest and build in the light.
+    Lantern posts (1 log + 1 stone) can be raised anywhere, pushing the
+    frontier of light toward the far resources.
 - **Medals & personal bests** — every level has gold/silver/bronze time
   thresholds and two feats (*No Demolish*, *Light Touch*). Wins end in a
   medal ceremony with an honest time gauge; the level select carries a
   trophy shelf and per-level medal slots. Records live in localStorage.
+- **Two languages & an options menu** — the whole game (levels, hints, HUD,
+  editor, verifier) ships in **English and German**; the language follows the
+  browser until the player picks one in the **Options** menu (reachable from
+  the title, the level select and in-game via ⚙). Options also cover sound,
+  a reduced-effects mode (rain streaks, sway, flicker off) and a progress
+  reset. Language switches apply live — even mid-level.
 
 ## The Workshop: editor, generator & daily challenge
 
@@ -67,7 +85,7 @@ skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
 | Left click | Use selected tool / place |
 | Drag / WASD / arrows | Pan camera |
 | Mouse wheel | Zoom (pixel-perfect steps) |
-| `1`–`8` | Select tool |
+| `1`–`9`, `0`, `L` | Select tool |
 | `Space` | Pause / resume |
 | `Esc` | Back to inspect tool |
 
@@ -99,6 +117,20 @@ share code and soaks a generated level for 60 simulated seconds:
 ```bash
 node tests/editor-generator.mjs
 ```
+
+Two headless suites need no browser at all: `tests/unit.mjs` covers pure
+simulation logic (ladders, reserves, medals, water, weather, flood, night),
+and `tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
+scripted player and fails unless the win state is reached:
+
+```bash
+npm run test:unit
+npm run test:campaign2
+```
+
+A third browser suite (`npm run test:i18n`, preview server required) switches
+the game to German through the options menu and verifies every open surface —
+title, level select, in-game HUD — re-renders live and the choice persists.
 
 ## Hosting
 
