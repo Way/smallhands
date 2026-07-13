@@ -68,6 +68,10 @@ const lrgba = (a: RGBA, b: RGBA, t: number): RGBA => [
 ];
 
 export function lerpLook(a: WeatherLook, b: WeatherLook, t: number): WeatherLook {
+  // Settled (t===1, the >99% case) and t===0 need no interpolation — return the
+  // shared preset directly and skip the per-frame allocation. Looks are read-only.
+  if (t >= 1) return b;
+  if (t <= 0) return a;
   return {
     sky: [lrgb(a.sky[0], b.sky[0], t), lrgb(a.sky[1], b.sky[1], t), lrgb(a.sky[2], b.sky[2], t)],
     hills: [lrgb(a.hills[0], b.hills[0], t), lrgb(a.hills[1], b.hills[1], t)],
