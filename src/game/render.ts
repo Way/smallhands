@@ -1,6 +1,7 @@
 import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash } from '../engine/sprites';
+import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 
@@ -55,8 +56,15 @@ export class Renderer {
   // node's anticipation. `lastGhostT` gives us a dt for the ease.
   private harvestFocus = 0;
   private lastGhostT = 0;
-  private readonly reduceMotion =
+  // effects can be dialed down via the options menu; the OS-level
+  // reduced-motion preference is always respected on top of that
+  effectsReduced = false;
+  private readonly reduceMotionPref =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  private get reduceMotion(): boolean {
+    return this.reduceMotionPref || this.effectsReduced;
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -98,7 +106,7 @@ export class Renderer {
     ctx.imageSmoothingEnabled = false;
     this.lastT = timeSec;
 
-    this.drawSky(W, H, timeSec, cam);
+    this.drawSky(game, W, H, timeSec, cam);
 
     ctx.save();
     ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
@@ -117,57 +125,121 @@ export class Renderer {
     this.drawBuildings(game, timeSec);
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
+    this.drawWater(game, cam, timeSec);
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
     this.drawEffects(timeSec);
+    ctx.restore();
+
+    // screen-space atmosphere: rain/storm streaks, then the night's darkness
+    this.drawWeatherFx(game, W, H, timeSec);
+    this.drawDarkness(game, cam, W, H, timeSec);
+
+    // the placement ghost and drag-run preview stay fully bright above the dark
+    ctx.save();
+    ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
+    ctx.scale(cam.zoom, cam.zoom);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
     overlay?.(ctx);
-
     ctx.restore();
   }
 
   // ---- sky & parallax -------------------------------------------------------
 
-  private drawSky(W: number, H: number, t: number, cam: Camera): void {
+  private drawSky(game: Game, W: number, H: number, t: number, cam: Camera): void {
     const { ctx } = this;
+    const night = !!game.level.night;
+    const wx = game.weather;
+
+    // gradient stops + hill/cloud palettes per mood
+    let stops: [string, string, string];
+    let hills: [string, string];
+    let cloudCol: string;
+    if (night) {
+      stops = ['#0a1028', '#141e42', '#243654'];
+      hills = ['#2a4a44', '#1d3833'];
+      cloudCol = 'rgba(46,58,92,0.65)';
+    } else if (wx === 'storm') {
+      stops = ['#3a4658', '#566274', '#7a8494'];
+      hills = ['#5f7d70', '#48645a'];
+      cloudCol = 'rgba(88,98,114,0.95)';
+    } else if (wx === 'rain') {
+      stops = ['#5e7994', '#8298ac', '#aab8c0'];
+      hills = ['#7aa392', '#5c8a74'];
+      cloudCol = 'rgba(150,160,175,0.9)';
+    } else {
+      stops = ['#7ec4e8', '#a8dcf0', '#d8f0e8'];
+      hills = ['#8fc7a8', '#6fae8c'];
+      cloudCol = 'rgba(255,255,255,0.85)';
+    }
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#7ec4e8');
-    g.addColorStop(0.55, '#a8dcf0');
-    g.addColorStop(1, '#d8f0e8');
+    g.addColorStop(0, stops[0]);
+    g.addColorStop(0.55, stops[1]);
+    g.addColorStop(1, stops[2]);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // sun
-    ctx.fillStyle = '#fff3c4';
-    ctx.beginPath();
-    ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffe89a';
-    ctx.beginPath();
-    ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
-    ctx.fill();
+    if (night) {
+      // stars — fixed constellation with a slow twinkle, faint cloud parallax
+      for (let i = 0; i < 70; i++) {
+        const sx = (tileHash(i, 3) * (W + 120) - 60 - cam.x * 0.015 + W * 2) % W;
+        const sy = tileHash(i, 11) * H * 0.55 - cam.y * 0.012;
+        const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * (0.4 + tileHash(i, 5)) + i));
+        ctx.fillStyle = `rgba(220,230,255,${(0.5 * tw).toFixed(3)})`;
+        const s = tileHash(i, 7) > 0.85 ? 2 : 1;
+        ctx.fillRect(sx, sy, s, s);
+      }
+      // the moon
+      const mx = W * 0.78 - cam.x * 0.02;
+      const my = H * 0.16 - cam.y * 0.02;
+      ctx.fillStyle = '#e8ecf6';
+      ctx.beginPath();
+      ctx.arc(mx, my, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#c9d2e6';
+      for (const [dx, dy, r] of [
+        [-8, -4, 5],
+        [7, 6, 4],
+        [4, -9, 3],
+      ] as const) {
+        ctx.beginPath();
+        ctx.arc(mx + dx, my + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (wx === 'clear') {
+      // sun
+      ctx.fillStyle = '#fff3c4';
+      ctx.beginPath();
+      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe89a';
+      ctx.beginPath();
+      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // distant hills, two parallax layers
     for (const [par, col, base, amp] of [
-      [0.12, '#8fc7a8', 0.72, 60],
-      [0.24, '#6fae8c', 0.84, 44],
+      [0.12, hills[0], 0.72, 60],
+      [0.24, hills[1], 0.84, 44],
     ] as const) {
       ctx.fillStyle = col;
       ctx.beginPath();
       ctx.moveTo(0, H);
       for (let x = 0; x <= W; x += 12) {
-        const wx = (x + cam.x * par) * 0.008;
-        const y = H * base - (Math.sin(wx) + Math.sin(wx * 2.7 + 1.4) * 0.5) * amp - cam.y * par * 0.3;
+        const wxp = (x + cam.x * par) * 0.008;
+        const y = H * base - (Math.sin(wxp) + Math.sin(wxp * 2.7 + 1.4) * 0.5) * amp - cam.y * par * 0.3;
         ctx.lineTo(x, y);
       }
       ctx.lineTo(W, H);
       ctx.fill();
     }
 
-    // clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    // clouds — the storm drives them hard across the sky
+    const cloudSpeed = wx === 'storm' ? 9 : wx === 'rain' ? 2.5 : 1;
+    ctx.fillStyle = cloudCol;
     for (const c of this.cloudSeeds) {
-      const cx = ((c.x + t * c.v - cam.x * 0.06) % (W + 320)) - 160;
+      const cx = ((c.x + t * c.v * cloudSpeed - cam.x * 0.06) % (W + 320)) - 160;
       const cy = c.y - cam.y * 0.05;
       ctx.beginPath();
       // main body defines the rounded left/right ends; lobes stay interior so
@@ -179,7 +251,8 @@ export class Renderer {
       ctx.fill();
     }
 
-    this.drawBirds(W, H, t, cam);
+    // birds keep to fair daylight weather
+    if (!night && wx === 'clear') this.drawBirds(W, H, t, cam);
   }
 
   // Occasional birds drifting across the upper sky and leaving. Purely decorative,
@@ -350,6 +423,9 @@ export class Renderer {
   private drawNodes(game: Game, t: number, hoveredId: number, focus: number): void {
     const { ctx } = this;
     const osc = this.reduceMotion ? 0 : 1;
+    // the wind leans on the treetops: gentle by default, hard in a storm
+    const wind = game.weather === 'storm' ? 2.6 : game.weather === 'rain' ? 1.5 : 1;
+    const windHz = game.weather === 'storm' ? 2.6 : 1.2;
     for (const n of game.nodes) {
       const anticip = n.id === hoveredId ? focus : 0;
       const wob = n.wobble > 0 ? Math.sin(t * 40) * 1.2 : 0;
@@ -360,7 +436,7 @@ export class Renderer {
           // horizontal shear pivoted at the trunk foot: zero drift at the base,
           // full drift at the crown — so the trunk stays planted and only the
           // treetop rocks in the wind.
-          const sway = Math.sin(t * 1.2 + n.x) * (0.8 + anticip * 1.8 * osc);
+          const sway = Math.sin(t * windHz + n.x) * (0.8 * wind + anticip * 1.8 * osc);
           const lift = anticip * 1.2;
           const top = (n.y - 1) * TILE - lift;
           const baseY = top + 32; // trunk foot on the ground
@@ -419,6 +495,19 @@ export class Renderer {
         ctx.fillRect(px + 2, py - 5, (fw - 4) * Math.min(1, b.progress / need), 3);
       } else {
         ctx.drawImage(spr, px, py, fw, fh);
+        if (b.kind === 'lantern') {
+          // a warm halo + flame flicker; the real "light" is the darkness hole
+          const fl = this.reduceMotion ? 0.5 : 0.5 + Math.sin(t * 9 + b.id) * 0.5;
+          const cx = px + TILE / 2;
+          const cy = py + 5;
+          const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, TILE * 2.2);
+          grad.addColorStop(0, `rgba(255,196,90,${0.22 + fl * 0.06})`);
+          grad.addColorStop(1, 'rgba(255,196,90,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, TILE * 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
         if (b.processing) {
           // little puff animation over working buildings
           const puff = (t * 12) % 10;
@@ -616,12 +705,12 @@ export class Renderer {
     this.effects.push({ x: worldX, y: worldY, start: this.lastT, from, to });
   }
 
-  private drawEffects(t: number): void {
+  private drawEffects(now: number): void {
     const { ctx } = this;
     const DUR = 2.0;
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i];
-      const age = t - e.start;
+      const age = now - e.start;
       if (age < 0 || age > DUR) {
         this.effects.splice(i, 1);
         continue;
@@ -650,7 +739,7 @@ export class Renderer {
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = 'rgba(0,0,0,0.7)';
       ctx.fillStyle = '#ffd94d';
-      const txt = `Crew ${e.from} → ${e.to}`;
+      const txt = t('fx.crew', { a: e.from, b: e.to });
       ctx.strokeText(txt, e.x, ty);
       ctx.fillText(txt, e.x, ty);
       ctx.textAlign = 'left';
@@ -743,6 +832,136 @@ export class Renderer {
         ctx.fillRect(px + 1, py + 1, 6, 6);
       }
     }
+  }
+
+  // Water is drawn OVER terrain, nodes and loose items so anything the flood
+  // has claimed reads as submerged through the translucent surface.
+  private drawWater(game: Game, cam: Camera, t: number): void {
+    const { ctx } = this;
+    const { world } = game;
+    const r = this.visibleRange(game, cam);
+    const osc = this.reduceMotion ? 0 : 1;
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        if (world.get(x, y) !== T.WATER) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        ctx.fillStyle = 'rgba(36,92,156,0.82)';
+        ctx.fillRect(px, py, TILE, TILE);
+        if (world.get(x, y - 1) !== T.WATER) {
+          // surface cell: a rolling highlight band + a crisp waterline
+          const ph = Math.sin(t * 1.8 * osc + x * 0.9) * 1.5;
+          ctx.fillStyle = 'rgba(190,225,250,0.5)';
+          ctx.fillRect(px, py + 2 + ph, TILE, 2);
+          ctx.fillStyle = 'rgba(220,240,255,0.65)';
+          ctx.fillRect(px, py, TILE, 1);
+        } else {
+          // depth shading so deep water reads darker than the shallows
+          ctx.fillStyle = 'rgba(8,28,64,0.22)';
+          ctx.fillRect(px, py, TILE, TILE);
+        }
+        // the odd glint
+        if (tileHash(x, y) > 0.92) {
+          const glint = (Math.sin(t * 2.4 * osc + x * 1.7 + y) + 1) / 2;
+          ctx.fillStyle = `rgba(255,255,255,${(glint * 0.18).toFixed(3)})`;
+          ctx.fillRect(px + 5, py + 6, 4, 1);
+        }
+      }
+    }
+  }
+
+  // Screen-space rain/storm: falling streaks (slanted hard in a storm), a few
+  // horizontal gust lines, and a wet dimming of the whole scene.
+  private drawWeatherFx(game: Game, W: number, H: number, t: number): void {
+    const wx = game.weather;
+    if (wx === 'clear') return;
+    const { ctx } = this;
+    const storm = wx === 'storm';
+    ctx.fillStyle = storm ? 'rgba(18,26,44,0.24)' : 'rgba(40,60,90,0.12)';
+    ctx.fillRect(0, 0, W, H);
+    if (this.reduceMotion) return; // the tint alone carries the weather
+    const mod = (v: number, m: number) => ((v % m) + m) % m;
+    const n = storm ? 190 : 130;
+    const fall = storm ? 950 : 640;
+    const slant = storm ? 0.55 : 0.14;
+    const len = storm ? 15 : 10;
+    ctx.strokeStyle = storm ? 'rgba(195,210,230,0.34)' : 'rgba(170,195,225,0.38)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const h1 = tileHash(i, 13);
+      const h2 = tileHash(i, 29);
+      const y = mod(h2 * (H + 60) + t * fall * (0.8 + h1 * 0.4), H + 60) - 30;
+      const x = mod(h1 * (W + 120) - t * fall * slant, W + 120) - 60;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - slant * len, y + len);
+    }
+    ctx.stroke();
+    if (storm) {
+      // gusts screaming past horizontally
+      ctx.strokeStyle = 'rgba(220,230,245,0.14)';
+      ctx.beginPath();
+      for (let i = 0; i < 9; i++) {
+        const h = tileHash(i, 41);
+        const y = h * H;
+        const x = mod(h * W - t * (600 + h * 300), W + 260) - 130;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 46 + h * 30, y - 2);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Night: a dark veil over the world with soft holes punched out around every
+  // light source. Composited on an offscreen canvas so the holes blend cleanly.
+  private darkCanvas: HTMLCanvasElement | null = null;
+
+  private drawDarkness(game: Game, cam: Camera, W: number, H: number, t: number): void {
+    if (!game.level.night) return;
+    const { ctx } = this;
+    if (!this.darkCanvas) this.darkCanvas = document.createElement('canvas');
+    const dc = this.darkCanvas;
+    if (dc.width !== W || dc.height !== H) {
+      dc.width = W;
+      dc.height = H;
+    }
+    const dctx = dc.getContext('2d')!;
+    dctx.globalCompositeOperation = 'source-over';
+    dctx.clearRect(0, 0, W, H);
+    dctx.fillStyle = 'rgba(8,12,32,0.84)';
+    dctx.fillRect(0, 0, W, H);
+    dctx.globalCompositeOperation = 'destination-out';
+    const scale = TILE * cam.zoom;
+    const flicker = this.reduceMotion ? 0 : 1;
+    for (const s of game.lightSources()) {
+      const sx = s.x * scale - cam.x;
+      const sy = s.y * scale - cam.y;
+      const r = s.r * scale * (1 + Math.sin(t * 7 + s.x * 3.1) * 0.015 * flicker);
+      if (sx < -r || sx > W + r || sy < -r || sy > H + r) continue;
+      const grad = dctx.createRadialGradient(sx, sy, r * 0.22, sx, sy, r);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(0.72, 'rgba(0,0,0,0.72)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      dctx.fillStyle = grad;
+      dctx.beginPath();
+      dctx.arc(sx, sy, r, 0, Math.PI * 2);
+      dctx.fill();
+    }
+    // each smallhand carries a tiny hand-lamp so the crew stays readable
+    for (const w of game.workers) {
+      const sx = (w.px + 0.5) * scale - cam.x;
+      const sy = (w.py + 0.5) * scale - cam.y;
+      const r = 1.9 * scale;
+      if (sx < -r || sx > W + r || sy < -r || sy > H + r) continue;
+      const grad = dctx.createRadialGradient(sx, sy, r * 0.1, sx, sy, r);
+      grad.addColorStop(0, 'rgba(0,0,0,0.6)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      dctx.fillStyle = grad;
+      dctx.beginPath();
+      dctx.arc(sx, sy, r, 0, Math.PI * 2);
+      dctx.fill();
+    }
+    ctx.drawImage(dc, 0, 0);
   }
 
   private drawWorkers(game: Game, t: number): void {
@@ -862,10 +1081,11 @@ export class Renderer {
             n.kind === 'tree'
               ? { x: n.x * TILE, y: (n.y - 1) * TILE, w: TILE, h: 2 * TILE }
               : { x: n.x * TILE, y: n.y * TILE, w: TILE, h: TILE };
-          this.reticle(box, this.harvestFocus, t, '#ffc94d');
+          const lit = game.isLit(n.x, n.y);
+          this.reticle(box, this.harvestFocus, t, lit ? '#ffc94d' : '#7f8ea6');
           // preview the flag you're about to plant (unmarked nodes only — marked
-          // ones already fly the real flag)
-          if (!n.marked) {
+          // ones already fly the real flag; unlit ones refuse the order)
+          if (!n.marked && lit) {
             const bounce = Math.sin(t * 3) * 1.5;
             const topY = n.kind === 'tree' ? (n.y - 2) * TILE : (n.y - 1) * TILE + 6;
             ctx.globalAlpha = 0.35 + Math.sin(t * 5) * 0.12;
@@ -906,13 +1126,16 @@ export class Renderer {
         break;
       }
       case 'sawmill':
-      case 'forge': {
+      case 'forge':
+      case 'lantern': {
         const fp = FOOTPRINTS[tool];
         const cost = TOOL_DEFS.find((d) => d.id === tool)?.cost ?? {};
         const ok =
           canPlaceBuilding(game.world, game.buildings, game.nodes, tx, ty, fp.w, fp.h) &&
           game.canAfford(cost) &&
-          game.toolUnlocked(tool);
+          game.toolUnlocked(tool) &&
+          // at night, workshops need a lit site — lanterns go anywhere
+          (tool === 'lantern' || game.isLit(tx + Math.floor(fp.w / 2), ty + fp.h - 1));
         ctx.globalAlpha = 0.55;
         const spr = sprite(tool).canvas;
         ctx.drawImage(spr, 0, 0, fp.w * TILE, fp.h * TILE, px, py, fp.w * TILE, fp.h * TILE);

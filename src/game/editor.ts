@@ -2,7 +2,8 @@
 // sandbox Game instance (no workers, always paused) that the editing tools
 // mutate directly. Levels round-trip through the CustomLevelData format.
 
-import { FOOTPRINTS, ITEM_NAMES, ITEM_TYPES, ROLE_NAMES, ROLES, T, TILE } from './types';
+import { FOOTPRINTS, ITEM_TYPES, ROLES, T, TILE } from './types';
+import { t } from '../engine/i18n';
 import type { Building, NodeKind } from './types';
 import { Game } from './sim';
 import { canPlaceBuilding } from './world';
@@ -33,25 +34,24 @@ export type EditorTool =
   | 'goal'
   | 'eraseNode';
 
+// Labels/descriptions live in the i18n table: t(`ed.tool.${id}.label`) / .desc
 interface EditorToolDef {
   id: EditorTool;
-  label: string;
   icon: string;
   key: string;
-  desc: string;
   drag: boolean; // apply continuously while dragging
 }
 
 const EDITOR_TOOLS: EditorToolDef[] = [
-  { id: 'ground', label: 'Ground', icon: 'tile_grass', key: '1', desc: 'Paint earth (drag to sculpt). Grass grows on top automatically.', drag: true },
-  { id: 'rock', label: 'Rock', icon: 'tile_rock', key: '2', desc: 'Paint hard rock.', drag: true },
-  { id: 'erase', label: 'Dig', icon: 'icon_demolish', key: '3', desc: 'Dig terrain away (drag to carve caves, pits and cliffs).', drag: true },
-  { id: 'tree', label: 'Tree', icon: 'tree', key: '4', desc: 'Plant a tree on the surface of this column (4 logs).', drag: false },
-  { id: 'boulder', label: 'Boulder', icon: 'boulder', key: '5', desc: 'Place a boulder (4 stone).', drag: false },
-  { id: 'vein', label: 'Iron', icon: 'vein', key: '6', desc: 'Place an iron vein (4 iron).', drag: false },
-  { id: 'townhall', label: 'Town Hall', icon: 'townhall', key: '7', desc: 'Move the Town Hall to this column.', drag: false },
-  { id: 'goal', label: 'Caravan', icon: 'goal', key: '8', desc: 'Move the delivery caravan (goal) to this column.', drag: false },
-  { id: 'eraseNode', label: 'Un-plant', icon: 'icon_harvest', key: '9', desc: 'Remove a tree, boulder or iron vein.', drag: false },
+  { id: 'ground', icon: 'tile_grass', key: '1', drag: true },
+  { id: 'rock', icon: 'tile_rock', key: '2', drag: true },
+  { id: 'erase', icon: 'icon_demolish', key: '3', drag: true },
+  { id: 'tree', icon: 'tree', key: '4', drag: false },
+  { id: 'boulder', icon: 'boulder', key: '5', drag: false },
+  { id: 'vein', icon: 'vein', key: '6', drag: false },
+  { id: 'townhall', icon: 'townhall', key: '7', drag: false },
+  { id: 'goal', icon: 'goal', key: '8', drag: false },
+  { id: 'eraseNode', icon: 'icon_harvest', key: '9', drag: false },
 ];
 
 export interface EditorCallbacks {
@@ -208,6 +208,11 @@ export class Editor {
     return !!def;
   }
 
+  // Rebuild the editor chrome in the current language (map state untouched).
+  rebuildUi(): void {
+    if (this.active) this.buildUi();
+  }
+
   // Topmost standable row of a column (the cell a creature stands in).
   private standRow(x: number): number | null {
     const { world } = this.game;
@@ -251,7 +256,7 @@ export class Editor {
       case 'ground':
       case 'rock': {
         if (ty >= world.h - 1) return; // bedrock row stays
-        if (this.inAnyBuilding(tx, ty)) return this.flash('Move the building first.');
+        if (this.inAnyBuilding(tx, ty)) return this.flash(t('ed.flash.building'));
         world.set(tx, ty, this.tool === 'rock' ? T.ROCK : T.DIRT);
         this.regrass(tx);
         this.game.nodes = this.game.nodes.filter((n) => !(n.x === tx && n.y >= ty - 2 && n.y <= ty));
@@ -261,7 +266,7 @@ export class Editor {
         break;
       }
       case 'erase': {
-        if (ty >= world.h - 1) return this.flash('The bottom row is bedrock — the world needs a floor.');
+        if (ty >= world.h - 1) return this.flash(t('ed.flash.bedrock'));
         if (world.get(tx, ty) === T.AIR) return;
         world.set(tx, ty, T.AIR);
         this.regrass(tx);
@@ -274,8 +279,8 @@ export class Editor {
       case 'boulder':
       case 'vein': {
         const y = this.standRow(tx);
-        if (y === null) return this.flash('This column has no ground to stand on.');
-        if (this.inAnyBuilding(tx, y) || this.inAnyBuilding(tx, y - 1)) return this.flash('Too close to a building.');
+        if (y === null) return this.flash(t('ed.flash.noGround'));
+        if (this.inAnyBuilding(tx, y) || this.inAnyBuilding(tx, y - 1)) return this.flash(t('ed.flash.tooClose'));
         this.game.nodes = this.game.nodes.filter((n) => n.x !== tx);
         this.game.addNode(this.tool as NodeKind, tx, y);
         this.markDirty();
@@ -287,11 +292,11 @@ export class Editor {
         const b = this.tool === 'townhall' ? this.townhall() : this.goalBuilding();
         const fp = FOOTPRINTS[b.kind];
         const y = this.standRow(tx);
-        if (y === null) return this.flash('No ground here.');
+        if (y === null) return this.flash(t('ed.flash.noGroundHere'));
         const ny = y - (fp.h - 1);
         const others = this.game.buildings.filter((o) => o.id !== b.id);
         if (!canPlaceBuilding(world, others, this.game.nodes, tx, ny, fp.w, fp.h)) {
-          return this.flash('Needs clear air on flat, solid ground (and room from other buildings).');
+          return this.flash(t('ed.flash.needsClear'));
         }
         b.x = tx;
         b.y = ny;
@@ -402,8 +407,8 @@ export class Editor {
       const btn = el('button', 'tool-btn', bar);
       icon(def.icon, 26, btn);
       el('span', 'tool-key', btn).textContent = def.key;
-      el('span', 'tool-label', btn).textContent = def.label;
-      btn.title = def.desc;
+      el('span', 'tool-label', btn).textContent = t(`ed.tool.${def.id}.label`);
+      btn.title = t(`ed.tool.${def.id}.desc`);
       btn.onclick = () => this.setTool(def.id);
       this.toolBtns.set(def.id, btn);
     }
@@ -415,21 +420,21 @@ export class Editor {
     this.panel = panel;
 
     const head = el('div', 'ed-head', panel);
-    el('h3', undefined, head).textContent = 'Level Editor';
+    el('h3', undefined, head).textContent = t('ed.title');
     this.msgBox = el('div', 'ed-msg', panel);
 
     const nameRow = el('div', 'ed-row', panel);
-    el('label', undefined, nameRow).textContent = 'Name';
+    el('label', undefined, nameRow).textContent = t('ed.name');
     const nameIn = el('input', 'ed-input', nameRow);
     nameIn.maxLength = 40;
     nameIn.value = this.meta.name;
     nameIn.oninput = () => {
-      this.meta.name = nameIn.value || 'My Level';
+      this.meta.name = nameIn.value || t('ed.defaultName');
       this.markDirty();
     };
 
     const descRow = el('div', 'ed-row', panel);
-    el('label', undefined, descRow).textContent = 'Blurb';
+    el('label', undefined, descRow).textContent = t('ed.blurb');
     const descIn = el('input', 'ed-input', descRow);
     descIn.maxLength = 140;
     descIn.value = this.meta.desc;
@@ -440,28 +445,28 @@ export class Editor {
 
     // size
     const sizeRow = el('div', 'ed-row', panel);
-    el('label', undefined, sizeRow).textContent = 'Size';
+    el('label', undefined, sizeRow).textContent = t('ed.size');
     const wIn = this.numInput(sizeRow, this.game.world.w, MIN_W, MAX_W);
     el('span', 'ed-x', sizeRow).textContent = '×';
     const hIn = this.numInput(sizeRow, this.game.world.h, MIN_H, MAX_H);
     const applySize = el('button', 'ed-btn', sizeRow);
-    applySize.textContent = 'Resize';
+    applySize.textContent = t('ed.resize');
     applySize.onclick = () => {
       const w = Math.max(MIN_W, Math.min(MAX_W, Number(wIn.value) || this.game.world.w));
       const h = Math.max(MIN_H, Math.min(MAX_H, Number(hIn.value) || this.game.world.h));
       wIn.value = String(w);
       hIn.value = String(h);
       this.resize(w, h);
-      this.flash(`World resized to ${w}×${h}.`, true);
+      this.flash(t('ed.resized', { w, h }), true);
       audio.place();
     };
 
     // objectives
-    el('div', 'ed-section', panel).textContent = 'Delivery order';
+    el('div', 'ed-section', panel).textContent = t('ed.order');
     for (const o of this.meta.objectives) {
       const row = el('div', 'ed-row', panel);
       icon(`item_${o.item}`, 16, row);
-      el('label', 'ed-grow', row).textContent = ITEM_NAMES[o.item];
+      el('label', 'ed-grow', row).textContent = t(`item.${o.item}`);
       const inp = this.numInput(row, o.amount, 0, 99);
       inp.oninput = () => {
         o.amount = Math.max(0, Math.min(99, Number(inp.value) || 0));
@@ -470,16 +475,16 @@ export class Editor {
     }
 
     // start conditions
-    el('div', 'ed-section', panel).textContent = 'Starting crew & stock';
+    el('div', 'ed-section', panel).textContent = t('ed.start');
     {
       const row = el('div', 'ed-row', panel);
-      el('label', 'ed-grow', row).textContent = 'Workers';
+      el('label', 'ed-grow', row).textContent = t('ed.workers');
       const inp = this.numInput(row, this.meta.startWorkers, 1, 12);
       inp.oninput = () => {
         this.meta.startWorkers = Math.max(1, Math.min(12, Number(inp.value) || 4));
         this.markDirty();
       };
-      el('label', undefined, row).textContent = 'Town Hall';
+      el('label', undefined, row).textContent = t('ed.townhallLevel');
       const sel = el('select', 'ed-input ed-select', row);
       for (const lv of [1, 2, 3]) {
         const opt = el('option', undefined, sel);
@@ -495,7 +500,7 @@ export class Editor {
     const rolesRow = el('div', 'ed-row ed-wrap', panel);
     for (const r of ROLES) {
       const chip = el('span', 'ed-chip', rolesRow);
-      chip.title = ROLE_NAMES[r];
+      chip.title = t(`role.${r}`);
       icon(`hat_${r}`, 14, chip);
       const inp = this.numInput(chip, this.meta.startRoles[r] ?? 0, 0, 12);
       inp.oninput = () => {
@@ -506,7 +511,7 @@ export class Editor {
     const stockRow = el('div', 'ed-row ed-wrap', panel);
     for (const it of ITEM_TYPES) {
       const chip = el('span', 'ed-chip', stockRow);
-      chip.title = `Starting ${ITEM_NAMES[it]}`;
+      chip.title = t('ed.startingStock', { name: t(`item.${it}`) });
       icon(`item_${it}`, 14, chip);
       const inp = this.numInput(chip, this.meta.startStock[it] ?? 0, 0, 99);
       inp.oninput = () => {
@@ -516,12 +521,12 @@ export class Editor {
     }
 
     // generator
-    el('div', 'ed-section', panel).textContent = 'Generate';
+    el('div', 'ed-section', panel).textContent = t('ed.generate');
     const genRow = el('div', 'ed-row', panel);
     const seedIn = el('input', 'ed-input ed-grow', genRow);
     seedIn.value = this.meta.seed ?? randomSeed();
     seedIn.maxLength = 40;
-    seedIn.title = 'Seed — the same seed always builds the same level';
+    seedIn.title = t('ed.seedTitle');
     const diffSel = el('select', 'ed-input ed-select', genRow);
     for (let dd = 1; dd <= 5; dd++) {
       const opt = el('option', undefined, diffSel);
@@ -530,21 +535,21 @@ export class Editor {
     }
     diffSel.value = '2';
     const genBtn = el('button', 'ed-btn', genRow);
-    genBtn.textContent = '🎲 Roll';
+    genBtn.textContent = t('ed.roll');
     genBtn.onclick = () => {
       const seed = seedIn.value.trim() || randomSeed();
       const data = generateVerifiedLevel({ seed, difficulty: Number(diffSel.value) });
       data.id = this.meta.id; // keep editing the same slot
       this.open(data);
-      this.flash(`Generated "${data.name}" from seed "${seed}".`, true);
+      this.flash(t('ed.generated', { name: data.name, seed }), true);
       audio.built();
     };
 
     // verify
-    el('div', 'ed-section', panel).textContent = 'Check & play';
+    el('div', 'ed-section', panel).textContent = t('ed.check');
     const verifyRow = el('div', 'ed-row', panel);
     const verifyBtn = el('button', 'ed-btn ed-grow', verifyRow);
-    verifyBtn.textContent = '✔ Verify level';
+    verifyBtn.textContent = t('ed.verify');
     verifyBtn.onclick = () => {
       const report = verifyLevel(this.serialize());
       this.renderReport(report.problems, report.warnings);
@@ -555,11 +560,11 @@ export class Editor {
     // actions
     const actions = el('div', 'ed-actions', panel);
     const playBtn = el('button', 'ed-btn primary', actions);
-    playBtn.textContent = '▶ Playtest';
+    playBtn.textContent = t('ed.playtest');
     playBtn.onclick = () => {
       const data = this.serialize();
       if (data.objectives.length === 0) {
-        this.flash('Add at least one delivery objective first.');
+        this.flash(t('ed.needObjective'));
         audio.invalid();
         return;
       }
@@ -567,25 +572,25 @@ export class Editor {
       this.cbs.onPlaytest(data);
     };
     const saveBtn = el('button', 'ed-btn', actions);
-    saveBtn.textContent = '💾 Save';
+    saveBtn.textContent = t('ed.save');
     saveBtn.onclick = () => {
       this.cbs.onSave(this.serialize());
       this.dirty = false;
-      this.flash('Saved to your levels.', true);
+      this.flash(t('ed.saved'), true);
       audio.place();
     };
     const exportBtn = el('button', 'ed-btn', actions);
-    exportBtn.textContent = '⧉ Copy code';
+    exportBtn.textContent = t('ed.copy');
     exportBtn.onclick = () => {
       const code = encodeShareCode(this.serialize());
-      const done = () => this.flash('Share code copied to clipboard.', true);
+      const done = () => this.flash(t('ed.copied'), true);
       navigator.clipboard?.writeText(code).then(done, () => {
-        window.prompt('Copy this level code:', code);
-      }) ?? window.prompt('Copy this level code:', code);
+        window.prompt(t('ed.copyPrompt'), code);
+      }) ?? window.prompt(t('ed.copyPrompt'), code);
       audio.click();
     };
     const exitBtn = el('button', 'ed-btn danger', actions);
-    exitBtn.textContent = '← Exit';
+    exitBtn.textContent = t('ed.exit');
     exitBtn.onclick = () => {
       audio.click();
       this.cbs.onExit();
@@ -597,7 +602,7 @@ export class Editor {
     box.innerHTML = '';
     if (problems.length === 0 && warnings.length === 0) {
       const ok = el('div', 'ed-report-line good', box);
-      ok.textContent = '✔ Looks solvable — buildings placed, goods routable, resources sufficient.';
+      ok.textContent = t('ed.report.ok');
       return;
     }
     for (const p of problems) {

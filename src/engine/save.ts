@@ -4,6 +4,8 @@ import { sanitizeLevelData } from '../game/leveldata';
 import type { CustomLevelData } from '../game/leveldata';
 import { MEDAL_TIERS } from '../game/types';
 import type { MedalTier } from '../game/types';
+import { LANGS } from './i18n';
+import type { Lang } from './i18n';
 
 const KEY = 'smallhands-save-v1';
 const CUSTOM_KEY = 'smallhands-custom-v1';
@@ -21,6 +23,8 @@ export interface SaveData {
   completedCustom: string[]; // custom/generated level ids
   records: Record<string, LevelRecord>;
   muted: boolean;
+  lang?: Lang; // unset until the player picks one (browser language applies)
+  effects?: 'full' | 'reduced'; // weather/light effect intensity
 }
 
 function sanitizeRecords(raw: unknown): Record<string, LevelRecord> {
@@ -51,6 +55,8 @@ export function loadSave(): SaveData {
         completedCustom: data.completedCustom ?? [],
         records: sanitizeRecords(data.records),
         muted: data.muted ?? false,
+        lang: LANGS.includes(data.lang as Lang) ? (data.lang as Lang) : undefined,
+        effects: data.effects === 'reduced' ? 'reduced' : data.effects === 'full' ? 'full' : undefined,
       };
     }
   } catch {

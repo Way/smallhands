@@ -6,6 +6,7 @@
 import { T } from './types';
 import type { ItemType, NodeKind, ObjectiveReq, Role } from './types';
 import { World } from './world';
+import { t } from '../engine/i18n';
 import { encodeTiles, makeLevelId, verifyLevel, MAX_W, MAX_H } from './leveldata';
 import type { CustomLevelData } from './leveldata';
 
@@ -233,9 +234,9 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
 
   const name = `${rng.pick(NAME_A)} ${rng.pick(NAME_B)}`;
   const featureBits: string[] = [];
-  if (plan.upCliffs) featureBits.push(`${plan.upCliffs} cliff${plan.upCliffs > 1 ? 's' : ''} to hoist goods up`);
-  if (plan.pits) featureBits.push(`${plan.pits} pit${plan.pits > 1 ? 's' : ''} to haul goods out of`);
-  const desc = `Generated (seed "${opts.seed}", difficulty ${d})${featureBits.length ? ' — ' + featureBits.join(', ') : ''}.`;
+  if (plan.upCliffs) featureBits.push(t(plan.upCliffs > 1 ? 'gen.feat.cliff.many' : 'gen.feat.cliff.one', { n: plan.upCliffs }));
+  if (plan.pits) featureBits.push(t(plan.pits > 1 ? 'gen.feat.pit.many' : 'gen.feat.pit.one', { n: plan.pits }));
+  const desc = t('gen.desc', { seed: opts.seed, d, features: featureBits.length ? ' — ' + featureBits.join(', ') : '' });
 
   return {
     v: 1,
