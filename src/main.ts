@@ -1242,23 +1242,25 @@ canvas.addEventListener('pointermove', (e) => {
       const g = editor.active ? editor.game : game;
       if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
     }
-    lastMx = e.clientX;
-    lastMy = e.clientY;
   }
   hover.tx = t.x;
   hover.ty = t.y;
   hover.visible = true;
+  // last known cursor position — the pan delta above reads the previous value,
+  // and the frame loop uses it to place the drag-run cost readout at the cursor.
+  lastMx = e.clientX;
+  lastMy = e.clientY;
 
   // hover hint for the town hall (Select tool, not while panning)
   const th = !dragging && game && running && hover.tool === 'select' ? game.buildingAt(t.x, t.y) : undefined;
   if (th && th.kind === 'townhall') hud?.showBuildingHint(e.clientX, e.clientY);
   else hud?.hideBuildingHint();
-  // cursor cost readout: during a drag-run show the run's running total (always);
-  // otherwise, while placing a cost-bearing tool, spell out any shortfall.
+  // cursor cost readout: during a drag-run the run's running total is refreshed
+  // every frame (see frame()) so it tracks live stock even while the cursor is
+  // held still — here we only clear the placement badge. Otherwise, while
+  // placing a cost-bearing tool, spell out any shortfall.
   if (runAnchor && game && running) {
-    const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, t.x, t.y);
     hud?.hidePlacementNeeds();
-    hud?.showRunCost(e.clientX, e.clientY, plan.rows, runAnchor.tool);
   } else {
     hud?.hideRunCost();
     if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
@@ -1586,6 +1588,14 @@ function frame(now: number): void {
     }
 
     renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
+  }
+
+  // Refresh the drag-run cost readout against live stock every frame — the same
+  // clock the ghost overlay uses — so it never goes stale under a still cursor
+  // while resources change. Placed at the last known cursor position.
+  if (running && game && runAnchor && hover.visible) {
+    const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+    hud?.showRunCost(lastMx, lastMy, plan.rows, runAnchor.tool);
   }
 
   hud?.update();
