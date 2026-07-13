@@ -12,7 +12,8 @@
 import { chromium } from 'playwright-core';
 
 const CHROME = process.env.CHROME_PATH;
-const BASE = process.env.BASE_URL || 'http://localhost:4173/';
+// The game now lives at /play/ (the site root is the marketing landing page).
+const BASE = process.env.BASE_URL || 'http://localhost:4173/play/';
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
@@ -55,14 +56,25 @@ try {
   const timeline = await page.evaluate(() => new Promise((resolve) => {
     const canvas = document.querySelector('canvas');
     const ctx = canvas.getContext('2d');
-    const sx = Math.floor(canvas.width / 2), sy = 8; // top-center sky
+    const sy = 8; // a sky row near the top
     const out = [];
     const t0 = performance.now();
+    // Clouds drift across the sky with per-load-randomised seeds, and the sun
+    // and birds sit up here too — any single pixel is unreliable. But the sky
+    // gradient is flat across a row, so the bare-sky red is the *median* of a
+    // full scan line (clouds/sun lighten it, birds darken it; both are the
+    // minority). That isolates the gradient we're actually crossfading.
+    function skyRed() {
+      const row = ctx.getImageData(0, sy, canvas.width, 1).data;
+      const reds = [];
+      for (let i = 0; i < row.length; i += 4) reds.push(row[i]);
+      reds.sort((a, b) => a - b);
+      return reds[reds.length >> 1];
+    }
     function frame() {
       const g = window.__smallhands.game;
       const b = g.weatherBlend;
-      const px = ctx.getImageData(sx, sy, 1, 1).data;
-      out.push({ t: +b.t.toFixed(3), from: b.from, to: b.to, r: px[0], g: px[1], bl: px[2], wf: +g.workFactor.toFixed(2) });
+      out.push({ t: +b.t.toFixed(3), from: b.from, to: b.to, r: skyRed(), wf: +g.workFactor.toFixed(2) });
       const settledRain = b.to === 'rain' && b.t >= 1;
       if (!settledRain && performance.now() - t0 < 14000) requestAnimationFrame(frame);
       else resolve(out);
