@@ -130,14 +130,18 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
-Two headless suites need no browser at all: `tests/unit.mjs` covers pure
+Three headless suites need no browser at all: `tests/unit.mjs` covers pure
 simulation logic (ladders, reserves, medals, water, weather, flood, night),
-and `tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
-scripted player and fails unless the win state is reached:
+`tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
+scripted player and fails unless the win state is reached, and
+`tests/motion.mjs` checks the render-only look-physics layer (verlet ropes,
+item flight arcs, tree falls) and that its sim-side breadcrumbs stay capped
+and one-way:
 
 ```bash
 npm run test:unit
 npm run test:campaign2
+npm run test:motion
 ```
 
 A third browser suite (`npm run test:i18n`, preview server required) switches
