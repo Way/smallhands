@@ -1289,6 +1289,117 @@ git commit -m "#4 docs: describe unified front door; final test sweep"
 
 ---
 
+### Task 7: Update the remaining browser tests for the front-door entry
+
+The game moved from `/play/` to `/` behind the front door, so every browser test that entered at `/play/` and clicked the old title-screen Play button (`button.big-btn`) is broken. Point them at `/` and enter through the front door (`.fd-play`). Also apply two small cleanups the Task 4 review flagged in `tests/landing.mjs`.
+
+**Files:**
+- Modify: `tests/e2e.mjs`, `tests/drag-tooltip.mjs`, `tests/weather-visual.mjs`, `tests/editor-generator.mjs`
+- Modify: `tests/i18n.mjs`
+- Modify: `tests/landing.mjs`
+
+**Interfaces:**
+- Consumes: the front-door DOM contract — `.fd-play` (Play button), `.seg-btn[data-lang="en"|"de"]` (language toggle, with `aria-pressed`), `.tagline` (hero subtitle carrying `S.tagline`: `Tiny workers · Big plans` / `Kleine Hände · Große Pläne`).
+- Produces: nothing (test-only).
+
+- [ ] **Step 1: The four game tests — URL + entry click only**
+
+For each of `tests/e2e.mjs`, `tests/drag-tooltip.mjs`, `tests/weather-visual.mjs`, `tests/editor-generator.mjs`:
+
+1. Change the default base URL from `'http://localhost:4173/play/'` to `'http://localhost:4173/'`. The variable is `BASE_URL` in e2e/drag-tooltip/editor-generator and `BASE` in weather-visual — change whichever that file uses.
+2. Change ONLY the single entry click that immediately follows the initial `page.goto(...)` — the one that opened the old title screen — from `page.click('button.big-btn')` to `page.click('.fd-play')`. Do NOT change any other `.big-btn` selector later in the file (win screen, confirm dialogs, `.overlay .big-btn.secondary`, `.confirm-overlay .big-btn.danger`, etc.) — those are in-game elements and are unchanged.
+
+Everything downstream of the entry click (`.level-card`, `window.__smallhands.startLevel(...)`, HUD selectors) is unchanged, because `.fd-play` → `enterGame()` → `showLevelSelect()` reaches the same level-select the old Play button did.
+
+- [ ] **Step 2: `tests/i18n.mjs` — rework the entry to the front-door toggle**
+
+Replace lines 21–40 (from the `page.goto(...)` through the `page.click('button.big-btn')` Play click) — the old title-screen language flow. The old block is:
+
+```js
+await page.goto('http://localhost:4173/play/');
+await page.waitForTimeout(600);
+
+// English title by default (headless is en-US)
+check('title subtitle is English', (await page.textContent('.title-sub')) === 'Tiny workers · Big plans');
+
+// open options from the title, switch to German
+await page.click('.title-options');
+await page.waitForTimeout(200);
+check('options menu opens', (await page.$$('.options-box')).length === 1);
+await page.click('.seg-btn:has-text("Deutsch")');
+await page.waitForTimeout(300);
+check('options re-render in German', (await page.textContent('.opt-title')) === 'Optionen');
+
+await page.click('.options-box .big-btn'); // back -> title
+await page.waitForTimeout(200);
+check('title re-renders in German', (await page.textContent('.title-sub')) === 'Kleine Hände · Große Pläne');
+
+// level select in German
+await page.click('button.big-btn'); // Spielen
+```
+
+Replace it with (the front door carries a direct language toggle in its hero topbar, so there is no options round-trip on the way in):
+
+```js
+await page.goto('http://localhost:4173/');
+await page.waitForTimeout(600);
+
+// English front door by default (headless is en-US)
+check('front-door tagline is English', (await page.textContent('.tagline')) === 'Tiny workers · Big plans');
+
+// switch to German via the hero language toggle; the front door re-renders
+await page.click('.seg-btn[data-lang="de"]');
+await page.waitForTimeout(300);
+check('front-door re-renders in German', (await page.textContent('.tagline')) === 'Kleine Hände · Große Pläne');
+
+// enter the game in German
+await page.click('.fd-play'); // Spielen
+```
+
+Lines 42 onward (level-select header, level name, HUD checks, the in-game options gear flow, persistence) are unchanged — those exercise in-game surfaces this task does not touch.
+
+- [ ] **Step 3: `tests/landing.mjs` — apply the two Task-4 review cleanups**
+
+1. Delete the now-vacuous check (the `#game-canvas` element exists on the unified page from first load, so it no longer signals that Play worked; the adjacent `body.in-game` and `.overlay` checks carry the real signal):
+
+```js
+check('game canvas present', (await page.$('#game-canvas')) !== null);
+```
+
+2. Simplify the redirect assertion — remove the no-op `.replace(/\/$/, '/')`. Change:
+
+```js
+check('/play/ redirects home', page.url().replace(/#.*$/, '').replace(/\/$/, '/') === BASE_URL, page.url());
+```
+to:
+```js
+check('/play/ redirects home', page.url().replace(/#.*$/, '') === BASE_URL, page.url());
+```
+
+- [ ] **Step 4: Run every changed test against the build**
+
+Build once, serve, and run each changed test; all must pass.
+
+```bash
+npm run build
+npm run preview & PREVIEW=$!; sleep 2
+for t in landing i18n e2e drag-tooltip weather-visual editor-generator; do
+  echo "=== $t ==="; node tests/$t.mjs || echo "FAILED: $t";
+done
+kill $PREVIEW
+```
+
+Expected: each prints its own PASS line (`FRONT-DOOR SMOKE PASS`, `I18N SMOKE PASS`, and the e2e/drag-tooltip/weather-visual/editor-generator success messages) with no `FAILED:` lines. If a test fails for a reason unrelated to the entry change (pre-existing environment need), report it as a concern with the exact failing check rather than forcing a pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/
+git commit -m "#4 point remaining browser tests at the front-door entry (/, .fd-play)"
+```
+
+---
+
 ## Self-Review
 
 **1. Spec coverage:**
