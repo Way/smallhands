@@ -480,13 +480,6 @@ body.in-game #frontdoor { display: none; }
   text-shadow: 0 4px 0 #7a5a10, 0 8px 24px rgba(0, 0, 0, 0.6);
   font-family: Georgia, 'Times New Roman', serif;
 }
-.title-sub {
-  font-size: 15px;
-  color: var(--text-dim);
-  margin-top: -10px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
 
 .big-btn {
   padding: 13px 42px;
@@ -637,7 +630,6 @@ body.in-game #frontdoor { display: none; }
   color: #ff9a8b;
 }
 .seg-btn.danger:hover { background: rgba(255, 122, 107, 0.15); }
-.title-options { margin-top: 6px; }
 .win-stats.camp-unlock {
   border: 1px solid rgba(143, 198, 240, 0.4);
   background: rgba(43, 74, 110, 0.35);

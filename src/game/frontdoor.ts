@@ -54,6 +54,7 @@ export class FrontDoor {
 
   render(): void {
     const lang = getLang();
+    document.documentElement.lang = lang;
     this.root.innerHTML = this.view();
     this.paintIcons();
     this.root.querySelectorAll<HTMLButtonElement>('.seg-btn[data-lang]').forEach((btn) => {
