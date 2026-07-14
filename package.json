@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:unit": "node tests/unit.mjs",
+    "test:terrain": "node tests/terrain.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:campaign2": "node tests/campaign2.mjs",
     "test:i18n": "node tests/i18n.mjs",

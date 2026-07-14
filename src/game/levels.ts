@@ -1,5 +1,6 @@
 import { T } from './types';
 import type { MedalTimes, ObjectiveReq, Role, Tool, WeatherPhase } from './types';
+import type { Biome } from '../engine/biomes';
 import type { Game } from './sim';
 
 export interface LevelHint {
@@ -28,6 +29,7 @@ export interface LevelDef {
   weather?: WeatherPhase[]; // looping phase schedule; omit for an always-clear sky
   night?: boolean; // night level: work only happens in the light (see lanterns)
   flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
+  biome?: Biome; // terrain palette family; omit for the classic meadow look
 }
 
 // ---- terrain authoring helpers ---------------------------------------------

@@ -1,11 +1,13 @@
 import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
-import { sprite, tileHash } from '../engine/sprites';
+import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
+import { BIOME_LOOK, biomeSuffix } from '../engine/biomes';
+import type { Biome } from '../engine/biomes';
 import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
-import type { WeatherLook } from './weather-look';
+import type { WeatherLook, RGB } from './weather-look';
 import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
 
 export class Camera {
@@ -165,6 +167,12 @@ export class Renderer {
     const { ctx } = this;
     const night = !!game.level.night;
 
+    // the biome leans on the daytime atmosphere (applied after the weather
+    // blend so crossfades keep working); night keeps its fixed palette
+    const bl = BIOME_LOOK[(game.level.biome ?? 'meadow') as Biome];
+    const bmix = (c: RGB, to: readonly number[], amt: number): RGB =>
+      amt <= 0 ? c : [c[0] + (to[0] - c[0]) * amt, c[1] + (to[1] - c[1]) * amt, c[2] + (to[2] - c[2]) * amt];
+
     // gradient stops + hill/cloud palettes per mood. Night is a level flag, not
     // weather: it overrides the sky palette, but the wet tint/streaks (drawn in
     // drawWeatherFx) still crossfade on top.
@@ -176,8 +184,15 @@ export class Renderer {
       hills = ['#2a4a44', '#1d3833'];
       cloudCol = 'rgba(46,58,92,0.65)';
     } else {
-      stops = [rgbCss(look.sky[0]), rgbCss(look.sky[1]), rgbCss(look.sky[2])];
-      hills = [rgbCss(look.hills[0]), rgbCss(look.hills[1])];
+      stops = [
+        rgbCss(bmix(look.sky[0], bl.skyTint, bl.skyTintAmt)),
+        rgbCss(bmix(look.sky[1], bl.skyTint, bl.skyTintAmt)),
+        rgbCss(bmix(look.sky[2], bl.skyTint, bl.skyTintAmt)),
+      ];
+      hills = [
+        rgbCss(bmix(look.hills[0], bl.hillTint, bl.hillTintAmt)),
+        rgbCss(bmix(look.hills[1], bl.hillTint, bl.hillTintAmt)),
+      ];
       cloudCol = rgbaCss(look.cloudCol);
     }
     const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -355,26 +370,75 @@ export class Renderer {
     };
   }
 
+  // Topmost solid row per column (world.h for a column of pure air). Rebuilt
+  // every frame — the grid is at most 160×60, and the editor sculpts terrain
+  // live — and reused by depth shading, wedges, fringes, props and the snowline.
+  private surfCache: number[] = [];
+
+  private surfaceRows(world: { w: number; h: number; isSolid(x: number, y: number): boolean }): number[] {
+    const surf = this.surfCache;
+    surf.length = world.w;
+    for (let x = 0; x < world.w; x++) {
+      let sy = world.h;
+      for (let y = 0; y < world.h; y++) {
+        if (world.isSolid(x, y)) {
+          sy = y;
+          break;
+        }
+      }
+      surf[x] = sy;
+    }
+    return surf;
+  }
+
   private drawTerrain(game: Game, cam: Camera): void {
     const { ctx } = this;
     const { world } = game;
     const r = this.visibleRange(game, cam);
+    const biome = (game.level.biome ?? 'meadow') as Biome;
+    const sfx = biomeSuffix(biome);
+    const blook = BIOME_LOOK[biome];
+    const surf = this.surfaceRows(world);
+
+    // snow-capped biomes: everything at or above the snowline wears white.
+    // The line hangs off the map's highest summit so it never shifts with the
+    // camera, and only exists at all when the terrain is tall enough to earn it.
+    let snowY = -1;
+    if (blook.snowcaps) {
+      let minS = world.h;
+      let maxS = 0;
+      for (let x = 0; x < world.w; x++) {
+        if (surf[x] < minS) minS = surf[x];
+        if (surf[x] > maxS && surf[x] < world.h) maxS = surf[x];
+      }
+      if (maxS - minS >= 6) snowY = minS + 4;
+    }
+    const strata = (game.level.id % 4) + 1;
+
     for (let y = r.y0; y <= r.y1; y++) {
       for (let x = r.x0; x <= r.x1; x++) {
         const t = world.get(x, y);
         if (t === T.AIR) continue;
         const px = x * TILE;
         const py = y * TILE;
+        const airL = !world.isSolid(x - 1, y);
+        const airR = !world.isSolid(x + 1, y);
+        const exposedTop = !world.isSolid(x, y - 1);
         let name: string | null = null;
         switch (t) {
-          case T.GRASS:
-            name = 'tile_grass';
+          case T.GRASS: {
+            // lip corners round off (transparent pixels let the sky through)
+            // and the blades wrap a little way down the exposed side
+            const variant = exposedTop && (airL || airR) ? (airL && airR ? '_lr' : airL ? '_l' : '_r') : '';
+            const snow = snowY >= 0 && y <= snowY ? '_snow' : '';
+            name = `tile_grass${snow}${variant}${sfx}`;
             break;
+          }
           case T.DIRT:
-            name = 'tile_dirt';
+            name = `tile_dirt${sfx}`;
             break;
           case T.ROCK:
-            name = 'tile_rock';
+            name = `tile_rock${sfx}`;
             break;
           case T.BEDROCK:
             name = 'tile_bedrock';
@@ -409,25 +473,129 @@ export class Renderer {
         } else if (name) {
           ctx.drawImage(sprite(name).canvas, px, py);
         }
-        // subtle variation + edge shading on solid terrain
+        // variation, geology and edge shading on solid terrain
         if (world.isSolid(x, y)) {
           const h = tileHash(x, y);
+          const depth = y - (surf[x] ?? y);
+          const body = t === T.ROCK || t === T.DIRT;
+          // deep ground fades darker (measured from the local surface, so
+          // cliff faces show a light-to-dark gradation top to bottom)
+          if (body && depth >= 3) {
+            const a = Math.min(0.2, (depth - 2) * 0.03);
+            ctx.fillStyle = `rgba(8,10,18,${a.toFixed(3)})`;
+            ctx.fillRect(px, py, TILE, TILE);
+          }
+          // sedimentary strata: a broken darker band every few rows, with a
+          // little jitter per short segment so the line reads hand-laid
+          if (body && depth >= 1 && (y + strata) % 4 === 0 && tileHash(x >> 1, y) < 0.8) {
+            ctx.fillStyle = 'rgba(0,0,0,0.09)';
+            ctx.fillRect(px, py + 4 + Math.floor(tileHash(x >> 2, y) * 3), TILE, 1);
+          }
           if (h > 0.82) {
             ctx.fillStyle = 'rgba(0,0,0,0.07)';
             ctx.fillRect(px + 4, py + 6, 5, 3);
           }
-          if (!world.isSolid(x, y - 1) && t !== T.GRASS) {
+          // the odd crack on exposed rock faces
+          if (t === T.ROCK && (airL || airR) && h > 0.55 && h < 0.63) {
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            const cx = px + 4 + (Math.floor(h * 100) % 6);
+            ctx.fillRect(cx, py + 3, 1, 4);
+            ctx.fillRect(cx + 1, py + 7, 1, 3);
+          }
+          if (exposedTop && t !== T.GRASS) {
             ctx.fillStyle = 'rgba(255,255,255,0.12)';
             ctx.fillRect(px, py, TILE, 2);
           }
-          if (!world.isSolid(x - 1, y)) {
+          if (airL) {
             ctx.fillStyle = 'rgba(255,255,255,0.08)';
             ctx.fillRect(px, py, 2, TILE);
           }
-          if (!world.isSolid(x + 1, y)) {
+          if (airR) {
             ctx.fillStyle = 'rgba(0,0,0,0.12)';
             ctx.fillRect(px + TILE - 2, py, 2, TILE);
           }
+          // soft ambient occlusion where a wall rises beside a walkable surface
+          if (exposedTop) {
+            if (world.isSolid(x - 1, y - 1)) {
+              ctx.fillStyle = 'rgba(0,0,0,0.1)';
+              ctx.fillRect(px, py, 3, TILE);
+            }
+            if (world.isSolid(x + 1, y - 1)) {
+              ctx.fillStyle = 'rgba(0,0,0,0.1)';
+              ctx.fillRect(px + TILE - 3, py, 3, TILE);
+            }
+          }
+        }
+      }
+    }
+
+    this.drawTerrainDressing(game, r, surf, sfx, snowY);
+  }
+
+  // The organic layer over the raw tiles: grass banks on 1-tile steps, blades
+  // drooping over cliff lips, and hash-scattered surface props. All of it is
+  // deterministic decoration in AIR cells — collision and placement never see it.
+  private drawTerrainDressing(
+    game: Game,
+    r: { x0: number; y0: number; x1: number; y1: number },
+    surf: number[],
+    sfx: string,
+    snowY: number
+  ): void {
+    const { ctx } = this;
+    const { world } = game;
+
+    // grass banks: wherever the surface steps by exactly 1 between two natural
+    // grass columns, a wedge in the air cell turns the right angle into a slope
+    for (let x = Math.max(0, r.x0 - 1); x <= Math.min(world.w - 2, r.x1 + 1); x++) {
+      const a = surf[x];
+      const b = surf[x + 1];
+      if (Math.abs(a - b) !== 1) continue;
+      const lowX = a > b ? x : x + 1; // larger y = lower ground
+      const hiX = lowX === x ? x + 1 : x;
+      const wy = Math.max(a, b) - 1; // the air cell atop the lower column
+      if (world.get(lowX, wy + 1) !== T.GRASS || world.get(hiX, wy) !== T.GRASS) continue;
+      if (world.get(lowX, wy) !== T.AIR) continue; // never over ladders, platforms, water
+      const spr = sprite(`wedge${snowY >= 0 && wy <= snowY ? '_snow' : ''}${sfx}`).canvas;
+      if (hiX > lowX) {
+        ctx.drawImage(spr, lowX * TILE, wy * TILE); // art rises to the right
+      } else {
+        ctx.save();
+        ctx.translate(lowX * TILE + TILE, wy * TILE);
+        ctx.scale(-1, 1);
+        ctx.drawImage(spr, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    // lip fringes + surface props, one look at each visible column's surface
+    for (let x = Math.max(0, r.x0 - 1); x <= Math.min(world.w - 1, r.x1 + 1); x++) {
+      const sy = surf[x];
+      if (sy >= world.h || sy - 1 < r.y0 - 1 || sy - 1 > r.y1) continue;
+      if (world.get(x, sy) !== T.GRASS) continue;
+      if (world.get(x, sy - 1) !== T.AIR) continue;
+      const snow = snowY >= 0 && sy <= snowY;
+      const fname = `fringe${snow ? '_snow' : ''}${sfx}`;
+      // blades droop over real cliff lips (≥2 drops; 1-steps wear wedges instead)
+      if (x + 1 < world.w && surf[x + 1] - sy >= 2 && world.get(x + 1, sy) === T.AIR) {
+        ctx.drawImage(sprite(fname).canvas, (x + 1) * TILE, sy * TILE);
+      }
+      if (x - 1 >= 0 && surf[x - 1] - sy >= 2 && world.get(x - 1, sy) === T.AIR) {
+        ctx.save();
+        ctx.translate(x * TILE, sy * TILE);
+        ctx.scale(-1, 1);
+        ctx.drawImage(sprite(fname).canvas, 0, 0);
+        ctx.restore();
+      }
+      // props keep to locally level ground (never colliding with a wedge) and
+      // stay below the snowline; muted, small, and drawn before anything alive
+      if (!snow && surf[x - 1] === sy && surf[x + 1] === sy) {
+        const h = tileHash(x * 3 + 1, sy * 5 + 2);
+        if (h < 0.32) {
+          const kind = PROP_KINDS[Math.floor(tileHash(x * 7 + 3, sy) * PROP_KINDS.length) % PROP_KINDS.length];
+          const spr = sprite(`${kind}${sfx}`).canvas;
+          const jx = Math.floor(tileHash(x, sy * 3) * (TILE - spr.width));
+          ctx.drawImage(spr, x * TILE + jx, sy * TILE - spr.height);
         }
       }
     }

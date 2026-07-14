@@ -5,6 +5,7 @@
 
 import { T } from './types';
 import type { ItemType, NodeKind, ObjectiveReq, Role } from './types';
+import { BIOMES } from '../engine/biomes';
 import { World } from './world';
 import { t } from '../engine/i18n';
 import { encodeTiles, makeLevelId, verifyLevel, MAX_W, MAX_H } from './leveldata';
@@ -125,6 +126,65 @@ function planTerrain(rng: Rng, d: number): Plan {
   return { heights, flats: flats.filter((f) => f.x1 < heights.length), upCliffs, pits };
 }
 
+// ---- micro relief -------------------------------------------------------------
+//
+// Rolls gentle ±1..2 elevation into each flat using ONLY 1-tile steps, so the
+// land reads as hills while staying freely walkable in both directions — even
+// carrying cargo (a 1-step is free for everyone; the puzzle wall starts at 2,
+// see nav.ts). Every flat keeps a level margin at its ends so cliff and pit
+// drops stay exactly what the macro plan promised, and reserved spans (town
+// hall apron, caravan apron) stay dead flat for building footprints.
+function applyRelief(plan: Plan, rng: Rng, reserved: [number, number][]): void {
+  // One flat column inside each end, plus the zero-capped taper column next to
+  // it, keeps every feature boundary at its exact macro height — cliff rises,
+  // pit depths and fall distances are measured at those columns.
+  const MARGIN = 1;
+  for (const f of plan.flats) {
+    if (f.pit) continue; // pit floors are small; keep them plain
+    const i0 = f.x0 + MARGIN;
+    const span = f.x1 - MARGIN - i0 + 1;
+    if (span < 5) continue;
+    const amp = span >= 12 ? 2 : 1;
+
+    // a random walk held on plateaus of 3–5 columns between steps
+    const offs = new Array<number>(span).fill(0);
+    let o = 0;
+    let x = 0;
+    while (x < span) {
+      const run = rng.int(3, 5);
+      for (let k = 0; k < run && x < span; k++, x++) offs[x] = o;
+      o = Math.max(-amp, Math.min(amp, o + rng.int(-1, 1)));
+    }
+
+    // per-column ceiling: distance to the flat's level ends and to any
+    // reserved must-stay-flat column (1-Lipschitz, so the taper back to the
+    // macro height is itself made of 1-steps)
+    const cap = new Array<number>(span);
+    for (let i = 0; i < span; i++) {
+      let c = Math.min(i, span - 1 - i);
+      const gx = i0 + i;
+      for (const [a, b] of reserved) {
+        c = Math.min(c, gx < a ? a - gx : gx > b ? gx - b : 0);
+      }
+      cap[i] = c;
+    }
+    // one forward slope-limit pass: |offs[i]| <= cap[i] and steps stay ±1
+    offs[0] = Math.max(-cap[0], Math.min(cap[0], offs[0]));
+    for (let i = 1; i < span; i++) {
+      offs[i] = Math.max(offs[i - 1] - 1, Math.min(offs[i - 1] + 1, offs[i]));
+      offs[i] = Math.max(-cap[i], Math.min(cap[i], offs[i]));
+    }
+    // drop 1-wide spikes and notches so bumps read as banks, not sawteeth
+    for (let i = 1; i < span - 1; i++) {
+      if (offs[i - 1] === offs[i + 1] && offs[i] !== offs[i - 1] && Math.abs(offs[i - 1]) <= cap[i]) {
+        offs[i] = offs[i - 1];
+      }
+    }
+
+    for (let i = 0; i < span; i++) plan.heights[i0 + i] += offs[i];
+  }
+}
+
 // ---- naming -----------------------------------------------------------------------
 
 const NAME_A = ['Windy', 'Sunken', 'Broken', 'Mossy', 'Silent', 'Amber', 'Foggy', 'Wild', 'Old', 'Copper', 'Hollow', 'Thorny'];
@@ -137,6 +197,18 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
   const rng = new Rng(`${opts.seed}|d${d}`);
   const plan = planTerrain(rng, d);
 
+  // Town Hall on the home flat, goal on the last (non-pit) flat — chosen
+  // before the relief pass so both build sites can be reserved dead flat.
+  const home = plan.flats[0];
+  const thX = home.x0 + 2;
+  const goalFlat = [...plan.flats].reverse().find((f) => !f.pit && f.x1 - f.x0 >= 6)!;
+  const goalX = Math.min(goalFlat.x1 - 4, goalFlat.x0 + Math.floor((goalFlat.x1 - goalFlat.x0) / 2));
+  applyRelief(plan, rng, [
+    [thX - 2, thX + 7], // town hall + stockpile apron
+    [goalX - 2, goalX + 6], // caravan apron
+  ]);
+  const biome = rng.pick(BIOMES);
+
   const width = plan.heights.length;
   const height = Math.min(MAX_H, Math.max(...plan.heights) + 10);
   const world = new World(width, height);
@@ -148,12 +220,6 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
     }
   }
   const standY = (x: number) => height - plan.heights[x] - 1;
-
-  // Town Hall on the home flat, goal on the last (non-pit) flat.
-  const home = plan.flats[0];
-  const thX = home.x0 + 2;
-  const goalFlat = [...plan.flats].reverse().find((f) => !f.pit && f.x1 - f.x0 >= 6)!;
-  const goalX = Math.min(goalFlat.x1 - 4, goalFlat.x0 + Math.floor((goalFlat.x1 - goalFlat.x0) / 2));
 
   // ---- objectives by difficulty ----
   const objectives: ObjectiveReq[] = [{ item: 'plank', amount: 6 + 2 * d + rng.int(0, 2) }];
@@ -255,6 +321,7 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
     startWorkers,
     startThLevel,
     seed: opts.seed,
+    biome,
   };
 }
 

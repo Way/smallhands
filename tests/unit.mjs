@@ -1,32 +1,16 @@
 // Fast headless unit checks for pure sim logic — no browser needed.
-// Bundles the TypeScript sources with esbuild (already a dev dep via vite) and
-// imports the result from an in-memory data URL, so it runs with plain `node`.
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+// Bundles the TypeScript sources with rolldown (see bundle.mjs) and imports
+// the result from an in-memory data URL, so it runs with plain `node`.
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-const res = await build({
-  stdin: {
-    contents: `
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-      export { canPlaceLadder } from './src/game/world.ts';
-      export { findPath } from './src/game/nav.ts';
-      export { T } from './src/game/types.ts';
-      export { t, setLang, getLang } from './src/engine/i18n.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  write: false,
-});
-const mod = await import(
-  'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
-);
+const mod = await bundleExports(`
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+  export { canPlaceLadder } from './src/game/world.ts';
+  export { findPath } from './src/game/nav.ts';
+  export { T } from './src/game/types.ts';
+  export { t, setLang, getLang } from './src/engine/i18n.ts';
+`);
 const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang } = mod;
 
 let failures = 0;
