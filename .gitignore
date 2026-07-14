@@ -6,3 +6,4 @@ dist/
 # Local agent tooling (worktree scratch space, per-machine Harmony board linkage)
 .claude/
 .harmony-mcp.json
+.superpowers/
