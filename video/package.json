@@ -1,0 +1,23 @@
+{
+  "name": "smallhands-teaser",
+  "private": true,
+  "type": "module",
+  "description": "30s teaser video pipeline: Playwright captures real gameplay, Remotion cuts the montage",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "music": "node music.mjs",
+    "preview": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Teaser out/teaser.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/transitions": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}
