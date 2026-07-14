@@ -7,6 +7,7 @@ import type { MedalTier } from '../game/types';
 import { LANGS } from './i18n';
 import type { Lang } from './i18n';
 
+// Bump the version suffix only alongside a migration — old saves key off these.
 const KEY = 'smallhands-save-v1';
 const CUSTOM_KEY = 'smallhands-custom-v1';
 
