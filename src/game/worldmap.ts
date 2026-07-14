@@ -136,7 +136,15 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     wrap.style.width = `${VIEW_W * s}px`;
     wrap.style.height = `${VIEW_H * s}px`;
   };
-  new ResizeObserver(fit).observe(viewport);
+  const ro = new ResizeObserver(() => {
+    // self-disconnect once the overlay is torn down (screen is rebuilt per visit)
+    if (!viewport.isConnected) {
+      ro.disconnect();
+      return;
+    }
+    fit();
+  });
+  ro.observe(viewport);
   fit();
 
   const svg = svgEl('svg', {
