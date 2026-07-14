@@ -263,6 +263,28 @@ export const LANTERN_RADIUS = 6.5;
 export const TOWNHALL_LIGHT_RADIUS = 9;
 export const GOAL_LIGHT_RADIUS = 6.5;
 
+// ---- look events (cosmetic outbox) -------------------------------------------
+
+// Write-only breadcrumbs the sim appends for the renderer's look-physics layer
+// (flight arcs, tree falls, water ripples, landing squash — see motion.ts).
+// Game logic never reads these back; the renderer drains the queue every frame
+// and tick() caps it so headless runs without a renderer cannot grow it
+// without bound. All coordinates are in tile units.
+export type LookEvent =
+  | {
+      kind: 'item-flight';
+      id: number; // GroundItem id the flight belongs to
+      item: ItemType;
+      fromX: number;
+      fromY: number;
+      toX: number;
+      toY: number;
+      delay: number; // seconds before the flight becomes visible
+    }
+  | { kind: 'tree-felled'; id: number; x: number; y: number; dir: number }
+  | { kind: 'item-sink'; item: ItemType; x: number; y: number }
+  | { kind: 'worker-land'; id: number; x: number; y: number; dist: number };
+
 // One required resource for a placement, annotated with what you have vs need.
 // `short` marks the resource that's blocking the build (have < need).
 export interface ShortfallRow {

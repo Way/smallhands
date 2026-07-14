@@ -1,7 +1,11 @@
 # Look-Physics Layer — design
 
 **Date:** 2026-07-14
-**Status:** proposed (from the physics-engine design discussion), pending review
+**Status:** implemented (elements 1–5: rope verlet, item flight arcs, tree
+felling, landing squash + dust, water ripples — `src/game/motion.ts`, headless
+suite `tests/motion.mjs`). Elements 6–7 (wind-coupled props, lift car bob)
+remain open follow-ups; the townhall flags and lantern flicker already covered
+part of 6.
 **Companion spec:** `2026-07-14-counterweight-hoist-design.md` (the sim-physics side
 of the same discussion)
 

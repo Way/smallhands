@@ -6,6 +6,7 @@ import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPla
 import type { Game } from './sim';
 import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
 import type { WeatherLook } from './weather-look';
+import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
 
 export class Camera {
   x = 0; // world px at left edge
@@ -58,6 +59,9 @@ export class Renderer {
   // node's anticipation. `lastGhostT` gives us a dt for the ease.
   private harvestFocus = 0;
   private lastGhostT = 0;
+  // look-physics (motion.ts): render-only springs, ropes and arcs. Fed from
+  // the sim's lookEvents outbox; never read back by the simulation.
+  private motion = new MotionLayer();
   // effects can be dialed down via the options menu; the OS-level
   // reduced-motion preference is always respected on top of that
   effectsReduced = false;
@@ -111,6 +115,10 @@ export class Renderer {
     const blend = game.weatherBlend;
     const look = lerpLook(weatherLook(blend.from), weatherLook(blend.to), blend.t);
 
+    // advance the look-physics layer (drains the sim's cosmetic outbox);
+    // under reduced motion it stays empty and every element draws static
+    this.motion.update(game, timeSec, { amp: look.wind, hz: look.windHz }, this.reduceMotion);
+
     this.drawSky(game, look, W, H, timeSec, cam);
 
     ctx.save();
@@ -131,8 +139,10 @@ export class Renderer {
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
     this.drawWater(game, cam, timeSec);
+    this.drawRipples(timeSec);
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
+    this.drawPuffs(timeSec);
     this.drawEffects(timeSec);
     ctx.restore();
 
@@ -454,6 +464,17 @@ export class Renderer {
           ctx.restore();
         } else {
           ctx.drawImage(sprite('stump').canvas, n.x * TILE, n.y * TILE);
+          // the felled trunk topples about its foot, then dust takes over
+          const fall = this.motion.fellingFor(n.id);
+          if (fall !== null) {
+            const pivotX = n.x * TILE + TILE / 2;
+            const baseY = (n.y + 1) * TILE;
+            ctx.save();
+            ctx.translate(pivotX, baseY);
+            ctx.rotate(fall);
+            ctx.drawImage(sprite('tree').canvas, -TILE / 2, -32, TILE, 32);
+            ctx.restore();
+          }
         }
       } else if (n.yieldLeft > 0) {
         const shiver = Math.sin(t * 26) * anticip * 0.7 * osc;
@@ -476,7 +497,7 @@ export class Renderer {
         continue;
       }
       if (b.kind === 'rope') {
-        this.drawRope(b, t);
+        this.drawRope(b);
         continue;
       }
       const fw = footprintW(b) * TILE;
@@ -774,7 +795,7 @@ export class Renderer {
     }
   }
 
-  private drawRope(b: Building, t: number): void {
+  private drawRope(b: Building): void {
     const { ctx } = this;
     const px = b.x * TILE;
     const py = b.y * TILE;
@@ -782,22 +803,33 @@ export class Renderer {
     ctx.drawImage(sprite('rope_anchor').canvas, px, py);
     // rope: from the post top, over the edge, hanging down the drop column
     const rx = (b.x + b.ropeSide) * TILE + TILE / 2;
-    const sway = b.state === 'ready' ? Math.sin(t * 1.6 + b.id) * 1.2 : 0;
     const botY = (b.ropeBottomY + 1) * TILE - 3;
-    ctx.strokeStyle = '#d8b271';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(px + 5, py + 3);
-    ctx.lineTo(rx, py + 7);
-    ctx.quadraticCurveTo(rx + sway, (py + botY) / 2, rx + sway * 0.4, botY);
-    ctx.stroke();
-    // knots so climbing hands (and eyes) find purchase
-    ctx.fillStyle = '#c09a55';
-    const span = Math.max(1, b.ropeBottomY - b.y);
-    for (let y = b.y + 1; y <= b.ropeBottomY; y += 2) {
-      const f = (y - b.y) / span;
-      const kx = rx + sway * (f < 0.5 ? f * 2 : (1 - f) * 2 + 0.4 * (2 * f - 1));
-      ctx.fillRect(kx - 1, y * TILE + 5, 3, 2);
+    const rope = b.state === 'ready' ? this.motion.ropeFor(b.id) : undefined;
+    if (rope) {
+      // look-physics: a verlet chain that sways in the wind and bows under a
+      // sliding worker (reduced motion falls back to the static line below)
+      ctx.strokeStyle = '#d8b271';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + 5, py + 3);
+      for (let i = 0; i < rope.n; i++) ctx.lineTo(rope.x[i], rope.y[i]);
+      ctx.stroke();
+      // knots so climbing hands (and eyes) find purchase
+      ctx.fillStyle = '#c09a55';
+      for (let i = 1; i < rope.n; i += 2) ctx.fillRect(rope.x[i] - 1, rope.y[i], 3, 2);
+    } else {
+      ctx.strokeStyle = '#d8b271';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + 5, py + 3);
+      ctx.lineTo(rx, py + 7);
+      ctx.quadraticCurveTo(rx, (py + botY) / 2, rx, botY);
+      ctx.stroke();
+      // knots so climbing hands (and eyes) find purchase
+      ctx.fillStyle = '#c09a55';
+      for (let y = b.y + 1; y <= b.ropeBottomY; y += 2) {
+        ctx.fillRect(rx - 1, y * TILE + 5, 3, 2);
+      }
     }
     ctx.globalAlpha = 1;
     if (b.state === 'blueprint') {
@@ -826,6 +858,18 @@ export class Renderer {
   private drawGroundItems(game: Game, t: number): void {
     const { ctx } = this;
     for (const gi of game.groundItems) {
+      // look-physics: mid-arc items tumble from their source to the rest tile;
+      // delay-gated flights (a felling tree's log) stay hidden until they fly
+      const flight = this.motion.flightFor(gi.id);
+      if (flight === 'hidden') continue;
+      if (flight) {
+        ctx.save();
+        ctx.translate(flight.x * TILE + TILE / 2, flight.y * TILE + 11);
+        ctx.rotate(flight.rot);
+        ctx.drawImage(sprite(`item_${gi.item}`).canvas, -4, -4);
+        ctx.restore();
+        continue;
+      }
       const bounce = gi.bounce > 0 ? Math.abs(Math.sin(gi.bounce * 12)) * 4 : 0;
       const px = gi.x * TILE + 4;
       const py = gi.y * TILE + TILE - 9 - bounce;
@@ -873,6 +917,49 @@ export class Renderer {
         }
       }
     }
+  }
+
+  // Expanding rings where goods met the water (look-physics; empty when
+  // reduced motion is on). Drawn over the water so the loss reads clearly.
+  private drawRipples(t: number): void {
+    const { ctx } = this;
+    for (const r of this.motion.ripples) {
+      const age = t - r.start;
+      const a = Math.max(0, 1 - age / RIPPLE_DUR);
+      if (a <= 0) continue;
+      ctx.strokeStyle = `rgba(220,240,255,${(a * 0.5).toFixed(3)})`;
+      ctx.lineWidth = 1;
+      for (const lag of [0, 0.22]) {
+        const rr = (age - lag) * 16;
+        if (rr <= 1) continue;
+        ctx.beginPath();
+        ctx.ellipse(r.x * TILE, r.y * TILE, rr, rr * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Little dust fans for landings — items thumping down, workers dropping,
+  // felled trunks crashing. Each speck is a pure function of the puff's age,
+  // so no per-frame state accumulates.
+  private drawPuffs(t: number): void {
+    const { ctx } = this;
+    for (const p of this.motion.puffs) {
+      const age = t - p.start;
+      const a = Math.max(0, 1 - age / PUFF_DUR);
+      if (a <= 0) continue;
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = a * 0.55;
+      for (let i = 0; i < 5; i++) {
+        const ang = i * 2.4 + p.start * 7; // deterministic fan per puff
+        const d = 2 + age * 12;
+        const sx = p.x * TILE + Math.cos(ang) * d;
+        const sy = p.y * TILE + Math.sin(ang) * d * 0.35 - age * 10;
+        const s = Math.max(0.5, 1.6 * (1 - age));
+        ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Screen-space precipitation driven by the blended weather look: a wet tint,
@@ -991,6 +1078,10 @@ export class Renderer {
       ctx.save();
       ctx.translate(px, py);
       if (w.facing < 0) ctx.scale(-1, 1);
+      // landing squash-and-stretch, pivoted at the feet (rebound overshoots
+      // into a brief stretch); 0 when reduced motion is on
+      const squash = this.motion.squashFor(w.id);
+      if (squash !== 0) ctx.scale(1 + squash * 0.7, 1 - squash);
       ctx.drawImage(spr, -5, -12);
       ctx.drawImage(sprite(`hat_${w.role}`).canvas, -5, -14);
       ctx.restore();

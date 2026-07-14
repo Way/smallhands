@@ -26,6 +26,7 @@ import type {
   BuildingKind,
   GroundItem,
   ItemType,
+  LookEvent,
   ObjectiveReq,
   PathStep,
   ResourceNode,
@@ -116,6 +117,9 @@ export class Game {
   groundItems: GroundItem[] = [];
   workers: Worker[] = [];
   particles: Particle[] = [];
+  // cosmetic outbox for the renderer's look-physics layer (see motion.ts):
+  // append-only breadcrumbs, drained by the renderer, never read by game logic
+  lookEvents: LookEvent[] = [];
 
   stock: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
   stockReserved: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
@@ -606,7 +610,9 @@ export class Game {
 
   // ---- items -----------------------------------------------------------------
 
-  private dropItem(item: ItemType, x: number, y: number): void {
+  // `src` is a cosmetic hint only: where the item visually comes from (a tree's
+  // crown, a worker's hands), so the renderer can fly it to its rest tile.
+  private dropItem(item: ItemType, x: number, y: number, src?: { x: number; y: number; delay?: number }): void {
     // find a nearby resting spot workers can actually reach
     let spot: { x: number; y: number } | null = null;
     for (const dx of [0, -1, 1, -2, 2]) {
@@ -623,12 +629,24 @@ export class Game {
       }
       spot = { x, y };
     }
-    this.groundItems.push({ id: this.id(), item, x: spot.x, y: spot.y, reserved: false, bounce: 0.4 });
+    const gi: GroundItem = { id: this.id(), item, x: spot.x, y: spot.y, reserved: false, bounce: 0.4 };
+    this.groundItems.push(gi);
+    this.lookEvents.push({
+      kind: 'item-flight',
+      id: gi.id,
+      item,
+      fromX: src?.x ?? x,
+      fromY: src?.y ?? y,
+      toX: spot.x,
+      toY: spot.y,
+      delay: src?.delay ?? 0,
+    });
     this.onEvent({ type: 'itemSpawn', item });
   }
 
   private sinkItem(item: ItemType, x: number, y: number): void {
     this.spawnBurst(x + 0.5, y + 0.2, '#9fd0f0', 7);
+    this.lookEvents.push({ kind: 'item-sink', item, x, y });
     this.onEvent({ type: 'splash', item });
   }
 
@@ -1090,11 +1108,25 @@ export class Game {
       if (w.workT >= def.workTime) {
         w.workT = 0;
         n.yieldLeft--;
-        // drop at the harvester's feet — a spot that is provably reachable
-        this.dropItem(def.item, w.cx, w.cy);
+        // the last chop fells a tree: it topples away from the woodcutter
+        const felledDir = n.kind === 'tree' && n.yieldLeft <= 0 ? (w.px < n.x + 0.5 ? 1 : -1) : 0;
+        // drop at the harvester's feet — a spot that is provably reachable.
+        // The breadcrumb source is the node (a tree's crown); the felling log
+        // flies out of the fallen crown once the trunk lands (0.8s = FELL_DUR).
+        this.dropItem(
+          def.item,
+          w.cx,
+          w.cy,
+          felledDir !== 0
+            ? { x: n.x + felledDir * 1.5, y: n.y + 0.3, delay: 0.8 }
+            : { x: n.x, y: n.kind === 'tree' ? n.y - 1.3 : n.y }
+        );
         this.onEvent({ type: 'chop', x: n.x, y: n.y, node: n });
         this.spawnBurst(n.x + 0.5, n.y - (n.kind === 'tree' ? 1 : 0), n.kind === 'tree' ? '#8a5a2b' : '#9aa3ad');
         if (n.yieldLeft <= 0) {
+          if (felledDir !== 0) {
+            this.lookEvents.push({ kind: 'tree-felled', id: n.id, x: n.x, y: n.y, dir: felledDir });
+          }
           n.workerId = null;
           w.task = null;
           w.working = false;
@@ -1218,6 +1250,10 @@ export class Game {
     const len = Math.hypot(dx, dy);
     if (Math.abs(dx) > 0.01) w.facing = dx > 0 ? 1 : -1;
     if (len <= speed) {
+      // a real drop (not a one-tile hop-down) lands with a thump
+      if (step.kind === 'fall' && ty - w.cy >= 2) {
+        this.lookEvents.push({ kind: 'worker-land', id: w.id, x: tx, y: ty, dist: ty - w.cy });
+      }
       w.px = tx;
       w.py = ty;
       w.cx = tx;
@@ -1455,6 +1491,9 @@ export class Game {
   // ---- main tick ------------------------------------------------------------------------
 
   tick(dt: number): void {
+    // headless runs (unit tests, verifier soaks) have no renderer draining the
+    // cosmetic outbox — drop the oldest breadcrumbs instead of growing forever
+    if (this.lookEvents.length > 200) this.lookEvents.splice(0, this.lookEvents.length - 200);
     if (this.paused || this.won) {
       // still animate particles so the win moment sparkles
       this.tickParticles(dt);
