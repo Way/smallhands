@@ -48,7 +48,7 @@ await page.click('button.big-btn'); // Play → level select
 await page.waitForTimeout(300);
 
 // ---- 1. the editor ----------------------------------------------------------
-await page.click('.level-card:has-text("Level editor")');
+await page.click('.legend-btn.editor');
 await page.waitForTimeout(400);
 if (!(await page.$('.editor-panel'))) await fail('editor panel did not open');
 
@@ -87,12 +87,13 @@ await page.waitForTimeout(200);
 const confirmBtn = await page.$('.confirm-overlay .big-btn.danger');
 if (confirmBtn) await confirmBtn.click();
 await page.waitForTimeout(300);
-if (!(await page.$('.level-grid'))) await fail('exiting the editor should land on the level select');
+if (!(await page.$('.overlay.worldmap'))) await fail('exiting the editor should land on the level select');
 console.log('editor: exit lands on level select');
 
 // ---- 2. the generator --------------------------------------------------------
 // start campaign level 1 so the debug hook exists
-await page.click('.level-card:not(.locked)');
+await page.click('.map-node:not(:disabled)');
+await page.click('.map-popover .pop-play');
 await page.waitForTimeout(400);
 
 const genResult = await page.evaluate(() => {
@@ -243,10 +244,12 @@ console.log(`medals: ceremony shown ("${cerState.medalName}"), ${cerState.featsG
 await page.click('.overlay .big-btn.secondary'); // "Levels"
 await page.waitForTimeout(400);
 if (!(await page.$('.shelf'))) await fail('trophy shelf missing from level select after earning a record');
-if (!(await page.$('.level-card .medal-row'))) await fail('medal slots missing from level cards');
-console.log('medals: trophy shelf and card slots visible on level select');
+await page.click('.map-node:not(:disabled)');
+await page.waitForTimeout(200);
+if (!(await page.$('.map-popover .medal-row'))) await fail('medal slots missing from the level popover');
+console.log('medals: trophy shelf and popover medal slots visible on level select');
 // head back into a level so the soak section has its debug hook
-await page.click('.level-card:not(.locked)');
+await page.click('.map-popover .pop-play');
 await page.waitForTimeout(400);
 
 // simulate 60s of a generated level at speed to ensure no runtime errors

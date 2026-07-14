@@ -28,7 +28,8 @@ try {
   await page.goto(BASE, { waitUntil: 'load' });
   await page.waitForTimeout(800);
   await page.click('button.big-btn'); // Play -> level select
-  await page.click('.level-card:not(.locked)'); // boot any unlocked level to get the debug hook
+  await page.click('.map-node:not(:disabled)'); // boot any unlocked level to get the debug hook
+  await page.click('.map-popover .pop-play');
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 
   // Jump straight to the weather level (index 5 = id 6, Monsoon Hollow).
