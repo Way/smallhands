@@ -111,6 +111,11 @@ const D: Record<string, [string, string]> = {
     'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!',
     'Verankert ein Seil an einer Klippenkante. Smallhands rutschen daran HINAB — samt Fracht. Nur abwärts!',
   ],
+  'tool.hoist.label': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
+  'tool.hoist.desc': [
+    'Two cargo cars on a pulley at a cliff edge — the heavier side sinks. Send ballast down to raise goods up. Stone counts double!',
+    'Zwei Lastenkörbe an einer Seilrolle über der Klippe — die schwerere Seite sinkt. Schicke Ballast hinab, um Waren hinaufzuheben. Stein zählt doppelt!',
+  ],
   'tool.lantern.label': ['Lantern', 'Laterne'],
   'tool.lantern.desc': [
     'Raises a lantern post that lights the night around it. Smallhands harvest and build only where there is light — but brave builders will raise a lantern anywhere.',
@@ -469,6 +474,22 @@ const D: Record<string, [string, string]> = {
   'inspect.carrying': ['Carrying…', 'Trägt…'],
   'inspect.idle': ['Idle', 'Leerlauf'],
   'inspect.rope': ['Crew slide down {n} tiles · down only', 'Trupp rutscht {n} Felder hinab · nur abwärts'],
+  'inspect.hoist': ['Trades weight over a {n}-tile drop · heavier side sinks', 'Tauscht Gewicht über {n} Felder · die schwerere Seite sinkt'],
+  'hoist.top': ['Top car', 'Oberer Korb'],
+  'hoist.bottom': ['Bottom car', 'Unterer Korb'],
+  'hoist.weight': ['weight {n}', 'Gewicht {n}'],
+  'hoist.sendDown': ['Send down ▼', 'Hinab senden ▼'],
+  'hoist.sendUp': ['Send up ▲', 'Hinauf senden ▲'],
+  'hoist.cycling': ['Cars are swapping…', 'Die Körbe tauschen die Plätze…'],
+  'hoist.needsBallast': [
+    'Waiting for ballast — the top car must outweigh the bottom one.',
+    'Wartet auf Ballast — der obere Korb muss den unteren überwiegen.',
+  ],
+  'hoist.stormLocked': ['Storm brake engaged.', 'Sturmbremse eingerastet.'],
+  'hoist.hint': [
+    'Tap the hoist with Inspect to choose which goods ride down or up.',
+    'Tippe den Aufzug mit Prüfen an, um zu wählen, welche Waren hinab- oder hinauffahren.',
+  ],
   'sound.on': ['🔊 Sound on', '🔊 Ton an'],
   'sound.off': ['🔇 Sound off', '🔇 Ton aus'],
 

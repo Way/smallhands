@@ -99,6 +99,14 @@ class AudioEngine {
     this.tone(660, 0.14, 'triangle', 0.55, 0, 0.09);
   }
 
+  // the counterweight hoist starting a swap: a wooden wheel-creak, then the
+  // rope running — a low groan sliding down while a light whistle rises
+  hoistCycle(): void {
+    this.tone(140, 0.22, 'sawtooth', 0.35, -50);
+    this.tone(220, 0.3, 'triangle', 0.3, 90, 0.1);
+    this.noise(0.2, 0.25, 0.05);
+  }
+
   upgraded(): void {
     const notes = [392, 494, 587, 784];
     notes.forEach((f, i) => this.tone(f, 0.16, 'square', 0.5, 0, i * 0.1));

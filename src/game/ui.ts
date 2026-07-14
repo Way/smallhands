@@ -1,5 +1,7 @@
 import {
   BUILD_TIME,
+  carCount,
+  carWeight,
   ITEM_TYPES,
   RECIPES,
   ROLE_COLORS,
@@ -10,6 +12,7 @@ import {
 import type {
   Building,
   BuildingKind,
+  HoistCar,
   ItemType,
   Recipe,
   ResourceNode,
@@ -42,6 +45,7 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   forge: 'forge',
   lift: 'lift_car',
   rope: 'rope_anchor',
+  hoist: 'hoist_post',
   lantern: 'lantern',
   demolish: 'icon_demolish',
 };
@@ -376,6 +380,47 @@ export class Hud {
     if (autoDismiss > 0) setTimeout(() => box.remove(), autoDismiss * 1000);
   }
 
+  // Interactive hoist panel shown when a hoist is tapped with Select: live car
+  // weights plus per-item routing toggles (send down / send up — exclusive).
+  showHoist(id: number): void {
+    const g = this.game;
+    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
+    const box = el('div', 'toast th-toast', this.toastWrap);
+    const build = (): void => {
+      const b = g.buildings.find((bd) => bd.id === id && bd.kind === 'hoist');
+      if (!b) {
+        box.remove();
+        return;
+      }
+      box.innerHTML = '';
+      const head = el('div', undefined, box);
+      head.innerHTML = `<b>${t('tool.hoist.label')}</b>`;
+      const cars = el('div', 'th-toast-body', box);
+      cars.textContent =
+        `${t('hoist.top')}: ${t('hoist.weight', { n: carWeight(b.hoistUpper) })} · ` +
+        `${t('hoist.bottom')}: ${t('hoist.weight', { n: carWeight(b.hoistLower) })}`;
+      const routeRow = (label: string, car: HoistCar, routes: Partial<Record<ItemType, boolean>>): void => {
+        const row = el('div', 'hoist-route-row', box);
+        el('span', 'hoist-route-label', row).textContent = label;
+        for (const item of ITEM_TYPES) {
+          const chip = el('button', routes[item] ? 'hoist-chip on' : 'hoist-chip', row);
+          chip.title = t(`item.${item}`);
+          icon(ITEM_ICON[item], 16, chip);
+          chip.onclick = () => {
+            g.toggleHoistRoute(id, car, item);
+            build(); // re-render both rows (directions are exclusive per item)
+          };
+        }
+      };
+      routeRow(t('hoist.sendDown'), 'upper', b.hoistSendDown);
+      routeRow(t('hoist.sendUp'), 'lower', b.hoistSendUp);
+      const d = el('span', 'dismiss', box);
+      d.textContent = t('ui.dismiss');
+      d.onclick = () => box.remove();
+    };
+    build();
+  }
+
   // Interactive town-hall panel shown when the building is tapped with Select.
   showTownhall(): void {
     const g = this.game;
@@ -543,6 +588,32 @@ export class Hud {
       el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');
     } else if (b.kind === 'rope') {
       el('div', 'tt-desc', tip).textContent = t('inspect.rope', { n: b.ropeBottomY - b.y });
+    } else if (b.kind === 'hoist') {
+      el('div', 'tt-desc', tip).textContent = t('inspect.hoist', { n: b.ropeBottomY - b.y });
+      const carRow = (label: string, contents: Partial<Record<ItemType, number>>): void => {
+        const row = el('div', 'tt-cost', tip);
+        el('span', undefined, row).textContent = `${label} ·`;
+        let any = false;
+        for (const [k, v] of Object.entries(contents)) {
+          if (!v) continue;
+          any = true;
+          const s = el('span', undefined, row);
+          icon(ITEM_ICON[k as ItemType], 14, s);
+          el('b', undefined, s).textContent = String(v);
+        }
+        el('span', undefined, row).textContent = `(${t('hoist.weight', { n: carWeight(contents) })})`;
+        if (!any) row.classList.add('hoist-empty');
+      };
+      carRow(t('hoist.top'), b.hoistUpper);
+      carRow(t('hoist.bottom'), b.hoistLower);
+      let status: string;
+      if (b.hoistBusy) status = t('hoist.cycling');
+      else if (this.game.weather === 'storm') status = t('hoist.stormLocked');
+      else if (carCount(b.hoistLower) > 0 && carWeight(b.hoistUpper) <= carWeight(b.hoistLower))
+        status = t('hoist.needsBallast');
+      else status = t('inspect.idle');
+      el('div', 'tt-desc', tip).textContent = status;
+      el('div', 'tt-desc', tip).textContent = t('hoist.hint');
     } else if (b.kind === 'goal') {
       const row = el('div', 'tt-cost', tip);
       for (const o of g.objectives) {

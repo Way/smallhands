@@ -1,4 +1,4 @@
-import { FOOTPRINTS, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
+import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
 import { BIOME_LOOK, biomeSuffix } from '../engine/biomes';
@@ -668,6 +668,10 @@ export class Renderer {
         this.drawRope(b);
         continue;
       }
+      if (b.kind === 'hoist') {
+        this.drawHoist(b);
+        continue;
+      }
       const fw = footprintW(b) * TILE;
       const fh = footprintH(b) * TILE;
       const px = b.x * TILE;
@@ -1002,6 +1006,67 @@ export class Renderer {
     ctx.globalAlpha = 1;
     if (b.state === 'blueprint') {
       const need = BUILD_TIME.rope ?? 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(px, py - 5, TILE, 3);
+      ctx.fillStyle = '#ffc94d';
+      ctx.fillRect(px, py - 5, TILE * Math.min(1, b.progress / need), 3);
+    }
+  }
+
+  // The counterweight hoist: a pulley post at the cliff edge, two cargo cars
+  // hanging in the drop column. During a cycle the heavy car visibly drags the
+  // light one up — the animation IS the mechanic's advertisement.
+  private drawHoist(b: Building): void {
+    const { ctx } = this;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    ctx.globalAlpha = b.state === 'blueprint' ? 0.45 : 1;
+    // post (art faces right; mirror when the cars hang on the left)
+    const post = sprite('hoist_post').canvas;
+    if (b.ropeSide < 0) {
+      ctx.save();
+      ctx.translate(px + TILE, py);
+      ctx.scale(-1, 1);
+      ctx.drawImage(post, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(post, px, py);
+    }
+    if (b.state === 'ready') {
+      const rx = (b.x + b.ropeSide) * TILE + TILE / 2;
+      const wheelY = py + 4;
+      const topY = py + 6;
+      const botY = b.ropeBottomY * TILE + 6;
+      // eased swap progress: cars trade ends while busy, rest at the stations
+      const p = b.hoistBusy ? Math.min(1, b.hoistT / HOIST_CYCLE) : 0;
+      const e = p * p * (3 - 2 * p);
+      const yUp = topY + (botY - topY) * e; // the (former) upper car, descending
+      const yLo = botY - (botY - topY) * e; // the lower car, being dragged up
+      const car = sprite('hoist_car').canvas;
+      // the cars pass on offset ropes so they don't overlap mid-swap
+      for (const [cx, cy, contents] of [
+        [rx - 3, yUp, b.hoistUpper],
+        [rx + 3, yLo, b.hoistLower],
+      ] as const) {
+        ctx.strokeStyle = '#d8b271';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, wheelY);
+        ctx.lineTo(cx, cy + 1);
+        ctx.stroke();
+        ctx.drawImage(car, cx - TILE / 2, cy);
+        // up to 3 item pips riding in the basket
+        let drawn = 0;
+        for (const [k, v] of Object.entries(contents)) {
+          for (let i = 0; i < (v ?? 0) && drawn < 3; i++, drawn++) {
+            ctx.drawImage(sprite(`item_${k}`).canvas, cx - 6 + drawn * 4, cy + 3, 6, 6);
+          }
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (b.state === 'blueprint') {
+      const need = BUILD_TIME.hoist ?? 6;
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.fillRect(px, py - 5, TILE, 3);
       ctx.fillStyle = '#ffc94d';
@@ -1434,6 +1499,32 @@ export class Renderer {
         if (drop !== null) {
           ctx.globalAlpha = 0.6;
           ctx.drawImage(sprite('rope_anchor').canvas, px, py);
+          ctx.globalAlpha = 1;
+          const gx = (tx + drop.side) * TILE;
+          ctx.strokeStyle = ok ? `rgba(111,214,111,${pulse + 0.3})` : `rgba(255,122,107,${pulse + 0.3})`;
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+          ctx.strokeRect(gx + 0.5, py + 0.5, TILE - 1, (drop.bottomY - ty + 1) * TILE - 1);
+        } else {
+          outline(false);
+        }
+        break;
+      }
+      case 'hoist': {
+        const drop = ropeDropFor(game.world, tx, ty);
+        const hoistCost = TOOL_DEFS.find((d) => d.id === 'hoist')?.cost ?? {};
+        const ok = drop !== null && game.canAfford(hoistCost) && game.toolUnlocked('hoist');
+        if (drop !== null) {
+          ctx.globalAlpha = 0.6;
+          const post = sprite('hoist_post').canvas;
+          if (drop.side < 0) {
+            ctx.save();
+            ctx.translate(px + TILE, py);
+            ctx.scale(-1, 1);
+            ctx.drawImage(post, 0, 0);
+            ctx.restore();
+          } else {
+            ctx.drawImage(post, px, py);
+          }
           ctx.globalAlpha = 1;
           const gx = (tx + drop.side) * TILE;
           ctx.strokeStyle = ok ? `rgba(111,214,111,${pulse + 0.3})` : `rgba(255,122,107,${pulse + 0.3})`;

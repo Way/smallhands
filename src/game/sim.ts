@@ -2,9 +2,14 @@ import {
   BUILD_TIME,
   BUILDER_SPEED,
   CLIMB_SPEED,
+  carCount,
+  carWeight,
   FALL_SPEED,
   FOOTPRINTS,
   GOAL_LIGHT_RADIUS,
+  HOIST_CAR_CAPACITY,
+  HOIST_CYCLE,
+  ITEM_TYPES,
   LANTERN_RADIUS,
   LIFT_SPEED,
   NODE_ROLE,
@@ -25,6 +30,7 @@ import type {
   Building,
   BuildingKind,
   GroundItem,
+  HoistCar,
   ItemType,
   LookEvent,
   ObjectiveReq,
@@ -44,7 +50,11 @@ import type { LevelDef } from './levels';
 // ---- tasks ----------------------------------------------------------------
 
 type Source = { t: 'ground'; id: number } | { t: 'stock' } | { t: 'output'; id: number };
-type Sink = { t: 'stock' } | { t: 'input'; id: number } | { t: 'goal'; id: number };
+type Sink =
+  | { t: 'stock' }
+  | { t: 'input'; id: number }
+  | { t: 'goal'; id: number }
+  | { t: 'hoist'; id: number; car: HoistCar };
 
 type Task =
   | { kind: 'harvest'; nodeId: number }
@@ -90,6 +100,7 @@ export type GameEvent =
   | { type: 'demolish' }
   | { type: 'spawn' }
   | { type: 'produce'; building: Building; item: ItemType }
+  | { type: 'hoistCycle' }
   | { type: 'weather'; kind: WeatherKind }
   | { type: 'flood'; row: number; rescued: number }
   | { type: 'splash'; item: ItemType }
@@ -203,6 +214,14 @@ export class Game {
       liftRiderId: null,
       ropeSide: 1,
       ropeBottomY: y,
+      hoistUpper: {},
+      hoistLower: {},
+      hoistUpperIn: {},
+      hoistLowerIn: {},
+      hoistSendDown: {},
+      hoistSendUp: {},
+      hoistBusy: false,
+      hoistT: 0,
     };
     this.buildings.push(b);
     return b;
@@ -228,6 +247,10 @@ export class Game {
 
   get ropes(): Building[] {
     return this.buildings.filter((b) => b.kind === 'rope');
+  }
+
+  get hoists(): Building[] {
+    return this.buildings.filter((b) => b.kind === 'hoist');
   }
 
   // Buildings that add edges to the movement graph (lifts and rope anchors).
@@ -486,8 +509,8 @@ export class Game {
       this.onEvent({ type: 'invalid' });
       return false;
     }
-    // no two ropes sharing an anchor cell
-    if (this.ropes.some((r) => r.x === x && r.y === y)) {
+    // no rope/hoist sharing an anchor cell
+    if (this.buildings.some((b) => (b.kind === 'rope' || b.kind === 'hoist') && b.x === x && b.y === y)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -497,6 +520,40 @@ export class Game {
     b.ropeBottomY = drop.bottomY;
     this.onEvent({ type: 'place' });
     return true;
+  }
+
+  // The counterweight hoist shares the rope anchor's placement grammar: a
+  // standable cliff-edge cell with a clear >= 3-tile drop to a landing.
+  placeHoist(x: number, y: number): boolean {
+    const def = TOOL_DEFS.find((t) => t.id === 'hoist')!;
+    const drop = ropeDropFor(this.world, x, y);
+    if (!this.toolUnlocked('hoist') || drop === null || !this.canAfford(def.cost!)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    if (this.buildings.some((b) => (b.kind === 'rope' || b.kind === 'hoist') && b.x === x && b.y === y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    this.payCost(def.cost!);
+    const b = this.addBuilding('hoist', x, y, false);
+    b.ropeSide = drop.side;
+    b.ropeBottomY = drop.bottomY;
+    this.onEvent({ type: 'place' });
+    return true;
+  }
+
+  // Flip an item's routing on a hoist: 'upper' = load it into the top car
+  // (send it DOWN), 'lower' = load it into the bottom car (send it UP).
+  // Directions are exclusive per item — both at once would be a perpetual
+  // motion machine (the cycle's output re-boards immediately, forever).
+  toggleHoistRoute(id: number, car: HoistCar, item: ItemType): void {
+    const b = this.buildings.find((bd) => bd.id === id && bd.kind === 'hoist');
+    if (!b) return;
+    const routes = car === 'upper' ? b.hoistSendDown : b.hoistSendUp;
+    const opposite = car === 'upper' ? b.hoistSendUp : b.hoistSendDown;
+    routes[item] = !routes[item];
+    if (routes[item]) opposite[item] = false;
   }
 
   demolish(x: number, y: number): boolean {
@@ -521,6 +578,17 @@ export class Game {
           for (let i = 0; i < (v as number); i++) this.dropItem(k as ItemType, b.x, b.y);
         }
       }
+      if (b.kind === 'hoist') {
+        // both cars unload where they hang: upper at the post, lower at the landing
+        for (const [store, sx, sy] of [
+          [b.hoistUpper, b.x, b.y],
+          [b.hoistLower, b.x + b.ropeSide, b.ropeBottomY],
+        ] as const) {
+          for (const [k, v] of Object.entries(store)) {
+            for (let i = 0; i < (v as number); i++) this.dropItem(k as ItemType, sx, sy);
+          }
+        }
+      }
       if (b.kind === 'lift') {
         this.world.extraSupport.delete(this.world.idx(b.x, b.liftTopY + 1));
       }
@@ -537,7 +605,8 @@ export class Game {
           (task.kind === 'haul' &&
             ((task.source.t === 'output' && task.source.id === b.id) ||
               (task.sink.t === 'input' && task.sink.id === b.id) ||
-              (task.sink.t === 'goal' && task.sink.id === b.id)))
+              (task.sink.t === 'goal' && task.sink.id === b.id) ||
+              (task.sink.t === 'hoist' && task.sink.id === b.id)))
         ) {
           this.abortTask(w);
         }
@@ -588,8 +657,8 @@ export class Game {
   buildingAt(x: number, y: number): Building | undefined {
     return this.buildings.find((b) => {
       if (b.kind === 'lift') return b.x === x && y <= b.y && y >= b.liftTopY;
-      if (b.kind === 'rope') {
-        // the anchor cell, or anywhere along the hanging rope
+      if (b.kind === 'rope' || b.kind === 'hoist') {
+        // the anchor/post cell, or anywhere along the hanging rope/cars
         if (b.x === x && b.y === y) return true;
         return x === b.x + b.ropeSide && y >= b.y && y <= b.ropeBottomY;
       }
@@ -743,6 +812,12 @@ export class Game {
     } else if (s.t === 'goal') {
       const o = this.objectives.find((ob) => ob.item === item);
       if (o) o.inbound = Math.max(0, o.inbound - 1);
+    } else if (s.t === 'hoist') {
+      const b = this.buildings.find((bd) => bd.id === s.id);
+      if (b) {
+        const inb = s.car === 'upper' ? b.hoistUpperIn : b.hoistLowerIn;
+        inb[item] = Math.max(0, (inb[item] ?? 0) - 1);
+      }
     }
   }
 
@@ -802,8 +877,21 @@ export class Game {
 
   private sinkCells(s: Sink): Set<number> | null {
     if (s.t === 'stock') return this.thApproach();
-    const b = this.buildings.find((bd) => bd.id === (s.t === 'input' ? s.id : s.id));
-    return b ? this.buildingApproach(b) : null;
+    const b = this.buildings.find((bd) => bd.id === s.id);
+    if (!b) return null;
+    if (s.t === 'hoist') return this.hoistStationCells(b, s.car);
+    return this.buildingApproach(b);
+  }
+
+  // Where a worker can load a hoist car: the upper car is served from the
+  // post cell (and its neighbours), the lower car from the bottom landing.
+  private hoistStationCells(b: Building, car: HoistCar): Set<number> {
+    const cells = new Set<number>();
+    const [cx, cy] = car === 'upper' ? [b.x, b.y] : [b.x + b.ropeSide, b.ropeBottomY];
+    for (const dx of [0, -1, 1]) {
+      if (this.world.isStandable(cx + dx, cy)) cells.add(this.world.key(cx + dx, cy));
+    }
+    return cells;
   }
 
   // Candidates whose path legs recently failed are paused for a few seconds
@@ -813,7 +901,8 @@ export class Game {
 
   private candKey(source: Source, sink: Sink, item: ItemType): string {
     const s = source.t === 'stock' ? 'stock' : `${source.t}:${source.id}`;
-    const k = sink.t === 'stock' ? 'stock' : `${sink.t}:${sink.id}`;
+    const k =
+      sink.t === 'stock' ? 'stock' : sink.t === 'hoist' ? `hoist:${sink.id}:${sink.car}` : `${sink.t}:${sink.id}`;
     return `${s}>${k}:${item}`;
   }
 
@@ -826,13 +915,19 @@ export class Game {
     }
     const cands: Candidate[] = [];
 
-    // 1. goal deliveries from stock
+    // 1. goal deliveries — from stock, and straight from loose items (so goods
+    // a hoist raised to the goal's plateau don't detour through the town hall)
     const goal = this.goal;
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
-        if (this.available(o.item) - this.keep[o.item] <= 0) continue;
-        cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+        if (this.available(o.item) - this.keep[o.item] > 0) {
+          cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+        }
+        for (const gi of this.groundItems) {
+          if (gi.reserved || gi.item !== o.item) continue;
+          cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+        }
       }
     }
     // 2. feed production buildings
@@ -846,6 +941,51 @@ export class Game {
         if (have >= (need as number) * 2) continue; // keep a small buffer
         if (this.available(item) <= 0) continue;
         cands.push({ source: { t: 'stock' }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+      }
+    }
+    // 2b. load counterweight hoist cars: routed items from stock or loose
+    // items, plus automatic stone ballast into the upper car whenever cargo
+    // below is waiting on weight ("the heavier side sinks").
+    for (const b of this.buildings) {
+      if (b.kind !== 'hoist' || b.state !== 'ready' || b.hoistBusy) continue;
+      if (this.weather === 'storm') continue; // brake locked — don't stage loads
+      const carFree = (contents: Partial<Record<ItemType, number>>, inb: Partial<Record<ItemType, number>>) =>
+        HOIST_CAR_CAPACITY - carCount(contents) - carCount(inb);
+      const wants: { car: HoistCar; item: ItemType }[] = [];
+      for (const [car, routes, contents, inb] of [
+        ['upper', b.hoistSendDown, b.hoistUpper, b.hoistUpperIn],
+        ['lower', b.hoistSendUp, b.hoistLower, b.hoistLowerIn],
+      ] as const) {
+        if (carFree(contents, inb) <= 0) continue;
+        for (const item of ITEM_TYPES) if (routes[item]) wants.push({ car, item });
+      }
+      // auto-ballast: the lower car's cargo is waiting and the upper side is
+      // too light — request stone (weight 2, the natural counterweight)
+      const upW = carWeight(b.hoistUpper) + carWeight(b.hoistUpperIn);
+      const loW = carWeight(b.hoistLower) + carWeight(b.hoistLowerIn);
+      if (
+        carCount(b.hoistLower) + carCount(b.hoistLowerIn) > 0 &&
+        upW <= loW &&
+        carFree(b.hoistUpper, b.hoistUpperIn) > 0 &&
+        !wants.some((w2) => w2.car === 'upper' && w2.item === 'stone')
+      ) {
+        wants.push({ car: 'upper', item: 'stone' });
+      }
+      for (const want of wants) {
+        const sink: Sink = { t: 'hoist', id: b.id, car: want.car };
+        if (this.available(want.item) > 0) {
+          cands.push({ source: { t: 'stock' }, sink, item: want.item, priority: 1 });
+        }
+        // loose items load directly — that's how plateau stone becomes ballast
+        // without a detour through the town hall. Items resting at this hoist's
+        // OTHER station are excluded, or a cycle's output would ride straight
+        // back where it came from.
+        const [ox, oy] = want.car === 'upper' ? [b.x + b.ropeSide, b.ropeBottomY] : [b.x, b.y];
+        for (const gi of this.groundItems) {
+          if (gi.reserved || gi.item !== want.item) continue;
+          if (Math.abs(gi.x - ox) <= 1 && gi.y === oy) continue;
+          cands.push({ source: { t: 'ground', id: gi.id }, sink, item: want.item, priority: 1 });
+        }
       }
     }
     // 3. collect loose items
@@ -904,6 +1044,11 @@ export class Game {
       } else if (c.sink.t === 'goal') {
         const o = this.objectives.find((ob) => ob.item === c.item)!;
         o.inbound++;
+      } else if (c.sink.t === 'hoist') {
+        const sink = c.sink as { t: 'hoist'; id: number; car: HoistCar };
+        const b = this.buildings.find((bd) => bd.id === sink.id)!;
+        const inb = sink.car === 'upper' ? b.hoistUpperIn : b.hoistLowerIn;
+        inb[c.item] = (inb[c.item] ?? 0) + 1;
       }
       w.task = { kind: 'haul', phase: 'toSource', item: c.item, source: c.source, sink: c.sink };
       w.path = leg1.steps;
@@ -1076,6 +1221,19 @@ export class Game {
               b.inputs[task.item] = (b.inputs[task.item] ?? 0) + 1;
               b.inbound[task.item] = Math.max(0, (b.inbound[task.item] ?? 0) - 1);
               this.onEvent({ type: 'deposit', item: task.item, sink: 'input' });
+            }
+          } else if (task.sink.t === 'hoist') {
+            const sink = task.sink as { t: 'hoist'; id: number; car: HoistCar };
+            const b = this.buildings.find((bd) => bd.id === sink.id);
+            if (b) {
+              const contents = sink.car === 'upper' ? b.hoistUpper : b.hoistLower;
+              const inb = sink.car === 'upper' ? b.hoistUpperIn : b.hoistLowerIn;
+              contents[task.item] = (contents[task.item] ?? 0) + 1;
+              inb[task.item] = Math.max(0, (inb[task.item] ?? 0) - 1);
+              this.onEvent({ type: 'deposit', item: task.item, sink: 'input' });
+            } else {
+              // the hoist vanished mid-haul: the cargo lands where they stand
+              this.dropItem(task.item, w.cx, w.cy);
             }
           } else {
             const o = this.objectives.find((ob) => ob.item === task.item);
@@ -1288,9 +1446,53 @@ export class Game {
 
   // ---- production, gravity, win ---------------------------------------------------------
 
+  // The counterweight hoist's whole rule: THE HEAVIER SIDE SINKS. When the
+  // upper car outweighs the lower one the cars swap ends (a timed animation),
+  // then both unload as ordinary ground items at their new stations. Storms
+  // lock the brake, exactly like the cargo lift's.
+  private tickHoist(b: Building, dt: number): void {
+    if (b.hoistBusy) {
+      b.hoistT += dt;
+      if (b.hoistT >= HOIST_CYCLE) {
+        // the (former) upper car arrives below, the lower car arrives on top
+        for (const [k, v] of Object.entries(b.hoistUpper)) {
+          for (let i = 0; i < (v as number); i++) {
+            this.dropItem(k as ItemType, b.x + b.ropeSide, b.ropeBottomY, {
+              x: b.x + b.ropeSide,
+              y: b.ropeBottomY - 0.6,
+            });
+          }
+        }
+        for (const [k, v] of Object.entries(b.hoistLower)) {
+          for (let i = 0; i < (v as number); i++) {
+            this.dropItem(k as ItemType, b.x, b.y, { x: b.x + b.ropeSide, y: b.y + 0.2 });
+          }
+        }
+        b.hoistUpper = {};
+        b.hoistLower = {};
+        b.hoistBusy = false;
+        b.hoistT = 0;
+      }
+      return;
+    }
+    if (this.weather === 'storm') return; // brake locked until the gust passes
+    // hold the wheel while loaders are still on their way — otherwise ballast
+    // deposited a moment before its cargo would ride down alone and be wasted
+    if (carCount(b.hoistUpperIn) + carCount(b.hoistLowerIn) > 0) return;
+    if (carWeight(b.hoistUpper) > carWeight(b.hoistLower)) {
+      b.hoistBusy = true;
+      b.hoistT = 0;
+      this.onEvent({ type: 'hoistCycle' });
+    }
+  }
+
   private tickBuildings(dt: number): void {
     for (const b of this.buildings) {
       if (b.state !== 'ready') continue;
+      if (b.kind === 'hoist') {
+        this.tickHoist(b, dt);
+        continue;
+      }
       const recipe = RECIPES[b.kind];
       if (!recipe) continue;
       if (!b.processing) {

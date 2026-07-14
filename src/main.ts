@@ -1063,6 +1063,9 @@ function handleEvent(e: GameEvent): void {
     }
     case 'produce':
       break;
+    case 'hoistCycle':
+      audio.hoistCycle();
+      break;
     case 'weather': {
       const flood = !!game!.level.flood;
       const msgs = {
@@ -1445,10 +1448,12 @@ function applyTool(tx: number, ty: number): void {
   const g = game!;
   switch (hover.tool) {
     case 'select': {
-      // Hover shows the live tooltip for everything now; the only click action
-      // left in Inspect is opening the town hall's interactive upgrade panel.
+      // Hover shows the live tooltip for everything now; the click actions
+      // left in Inspect are the town hall's upgrade panel and the hoist's
+      // routing panel.
       const b = g.buildingAt(tx, ty);
       if (b && b.kind === 'townhall') hud!.showTownhall();
+      else if (b && b.kind === 'hoist' && b.state === 'ready') hud!.showHoist(b.id);
       break;
     }
     case 'harvest': {
@@ -1494,6 +1499,9 @@ function applyTool(tx: number, ty: number): void {
       break;
     case 'rope':
       g.placeRope(tx, ty);
+      break;
+    case 'hoist':
+      g.placeHoist(tx, ty);
       break;
     case 'demolish':
       g.demolish(tx, ty);

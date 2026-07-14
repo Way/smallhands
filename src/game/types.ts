@@ -55,7 +55,37 @@ export const NODE_ROLE: Record<NodeKind, Role> = {
   vein: 'miner',
 };
 
-export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'lantern' | 'goal';
+export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'hoist' | 'lantern' | 'goal';
+
+// ---- counterweight hoist ------------------------------------------------------
+
+// Item weights for the counterweight hoist. One rule: THE HEAVIER SIDE SINKS.
+// Stone is the natural ballast — twice the weight of everything else — which
+// gives the miner's most abundant output its late-level identity.
+export const ITEM_WEIGHT: Record<ItemType, number> = {
+  log: 1,
+  plank: 1,
+  stone: 2,
+  iron: 1,
+  spear: 1,
+};
+
+export const HOIST_CYCLE = 2.5; // seconds the cars take to swap ends
+export const HOIST_CAR_CAPACITY = 3; // items per car (count, not weight)
+
+export type HoistCar = 'upper' | 'lower';
+
+export function carWeight(contents: Partial<Record<ItemType, number>>): number {
+  let w = 0;
+  for (const [k, v] of Object.entries(contents)) w += ITEM_WEIGHT[k as ItemType] * (v ?? 0);
+  return w;
+}
+
+export function carCount(contents: Partial<Record<ItemType, number>>): number {
+  let n = 0;
+  for (const v of Object.values(contents)) n += v ?? 0;
+  return n;
+}
 
 export type BuildingState = 'blueprint' | 'ready';
 
@@ -81,6 +111,7 @@ export const FOOTPRINTS: Record<BuildingKind, Footprint> = {
   forge: { w: 3, h: 2 },
   lift: { w: 1, h: 1 }, // base cell; the mast extends upward separately
   rope: { w: 1, h: 1 }, // anchor cell; the rope hangs down beside it
+  hoist: { w: 1, h: 1 }, // wheel post on the cliff edge; the cars hang beside it
   lantern: { w: 1, h: 1 },
   goal: { w: 4, h: 3 },
 };
@@ -103,9 +134,19 @@ export interface Building {
   liftCarY: number; // current car position in tile coords (render/anim)
   liftBusy: boolean;
   liftRiderId: number | null;
-  // rope anchor only
+  // rope anchor AND hoist: both hang over a cliff edge into a drop column
   ropeSide: number; // -1 or 1: which side of the anchor the rope hangs over
   ropeBottomY: number; // tile y of the bottom landing (ropeBottomY > y)
+  // counterweight hoist only. "Upper"/"lower" always mean the car currently at
+  // the top/bottom STATION — contents swap when a cycle completes.
+  hoistUpper: Partial<Record<ItemType, number>>; // car at the top station
+  hoistLower: Partial<Record<ItemType, number>>; // car at the bottom station
+  hoistUpperIn: Partial<Record<ItemType, number>>; // reserved items on the way
+  hoistLowerIn: Partial<Record<ItemType, number>>;
+  hoistSendDown: Partial<Record<ItemType, boolean>>; // routing: load into the upper car
+  hoistSendUp: Partial<Record<ItemType, boolean>>; // routing: load into the lower car
+  hoistBusy: boolean; // cars are mid-swap
+  hoistT: number; // cycle animation timer (0..HOIST_CYCLE)
 }
 
 export const BUILD_TIME: Partial<Record<BuildingKind, number>> = {
@@ -113,6 +154,7 @@ export const BUILD_TIME: Partial<Record<BuildingKind, number>> = {
   forge: 8,
   lift: 7,
   rope: 4,
+  hoist: 6,
   lantern: 3,
 };
 
@@ -126,6 +168,7 @@ export type Tool =
   | 'forge'
   | 'lift'
   | 'rope'
+  | 'hoist'
   | 'lantern'
   | 'demolish';
 
@@ -146,6 +189,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'sawmill', key: '5', cost: { log: 6 }, thLevel: 1 },
   { id: 'lift', key: '6', cost: { plank: 4, stone: 2 }, thLevel: 2 },
   { id: 'rope', key: '7', cost: { log: 2, plank: 1 } },
+  { id: 'hoist', key: 'h', cost: { plank: 3, iron: 1 }, thLevel: 2 },
   { id: 'lantern', key: 'l', cost: { log: 1, stone: 1 } },
   { id: 'forge', key: '8', cost: { plank: 4, stone: 4 }, thLevel: 2 },
   { id: 'demolish', key: '9' },

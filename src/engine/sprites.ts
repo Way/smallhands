@@ -748,6 +748,46 @@ export function buildAtlas(): void {
     '................',
   ]);
 
+  // counterweight hoist: a wooden post whose arm carries the pulley wheel out
+  // over the cliff edge (art faces right; the renderer mirrors for side = -1)
+  makeSprite('hoist_post', { p: '#7c5830', P: '#9a7040', k: '#5f3c1b', w: '#454b55', W: '#98a2b3', r: '#d8b271' }, [
+    '..........kkk...',
+    '.........kWWWk..',
+    '..kkkkkkkkWwWk..',
+    '..kPPPPPPkWwWk..',
+    '..kPpk...kWWWk..',
+    '..kPpk....kkk...',
+    '..kPpk....r.....',
+    '..kPpk....r.....',
+    '..kPpk..........',
+    '..kPpk..........',
+    '..kPpk..........',
+    '..kPpk..........',
+    '.kPPppk.........',
+    'kPPPpppk........',
+    'kkkkkkkk........',
+    '................',
+  ]);
+  // hoist car: an open cargo basket on a rope bridle
+  makeSprite('hoist_car', { c: '#c89858', C: '#e0b070', k: '#8f6a38', r: '#d8b271' }, [
+    '.......r........',
+    '......rrr.......',
+    '.....r...r......',
+    '....r.....r.....',
+    '...kC.....Ck....',
+    '...kc.....ck....',
+    '...kc.....ck....',
+    '...kCCCCCCCk....',
+    '...kkkkkkkkk....',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]);
+
   // lantern post: iron cap, warm glass, wooden pole on a stone base
   makeSprite('lantern', { k: '#3a3f47', y: '#ffd94d', Y: '#fff3c0', o: '#f0a92e', p: '#7c5830', P: '#9a7040', s: '#98a2b3', S: '#7b8494' }, [
     '.......k........',

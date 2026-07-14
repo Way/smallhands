@@ -22,6 +22,9 @@ self-contained static site (~22 kB gzipped).
 - **Cargo lifts** — hoist a loaded worker straight up a cliff face. Up only!
 - **Rope anchors** — the mirror image of the lift: anchored at a cliff edge,
   smallhands slide *down* the rope, cargo and all. Down only!
+- **Counterweight hoists** — two cargo cars on a pulley at a cliff edge, and
+  one law: *the heavier side sinks*. Route goods up by sending ballast down
+  (stone counts double); nothing is consumed, only relocated.
 - **One-way falls** — empty workers hop down up to 5 tiles, loaded ones only 2.
   Getting down is easy; the puzzle is getting things back up.
 - **Production chains** — trees → logs → sawmill → planks; boulders → stone;
@@ -135,21 +138,25 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
-Four headless suites need no browser at all: `tests/unit.mjs` covers pure
+Five headless suites need no browser at all: `tests/unit.mjs` covers pure
 simulation logic (ladders, reserves, medals, water, weather, flood, night),
 `tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
 scripted player and fails unless the win state is reached,
 `tests/terrain.mjs` pins the generator's terrain invariants across a
 seed × difficulty matrix (determinism, verifier-clean, no 2-tile steps,
-flat build pads, a liftable face on every cliff), and `tests/motion.mjs`
+flat build pads, a liftable face on every cliff), `tests/motion.mjs`
 checks the render-only look-physics layer (verlet ropes, item flight arcs,
-tree falls) and that its sim-side breadcrumbs stay capped and one-way:
+tree falls) and that its sim-side breadcrumbs stay capped and one-way, and
+`tests/hoist.mjs` pins the counterweight hoist's cycle rule (truth table:
+strict inequality, stone = double weight, storm brake) and wins a scripted
+ballast level end-to-end:
 
 ```bash
 npm run test:unit
 npm run test:campaign2
 npm run test:terrain
 npm run test:motion
+npm run test:hoist
 ```
 
 A third browser suite (`npm run test:i18n`, preview server required) switches
