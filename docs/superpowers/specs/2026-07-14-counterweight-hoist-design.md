@@ -1,7 +1,19 @@
 # Counterweight Hoist — design
 
 **Date:** 2026-07-14
-**Status:** proposed (from the physics-engine design discussion), pending review
+**Status:** implemented (tool + sim mechanic + routing panel + EN/DE, headless
+suite `tests/hoist.mjs`). Implementation notes vs. this spec: (1) haulers also
+gained ground→goal deliveries so hoisted goods reach a plateau caravan without
+detouring through the town hall; (2) the wheel holds while loads are inbound,
+so ballast never rides down ahead of its cargo; (3) routing toggles are
+exclusive per item per direction (no perpetual motion); (4) no share-code or
+verifier changes were needed — level codes never serialize player buildings,
+and `cargoReach` already speculates player-built lifts, which subsumes the
+hoist's up-edge. Campaign debut SHIPPED: **Campaign 3 — Weight & Wheel**
+(levels 10–12, the §7 teaching arc: introduce → invert → combine, proven
+completable by `tests/campaign3.mjs`). The end-to-end work also surfaced and
+fixed a scheduler flaw: haul cooldowns are now per-worker, since a hauler
+stranded on split terrain must not poison candidates other workers can reach.
 **Companion spec:** `2026-07-14-look-physics-layer-design.md` (the cosmetic side
 of the same discussion)
 

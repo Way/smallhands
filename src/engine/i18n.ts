@@ -111,6 +111,11 @@ const D: Record<string, [string, string]> = {
     'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!',
     'Verankert ein Seil an einer Klippenkante. Smallhands rutschen daran HINAB — samt Fracht. Nur abwärts!',
   ],
+  'tool.hoist.label': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
+  'tool.hoist.desc': [
+    'Two cargo cars on a pulley at a cliff edge — the heavier side sinks. Send ballast down to raise goods up. Stone counts double!',
+    'Zwei Lastenkörbe an einer Seilrolle über der Klippe — die schwerere Seite sinkt. Schicke Ballast hinab, um Waren hinaufzuheben. Stein zählt doppelt!',
+  ],
   'tool.lantern.label': ['Lantern', 'Laterne'],
   'tool.lantern.desc': [
     'Raises a lantern post that lights the night around it. Smallhands harvest and build only where there is light — but brave builders will raise a lantern anywhere.',
@@ -330,6 +335,67 @@ const D: Record<string, [string, string]> = {
   'menu.options': ['⚙ Options', '⚙ Optionen'],
   'select.title': ['Choose a level', 'Wähle ein Level'],
   'shelf.gold': ['<b>{a}/{b}</b> campaign gold', '<b>{a}/{b}</b> Kampagnen-Gold'],
+  'lvl10.name': ['The Turning Wheel', 'Das drehende Rad'],
+  'lvl10.desc': [
+    'The caravan waits below the mining shelf. Cargo cannot survive the drop — but the old counterweight wheel can lower it gently.',
+    'Die Karawane wartet unterhalb der Bergterrasse. Fracht überlebt den Absturz nicht — doch das alte Gegengewichtsrad senkt sie sanft hinab.',
+  ],
+  'lvl10.hint.wheel': [
+    'A <b>Counterweight Hoist</b> (key H) hangs two cargo cars over a cliff edge. One law: <b>the heavier side sinks</b>. Build one at the shelf edge.',
+    'Ein <b>Gegengewichts-Aufzug</b> (Taste H) hängt zwei Lastenkörbe über die Klippenkante. Ein Gesetz: <b>die schwerere Seite sinkt</b>. Baue einen an der Terrassenkante.',
+  ],
+  'lvl10.hint.route': [
+    'Tap the hoist with <b>Inspect</b> and choose what to <b>send down</b> — a loaded top car needs no counterweight; down is free.',
+    'Tippe den Aufzug mit <b>Prüfen</b> an und wähle, was <b>hinabfahren</b> soll — ein beladener oberer Korb braucht kein Gegengewicht; abwärts ist frei.',
+  ],
+  'lvl10.hint.hop': [
+    'Empty-handed smallhands simply hop down short cliffs. Someone should wait below to carry the goods to the caravan.',
+    'Smallhands mit leeren Händen hüpfen kurze Klippen einfach hinab. Unten sollte jemand warten, der die Waren zur Karawane trägt.',
+  ],
+  'lvl11.name': ['Ballast Ridge', 'Ballastgrat'],
+  'lvl11.desc': [
+    'The caravan camps high on the ridge, the timber grows in the valley. Every plank that rides up must be paid for in falling stone.',
+    'Die Karawane lagert hoch auf dem Grat, das Holz wächst im Tal. Jedes Brett, das hinauffährt, wird mit fallendem Stein bezahlt.',
+  ],
+  'lvl11.hint.up': [
+    'This time the cargo must go <b>UP</b>. Send planks to the hoist’s bottom car — the wheel will only turn once the top car is <b>heavier</b>.',
+    'Diesmal muss die Fracht <b>HINAUF</b>. Schicke Bretter in den unteren Korb — das Rad dreht sich erst, wenn der obere Korb <b>schwerer</b> ist.',
+  ],
+  'lvl11.hint.ballast': [
+    'Mark the ridge boulders: haulers load loose <b>stone as ballast</b> on their own (stone counts double). Nothing is lost — the ballast just moves downhill.',
+    'Markiere die Felsen auf dem Grat: Träger laden losen <b>Stein als Ballast</b> von selbst (Stein zählt doppelt). Nichts geht verloren — der Ballast wandert nur talwärts.',
+  ],
+  'lvl11.hint.backpath': [
+    'The old miners left an <b>adit</b> in the cliff foot — a tunnel to a ladder shaft. Empty hands climb it freely; cargo will not touch a ladder — it rides the wheel or not at all.',
+    'Die alten Bergleute ließen einen <b>Stollen</b> am Klippenfuß zurück — ein Tunnel zu einem Leiterschacht. Leere Hände klettern frei hindurch; Fracht rührt keine Leiter an — sie fährt mit dem Rad oder gar nicht.',
+  ],
+  'lvl12.name': ['The High Forge', 'Die Hohe Schmiede'],
+  'lvl12.desc': [
+    'Iron and stone crown the plateau; the timber stays below. Raise a forge in the sky — and mind the storms, for they seize the wheel.',
+    'Eisen und Stein krönen das Plateau; das Holz bleibt unten. Errichte eine Schmiede im Himmel — und achte auf die Stürme, denn sie packen das Rad.',
+  ],
+  'lvl12.hint.highforge': [
+    'The caravan wants <b>spears</b>. Forge them up top where the iron is: hoist planks up on stone ballast, and build the forge beside the veins.',
+    'Die Karawane will <b>Speere</b>. Schmiede sie oben, wo das Eisen liegt: Hebe Bretter mit Steinballast hinauf und baue die Schmiede neben den Adern.',
+  ],
+  'lvl12.hint.stormbrake': [
+    'The storm has seized the hoist’s brake! Watch the forecast — chop, mine and forge through the gusts, ship in the calm.',
+    'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
+  ],
+
+  'camp3.unlocked': [
+    'Campaign 3 — Weight & Wheel: the counterweight hoist',
+    'Kampagne 3 — Gewicht & Rad: der Gegengewichts-Aufzug',
+  ],
+  'camp3.locked': [
+    'Campaign 3 — Weight & Wheel 🔒 finish Campaign 2 to unlock',
+    'Kampagne 3 — Gewicht & Rad 🔒 schließe Kampagne 2 ab',
+  ],
+  'win.campaign3': [
+    '<b>⚙ Campaign 3 unlocked — Weight & Wheel!</b><br/>Two cars on a pulley and one law: the heavier side sinks. Send ballast down to raise your cargo to the heights.',
+    '<b>⚙ Kampagne 3 freigeschaltet — Gewicht & Rad!</b><br/>Zwei Körbe an einer Seilrolle und ein Gesetz: die schwerere Seite sinkt. Schicke Ballast hinab, um deine Fracht in die Höhen zu heben.',
+  ],
+
   'camp2.unlocked': [
     'Campaign 2 — Storm & Tide: water, weather and the dark of night',
     'Kampagne 2 — Sturm & Flut: Wasser, Wetter und die dunkle Nacht',
@@ -429,8 +495,8 @@ const D: Record<string, [string, string]> = {
     '<b>🌩 Kampagne 2 freigeschaltet — Sturm & Flut!</b><br/>Flüsse zum Überbrücken, Fluten, die mit jedem Regen steigen, Stürme, die die Aufzüge stoppen — und Nächte im Laternenschein.',
   ],
   'win.allDone': [
-    '<b>You have finished both campaigns!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.',
-    '<b>Du hast beide Kampagnen abgeschlossen!</b><br/>Die Werkstatt wartet: Tages-Challenges, generierte Berge und eigene Kreationen.',
+    '<b>You have finished every campaign!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.',
+    '<b>Du hast alle Kampagnen abgeschlossen!</b><br/>Die Werkstatt wartet: Tages-Challenges, generierte Berge und eigene Kreationen.',
   ],
   'win.again': ['🎲 Another one', '🎲 Noch eins'],
   'win.backToEditor': ['✎ Back to editor', '✎ Zurück zum Editor'],
@@ -471,6 +537,22 @@ const D: Record<string, [string, string]> = {
   'inspect.carrying': ['Carrying…', 'Trägt…'],
   'inspect.idle': ['Idle', 'Leerlauf'],
   'inspect.rope': ['Crew slide down {n} tiles · down only', 'Trupp rutscht {n} Felder hinab · nur abwärts'],
+  'inspect.hoist': ['Trades weight over a {n}-tile drop · heavier side sinks', 'Tauscht Gewicht über {n} Felder · die schwerere Seite sinkt'],
+  'hoist.top': ['Top car', 'Oberer Korb'],
+  'hoist.bottom': ['Bottom car', 'Unterer Korb'],
+  'hoist.weight': ['weight {n}', 'Gewicht {n}'],
+  'hoist.sendDown': ['Send down ▼', 'Hinab senden ▼'],
+  'hoist.sendUp': ['Send up ▲', 'Hinauf senden ▲'],
+  'hoist.cycling': ['Cars are swapping…', 'Die Körbe tauschen die Plätze…'],
+  'hoist.needsBallast': [
+    'Waiting for ballast — the top car must outweigh the bottom one.',
+    'Wartet auf Ballast — der obere Korb muss den unteren überwiegen.',
+  ],
+  'hoist.stormLocked': ['Storm brake engaged.', 'Sturmbremse eingerastet.'],
+  'hoist.hint': [
+    'Tap the hoist with Inspect to choose which goods ride down or up.',
+    'Tippe den Aufzug mit Prüfen an, um zu wählen, welche Waren hinab- oder hinauffahren.',
+  ],
   'sound.on': ['🔊 Sound on', '🔊 Ton an'],
   'sound.off': ['🔇 Sound off', '🔇 Ton aus'],
 

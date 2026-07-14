@@ -453,6 +453,24 @@ html, body {
 .th-toast .th-mini:disabled { opacity: 0.45; cursor: default; }
 .th-toast .dismiss { margin-left: 0; }
 
+/* counterweight-hoist routing panel (rendered inside a .th-toast) */
+.hoist-route-row { display: flex; align-items: center; gap: 4px; }
+.hoist-route-label { color: var(--text-dim); font-size: 12px; min-width: 92px; text-align: right; }
+.hoist-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid var(--panel-border-light);
+  border-radius: 6px;
+  background: transparent;
+  opacity: 0.45;
+  cursor: pointer;
+}
+.hoist-chip.on { opacity: 1; border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
+.hoist-chip:hover { opacity: 0.85; }
+.hoist-empty { opacity: 0.6; }
+
 /* ---- overlays (title, level select, win) ---- */
 .overlay {
   position: absolute;
