@@ -16,11 +16,13 @@ import { bundleExports } from './bundle.mjs';
 
 const mod = await bundleExports(`
   export { generateLevel, generateVerifiedLevel } from './src/game/generator.ts';
-  export { worldFromData, verifyLevel } from './src/game/leveldata.ts';
+  export { worldFromData, verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
   export { liftTopFor } from './src/game/world.ts';
   export { BIOMES } from './src/engine/biomes.ts';
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
 `);
-const { generateLevel, generateVerifiedLevel, worldFromData, verifyLevel, liftTopFor, BIOMES } = mod;
+const { generateLevel, generateVerifiedLevel, worldFromData, verifyLevel, liftTopFor, BIOMES, blankLevelData, encodeTiles, decodeTiles, Game, LEVELS } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -117,6 +119,70 @@ check(`the matrix still produces cliffs (${cliffCount} found)`, cliffCount > 10)
 // 7. the motif grammar exists: mesas/canyons/ridges/terraces show up and
 // (via checks 3+5 above) obey the same invariants as plain cliffs
 check(`shape motifs appear across the matrix (${motifLevels} levels)`, motifLevels > 5);
+
+// 8. water containment: no pool may float in mid-air or sit on a treetop.
+// Every water cell needs support below and banks (or more water) beside.
+const T_AIR = 0;
+const T_WATER = 8;
+function floatingWater(w) {
+  let bad = 0;
+  const open = (nx, ny) => nx >= 0 && nx < w.w && ny >= 0 && ny < w.h && w.get(nx, ny) === T_AIR;
+  for (let y = 0; y < w.h; y++) {
+    for (let x = 0; x < w.w; x++) {
+      if (w.get(x, y) !== T_WATER) continue;
+      if (open(x, y + 1) || open(x - 1, y) || open(x + 1, y)) bad++;
+    }
+  }
+  return bad;
+}
+
+// every hand-authored campaign water body is a consistent table
+for (const def of LEVELS) {
+  const g = new Game(def);
+  const bad = floatingWater(g.world);
+  check(`campaign "${def.name}": water is contained (${bad} floating)`, bad === 0);
+}
+
+// generated levels carry no water at all — the scenic waterfall never invents one
+{
+  const data = generateVerifiedLevel({ seed: 'no-water-ever', difficulty: 4 });
+  const world = worldFromData(data);
+  let waters = 0;
+  for (let i = 0; i < world.tiles.length; i++) if (world.tiles[i] === T_WATER) waters++;
+  check('generated terrain contains no water tiles', waters === 0);
+}
+
+// the rising tide stays a consistent table, rise after rise
+{
+  const def = LEVELS.find((l) => l.flood);
+  check('a flood level exists to test', !!def);
+  const g = new Game(def);
+  let ok = true;
+  for (let i = 0; i < 4; i++) {
+    g.riseWater();
+    if (floatingWater(g.world) > 0) ok = false;
+  }
+  check('flood water stays contained through 4 rises', ok);
+}
+
+// the verifier warns about a floating pool in an imported code…
+{
+  const data = blankLevelData(48, 24);
+  const tiles = decodeTiles(data.tiles, 48 * 24);
+  tiles[6 * 48 + 30] = T_WATER; // a lone water cube hovering mid-air
+  data.tiles = encodeTiles(tiles);
+  const rep = verifyLevel(data);
+  check('verifier warns about floating water', rep.warnings.some((m) => /water|Wasser/i.test(m)));
+}
+// …and stays quiet for a properly dug-in pool
+{
+  const data = blankLevelData(48, 24);
+  const tiles = decodeTiles(data.tiles, 48 * 24);
+  for (const x of [34, 35, 36]) tiles[16 * 48 + x] = T_WATER; // surface row: dirt below, banks beside
+  data.tiles = encodeTiles(tiles);
+  const rep = verifyLevel(data);
+  check('a dug-in pool raises no water warning', !rep.warnings.some((m) => /water|Wasser/i.test(m)));
+}
 
 console.log(failures === 0 ? `\nterrain: all checks passed` : `\nterrain: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

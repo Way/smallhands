@@ -735,6 +735,15 @@ export class Renderer {
         if (tt !== T.AIR) break;
       }
       if (wy < 0) continue;
+      // only decorate honest pools: the plunge cell needs support below and
+      // banks (or more water) beside — never point a fall at floating water
+      if (
+        world.get(x, wy + 1) === T.AIR ||
+        world.get(x - 1, wy) === T.AIR ||
+        world.get(x + 1, wy) === T.AIR
+      ) {
+        continue;
+      }
       for (const side of [-1, 1]) {
         const sy = surf[x + side];
         if (sy === undefined || sy >= world.h) continue;
