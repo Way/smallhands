@@ -1,0 +1,84 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Cancel an in-flight review when the PR gets new commits — saves API spend
+# and avoids stale review comments racing the latest push.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip drafts and bot-authored PRs (e.g. dependabot, agent-created PRs).
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.type != 'Bot'
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Review instructions belong in `prompt`. `claude_args` is for CLI
+          # flags only (--model, --max-turns, --allowedTools, …) — putting the
+          # prompt there means the action runs with no instructions.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. Focus on:
+            - Correctness and potential bugs
+            - Security issues (XSS, injection, secrets, auth gaps)
+            - Performance concerns
+            - Code style consistency with the existing codebase
+
+            Smallhands is a browser puzzle-strategy game built as a two-page
+            static site: TypeScript compiled with Vite (`npm run build` runs
+            `tsc --noEmit && vite build`), Canvas 2D for all rendering, and
+            **zero runtime dependencies** — treat any new production dependency
+            or CDN/network call as a red flag to call out. TypeScript is under
+            `strict` with `noUnusedLocals`, `noUnusedParameters`,
+            `noFallthroughCasesInSwitch` and `isolatedModules`; code is native
+            ESNext modules (no default exports assumed), targeting ES2022.
+            Source is split into `src/engine/` (reusable engine) and
+            `src/game/` (game logic), with `src/main.ts` (the game at `/play/`)
+            and `src/landing.ts` (the landing page at `/`) as entry points.
+            Repo-specific invariants that matter more than generic style:
+            (1) **Determinism** — the seeded procedural generator, the daily
+            challenge and the weather forecast must stay deterministic; flag any
+            `Math.random`/`Date.now`/wall-clock use that leaks into simulation
+            or generation. (2) **i18n** — the game ships in English and German,
+            so all player-facing text must go through the translation layer,
+            never be hardcoded. (3) **Save format** — progress, medals and share
+            codes (`SMH1.…`) live in localStorage; watch for changes that break
+            backward compatibility of saved data or share codes. (4) **Bundle
+            size** — the production build is ~22 kB gzipped; be wary of changes
+            that bloat it. (5) **Sim vs. render split** — the render-only
+            look-physics layer must not feed back into deterministic sim state.
+            Tests are plain Node scripts (`tests/*.mjs`, run via `npm run
+            test:*`), not a test framework — match that style. See the repo's
+            README.md, AGENTS.md and docs/ (DESIGN.md, architecture.md) for the
+            full ruleset.
+
+            Be concise. Only flag real issues — skip nitpicks the linter
+            already enforces. The PR branch is already checked out.
+
+            Post feedback as GitHub PR comments only — do not emit review text
+            as chat messages. Use `gh pr comment` for top-level summary feedback
+            and `mcp__github_inline_comment__create_inline_comment` (with
+            `confirmed: true`) for line-specific findings. If the PR looks good,
+            say so briefly.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
