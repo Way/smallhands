@@ -611,6 +611,10 @@ const D: Record<string, [string, string]> = {
   'gen.feat.cliff.many': ['{n} cliffs to hoist goods up', '{n} Klippen, an denen Waren hochmüssen'],
   'gen.feat.pit.one': ['1 pit to haul goods out of', '1 Grube, aus der Waren herausmüssen'],
   'gen.feat.pit.many': ['{n} pits to haul goods out of', '{n} Gruben, aus denen Waren herausmüssen'],
+  'gen.feat.ridge': ['a ridge to cross', 'ein Bergrücken zum Überqueren'],
+  'gen.feat.mesa': ['a mesa to scale', 'ein Tafelberg zum Erklimmen'],
+  'gen.feat.canyon': ['a canyon to haul out of', 'ein Canyon, aus dem Waren herausmüssen'],
+  'gen.feat.terraces': ['terraced shelves to climb', 'Terrassen zum Erklimmen'],
 
   // ---- in-world effects -------------------------------------------------------------
   'fx.crew': ['Crew {a} → {b}', 'Trupp {a} → {b}'],

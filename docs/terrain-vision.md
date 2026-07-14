@@ -282,10 +282,16 @@ are the screenshots players share; they cost a sprite each.
    pebbles, mushrooms; five seeded biomes (meadow, autumn, chalk, red rock,
    slate) with sky/hill tinting through the weather crossfade, plus snow
    caps above the summit line in the slate highlands.
-4. **New macro motifs** (mesa, canyon, ridge, notched cliff with the
-   lift-face invariant) + motif-aware naming; optional natural ramp at d1.
-5. **Set pieces + parallax/fog polish** (biome-shaped hill silhouettes,
-   valley fog, waterfalls, standing stones).
+4. ✅ **New macro motifs**: ridge, mesa, canyon (budgets like a pit, tells
+   its own story), terraced climbs — one large motif per level at ★2–3, two
+   at ★4+ — plus ragged 1-tile notched lips on cliffs ≥ 4 (the face keeps a
+   clean ≥ 3 rise, so the lift-face invariant holds) and motif-aware naming
+   ("Foggy Table", "Silent Ridge"). Still open: the optional d1 natural ramp.
+5. ◐ **Parallax done, set pieces open**: three strict layers — sky-drowned
+   horizon range, biome-shaped mid ridge (buttes for red rock, dunes for
+   chalk, peaks with snow tips for slate, rolling hills elsewhere) with a
+   distant tree line, and a near scrub line. Still open: valley fog,
+   waterfalls, standing stones and other scenic one-offs.
 
 Each phase ships independently and is verifiable on its own; nothing blocks
 on anything later in the list.
