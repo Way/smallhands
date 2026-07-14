@@ -259,6 +259,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     popAnchor = null;
   };
   const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
+    closeDrawer(); // popover and drawer are mutually exclusive
     deps.click();
     if (pop) {
       pop.remove();
@@ -276,7 +277,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && pop) {
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       closePopover();
     }
   });
@@ -436,6 +437,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     drawer = null;
   };
   const openDrawer = () => {
+    closePopover(); // drawer and popover are mutually exclusive
     if (drawer) {
       closeDrawer();
       return;
