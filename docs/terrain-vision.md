@@ -271,14 +271,21 @@ are the screenshots players share; they cost a sprite each.
 
 ## 8. Suggested build order
 
-1. **Micro relief + flat pads** in `planTerrain` (+ walkability property
-   test). Terrain shape improves immediately even with old art.
-2. **Autotiling + slope wedges + strata/AO** in `render.ts`/`sprites.ts`.
-   The "harsh edges" die here.
-3. **Decoration layer + biome palettes + altitude banding.**
+1. ✅ **Micro relief + flat pads** in the generator (+ `tests/terrain.mjs`
+   property suite: determinism, verifier-clean, the step invariant — 0/1 or
+   ≥3, never exactly 2 — flat TH/goal pads, a liftable face on every cliff).
+2. ✅ **Edge-aware tiles + slope wedges + strata/depth banding/AO** in
+   `render.ts`/`sprites.ts`: rounded grass lips, side-wrap, lip fringes,
+   16×18 grass-bank wedges on every 1-step, sedimentary bands, face cracks,
+   concave-corner occlusion.
+3. ✅ **Decoration layer + biome palettes**: hash-scattered tufts, flowers,
+   pebbles, mushrooms; five seeded biomes (meadow, autumn, chalk, red rock,
+   slate) with sky/hill tinting through the weather crossfade, plus snow
+   caps above the summit line in the slate highlands.
 4. **New macro motifs** (mesa, canyon, ridge, notched cliff with the
    lift-face invariant) + motif-aware naming; optional natural ramp at d1.
-5. **Set pieces + parallax/fog polish.**
+5. **Set pieces + parallax/fog polish** (biome-shaped hill silhouettes,
+   valley fog, waterfalls, standing stones).
 
 Each phase ships independently and is verifiable on its own; nothing blocks
 on anything later in the list.

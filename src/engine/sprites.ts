@@ -2,6 +2,9 @@
 // into an offscreen atlas at boot. Each character indexes into a palette.
 // '.' is transparent.
 
+import { BIOMES, BIOME_LOOK, SNOW_BLADES, biomeSuffix } from './biomes';
+import type { Biome } from './biomes';
+
 export interface SpriteDef {
   w: number;
   h: number;
@@ -43,67 +46,240 @@ export function tileHash(x: number, y: number): number {
   return ((h ^ (h >> 16)) >>> 0) / 4294967295;
 }
 
-export function buildAtlas(): void {
-  // ---- terrain tiles (16x16) ----
-  const grassPal = {
-    g: '#5cb14e', G: '#7ccb62', d: '#8a5a35', D: '#6f4629', e: '#a4713f', k: '#3f7a36',
+// ---- terrain tile string maps, shared by every biome ----------------------
+// Chars: g/G/k grass blades (mid/light/dark), d/D/e dirt (mid/dark/light),
+// r/R/k/K rock. Palettes come from BIOME_LOOK, so one map = five biomes.
+
+const GRASS_ROWS = [
+  'GgGGgGgGGgGGgGGg',
+  'gkGgkgGkgGgkGgkg',
+  'dedddeddddededdd',
+  'ddddDdddeddddDdd',
+  'dDddddDdddddeddd',
+  'dddedddddDdddddD',
+  'ddDdddedddddDddd',
+  'ddddddddDedddddd',
+  'dedddDddddddedDd',
+  'dddDddddedDddddd',
+  'Dddddedddddddded',
+  'ddddDdddDddddddd',
+  'ddeddddddddeDddd',
+  'dDdddedDdddddddd',
+  'ddddDddddddDdedd',
+  'dddddddDeddddddd',
+];
+
+const DIRT_ROWS = [
+  'ddddDdddeddddDdd',
+  'dDddddDdddddeddd',
+  'dddedddddDdddddD',
+  'ddDdddedddddDddd',
+  'ddddddddDeddddde',
+  'dedddDddddddedDd',
+  'dddDddddedDddddd',
+  'DdddDedddddddded',
+  'ddddDdddDddddddd',
+  'ddeddddddddeDddd',
+  'dDdddedDdddddddd',
+  'ddddDddddddDdedd',
+  'dddddddDeddddddd',
+  'dedDddddddDddddd',
+  'ddddddeddddddDdd',
+  'dDdddddddedddddd',
+];
+
+const ROCK_ROWS = [
+  'rrRrrrkrrrrRrrrr',
+  'rRrrrrrrkrrrrrkr',
+  'rrrkrrrRrrrkrrrr',
+  'krrrrKrrrrrrrRrr',
+  'rrrRrrrrrkrrrrrr',
+  'rrrrrkrrrrrKrrrk',
+  'rKrrrrrrRrrrrrrr',
+  'rrrrRrrrrrrkrrRr',
+  'rrkrrrrKrrrrrrrr',
+  'Rrrrrkrrrrrrkrrr',
+  'rrrrrrrRrrKrrrrR',
+  'rrKrrrrrrrrrrkrr',
+  'rrrrkrRrrrrrrrrr',
+  'krrrrrrrrkrRrrrr',
+  'rrrRrrrKrrrrrrkr',
+  'rrrrrrrrrrrkrrrr',
+];
+
+// A grass tile whose top corner sits on a cliff lip: the corner pixels go
+// transparent (the sky shows through = a rounded silhouette) and the blades
+// wrap a little way down the exposed side.
+function roundedGrass(rows: string[], left: boolean, right: boolean): string[] {
+  const g = rows.map((r) => r.split(''));
+  if (left) {
+    g[0][0] = '.';
+    g[0][1] = '.';
+    g[1][0] = '.';
+    for (let y = 2; y <= 5; y++) g[y][0] = 'k';
+    g[2][1] = 'g';
+    g[3][1] = 'g';
+  }
+  if (right) {
+    g[0][15] = '.';
+    g[0][14] = '.';
+    g[1][15] = '.';
+    for (let y = 2; y <= 5; y++) g[y][15] = 'k';
+    g[2][14] = 'g';
+    g[3][14] = 'g';
+  }
+  return g.map((r) => r.join(''));
+}
+
+// Snowed variant of a grass-topped tile: the blade rows deepen into a solid
+// white cap (~5 rows) that ties into the earth below with a ragged melt line.
+function snowRows(rows: string[]): string[] {
+  return rows.map((row, y) => {
+    if (y === 0) return row; // blade silhouette, whitened by the palette
+    if (y > 4) return row;
+    return row
+      .split('')
+      .map((c, x) => {
+        if (y === 1) return c === 'G' ? 'G' : 'g';
+        if (y === 2) return (x * 5 + 3) % 7 === 0 ? 'G' : 'g';
+        if (y === 3) return (x + 1) % 3 === 0 ? c : 'g';
+        return (x + 2) % 5 === 0 ? 'g' : c; // y === 4: last specks of snow
+      })
+      .join('');
+  });
+}
+
+// The grass bank drawn over a 1-tile surface step (art rises to the right;
+// the renderer mirrors it for left-rising steps). 16x18: the last two rows
+// tuck the bank's foot over the blade rows of the tile below so the seam
+// reads as one continuous slope. Pure decoration — the cell stays AIR.
+function wedgeRows(): string[] {
+  const rows: string[] = [];
+  const body = (x: number, y: number) => ((x * 7 + y * 13) % 11 === 0 ? 'D' : (x * 5 + y * 3) % 13 === 0 ? 'e' : 'd');
+  for (let y = 0; y < 16; y++) {
+    let r = '';
+    for (let x = 0; x < 16; x++) {
+      const d = x - (15 - y);
+      r += d < 0 ? '.' : d === 0 ? 'G' : d === 1 ? 'g' : d === 2 ? 'k' : body(x, y);
+    }
+    rows.push(r);
+  }
+  for (let y = 16; y < 18; y++) {
+    let r = '';
+    for (let x = 0; x < 16; x++) {
+      r += x < y - 15 ? '.' : x === y - 15 ? 'k' : body(x, y);
+    }
+    rows.push(r);
+  }
+  return rows;
+}
+
+// Grass strands drooping over a cliff lip into the neighbouring air cell
+// (art hangs from the cell's left edge; mirrored for the other side).
+const FRINGE_ROWS = [
+  'gG....',
+  'kgg...',
+  '.kg...',
+  '.kk...',
+  '..k...',
+  '..k...',
+];
+
+// ---- surface props (tiny, muted, drawn behind everything that matters) ----
+
+const PROP_ROWS: Record<string, string[]> = {
+  prop_tuft: [
+    '..g.G..',
+    '.gG.g.g',
+    '.kg.kgk',
+    '..k..k.',
+  ],
+  prop_tuft2: [
+    '.g.G.',
+    'gGgg.',
+    '.kk.g',
+    '..k.k',
+  ],
+  prop_flower: [
+    '.aaa.',
+    '.aba.',
+    '.aaa.',
+    '..k..',
+    '.gk..',
+    '..kg.',
+    '..k..',
+  ],
+  prop_flower2: [
+    '.bb.',
+    '.bb.',
+    '..k.',
+    '.gk.',
+    '..k.',
+  ],
+  prop_pebble: [
+    '.rRr..',
+    'rRrrr.',
+    'rrrKr.',
+    '.KKK..',
+  ],
+  prop_mushroom: [
+    '.aaa.',
+    'aabaa',
+    'aaaaa',
+    '..e..',
+    '..e..',
+    '.ee..',
+  ],
+};
+export const PROP_KINDS = Object.keys(PROP_ROWS);
+
+// Register the full terrain family for one biome. Meadow keeps the classic
+// unsuffixed names, so every existing sprite lookup stays valid.
+function buildBiomeSet(b: Biome): void {
+  const look = BIOME_LOOK[b];
+  const sfx = biomeSuffix(b);
+  const grassPal = { ...look.earth, ...look.blades };
+  const variants: [string, boolean, boolean][] = [
+    ['', false, false],
+    ['_l', true, false],
+    ['_r', false, true],
+    ['_lr', true, true],
+  ];
+  for (const [v, l, r] of variants) {
+    makeSprite(`tile_grass${v}${sfx}`, grassPal, l || r ? roundedGrass(GRASS_ROWS, l, r) : GRASS_ROWS);
+  }
+  makeSprite(`tile_dirt${sfx}`, look.earth, DIRT_ROWS);
+  makeSprite(`tile_rock${sfx}`, look.stone, ROCK_ROWS);
+  makeSprite(`wedge${sfx}`, grassPal, wedgeRows());
+  makeSprite(`fringe${sfx}`, look.blades, FRINGE_ROWS);
+  if (look.snowcaps) {
+    const snowPal = { ...look.earth, ...SNOW_BLADES };
+    const base = snowRows(GRASS_ROWS);
+    for (const [v, l, r] of variants) {
+      makeSprite(`tile_grass_snow${v}${sfx}`, snowPal, l || r ? roundedGrass(base, l, r) : base);
+    }
+    makeSprite(`wedge_snow${sfx}`, snowPal, wedgeRows());
+    makeSprite(`fringe_snow${sfx}`, SNOW_BLADES, FRINGE_ROWS);
+  }
+  const propPal = {
+    g: look.blades.g,
+    G: look.blades.G,
+    k: look.blades.k,
+    a: look.accent,
+    b: look.accent2,
+    e: look.earth.e,
+    r: look.stone.r,
+    R: look.stone.R,
+    K: look.stone.K,
   };
-  makeSprite('tile_grass', grassPal, [
-    'GgGGgGgGGgGGgGGg',
-    'gkGgkgGkgGgkGgkg',
-    'dedddeddddededdd',
-    'ddddDdddeddddDdd',
-    'dDddddDdddddeddd',
-    'dddedddddDdddddD',
-    'ddDdddedddddDddd',
-    'ddddddddDedddddd',
-    'dedddDddddddedDd',
-    'dddDddddedDddddd',
-    'Dddddedddddddded',
-    'ddddDdddDddddddd',
-    'ddeddddddddeDddd',
-    'dDdddedDdddddddd',
-    'ddddDddddddDdedd',
-    'dddddddDeddddddd',
-  ]);
-  const dirtPal = { d: '#8a5a35', D: '#6f4629', e: '#a4713f' };
-  makeSprite('tile_dirt', dirtPal, [
-    'ddddDdddeddddDdd',
-    'dDddddDdddddeddd',
-    'dddedddddDdddddD',
-    'ddDdddedddddDddd',
-    'ddddddddDeddddde',
-    'dedddDddddddedDd',
-    'dddDddddedDddddd',
-    'DdddDedddddddded',
-    'ddddDdddDddddddd',
-    'ddeddddddddeDddd',
-    'dDdddedDdddddddd',
-    'ddddDddddddDdedd',
-    'dddddddDeddddddd',
-    'dedDddddddDddddd',
-    'ddddddeddddddDdd',
-    'dDdddddddedddddd',
-  ]);
-  const rockPal = { r: '#7b8494', R: '#98a2b3', k: '#5c6470', K: '#454b55' };
-  makeSprite('tile_rock', rockPal, [
-    'rrRrrrkrrrrRrrrr',
-    'rRrrrrrrkrrrrrkr',
-    'rrrkrrrRrrrkrrrr',
-    'krrrrKrrrrrrrRrr',
-    'rrrRrrrrrkrrrrrr',
-    'rrrrrkrrrrrKrrrk',
-    'rKrrrrrrRrrrrrrr',
-    'rrrrRrrrrrrkrrRr',
-    'rrkrrrrKrrrrrrrr',
-    'Rrrrrkrrrrrrkrrr',
-    'rrrrrrrRrrKrrrrR',
-    'rrKrrrrrrrrrrkrr',
-    'rrrrkrRrrrrrrrrr',
-    'krrrrrrrrkrRrrrr',
-    'rrrRrrrKrrrrrrkr',
-    'rrrrrrrrrrrkrrrr',
-  ]);
+  for (const [name, rows] of Object.entries(PROP_ROWS)) {
+    makeSprite(`${name}${sfx}`, propPal, rows);
+  }
+}
+
+export function buildAtlas(): void {
+  // ---- terrain tiles (16x16), one family per biome ----
+  for (const b of BIOMES) buildBiomeSet(b);
   const bedPal = { b: '#3a3f47', B: '#2c3037', k: '#484e58' };
   makeSprite('tile_bedrock', bedPal, [
     'bbbkbbbbBbbbbkbb',

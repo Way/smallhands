@@ -3,6 +3,8 @@
 
 import { FOOTPRINTS, ITEM_TYPES, ROLES, T, TOOL_DEFS } from './types';
 import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
+import { BIOMES } from '../engine/biomes';
+import type { Biome } from '../engine/biomes';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
 import { t } from '../engine/i18n';
@@ -25,6 +27,7 @@ export interface CustomLevelData {
   startWorkers: number;
   startThLevel: number;
   seed?: string; // set when produced by the generator
+  biome?: Biome; // terrain palette family; omit for the classic meadow look
 }
 
 export const MIN_W = 32;
@@ -131,6 +134,7 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     startRoles: { ...data.startRoles },
     startWorkers: data.startWorkers,
     startThLevel: data.startThLevel,
+    biome: data.biome,
     medals: medalTimesFor(data),
     camera: { x: Math.max(0, data.townhall.x - 6), y: Math.max(0, data.townhall.y - 6) },
     build: (g) => {
@@ -240,6 +244,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     startWorkers: clampInt(r.startWorkers, 1, 12) ?? 4,
     startThLevel: clampInt(r.startThLevel, 1, 3) ?? 1,
     seed: typeof r.seed === 'string' ? r.seed.slice(0, 60) : undefined,
+    biome: BIOMES.includes(r.biome as Biome) ? (r.biome as Biome) : undefined,
   };
 }
 

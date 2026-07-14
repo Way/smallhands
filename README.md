@@ -66,7 +66,12 @@ Beyond the campaign, the level select offers a **Workshop** row:
   you straight into the real game — and back into the editor.
 - **Procedural generator** — seeded, difficulty ★1–★5. Terrain is built from
   a grammar of flats, cliffs and pits (the classic "get it back up" puzzle),
-  the economy is budgeted to the generated order, and every roll is
+  then rolled with gentle 1-tile relief — hills every smallhand simply walks
+  over, cargo included, while cliffs stay the only real barriers (adjacent
+  columns never differ by exactly 2, so every wall is worth a lift). Each
+  seed also draws one of five **biomes** (meadow, autumn, chalk, red rock,
+  snow-capped slate highlands) — pure palette and atmosphere, identical
+  rules. The economy is budgeted to the generated order, and every roll is
   re-verified until it passes. The same seed always builds the same level —
   share seeds with friends.
 - **Daily challenge** — one shared seed per calendar day, difficulty rising
@@ -130,14 +135,18 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
-Two headless suites need no browser at all: `tests/unit.mjs` covers pure
+Three headless suites need no browser at all: `tests/unit.mjs` covers pure
 simulation logic (ladders, reserves, medals, water, weather, flood, night),
-and `tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
-scripted player and fails unless the win state is reached:
+`tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
+scripted player and fails unless the win state is reached, and
+`tests/terrain.mjs` pins the generator's terrain invariants across a
+seed × difficulty matrix (determinism, verifier-clean, no 2-tile steps,
+flat build pads, a liftable face on every cliff):
 
 ```bash
 npm run test:unit
 npm run test:campaign2
+npm run test:terrain
 ```
 
 A third browser suite (`npm run test:i18n`, preview server required) switches
