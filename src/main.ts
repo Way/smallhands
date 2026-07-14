@@ -20,6 +20,7 @@ import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud, TOOL_ICON } from './game/ui';
+import { FrontDoor } from './game/frontdoor';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
@@ -27,6 +28,7 @@ import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui-root') as HTMLDivElement;
+const frontDoorRoot = document.getElementById('frontdoor') as HTMLDivElement;
 
 buildAtlas();
 
@@ -173,37 +175,46 @@ function clearOverlay(): void {
   document.querySelectorAll('.overlay').forEach((e) => e.remove());
 }
 
-function showTitle(): void {
+// The front door: the game's animated title screen doubles as the marketing
+// page. It renders into #frontdoor over the live idle backdrop; Play enters the
+// game in place (no navigation).
+const frontDoor = new FrontDoor(frontDoorRoot, {
+  onPlay: () => {
+    audio.click();
+    enterGame();
+  },
+  onOptions: () => {
+    audio.click();
+    showOptions(enterFrontDoor);
+  },
+  onLang: (l) => applyLanguage(l),
+  continueLabel: () => (save.completed.length ? t('btn.continue') : t('btn.play')),
+});
+
+// Show the scroll-reveal front door over the idle backdrop.
+function enterFrontDoor(): void {
+  document.body.classList.add('front-door');
+  document.body.classList.remove('in-game');
   clearOverlay();
   running = false;
-  const ov = document.createElement('div');
-  ov.className = 'overlay';
-  ov.innerHTML = `
-    <div class="title-logo">SMALLHANDS</div>
-    <div class="title-sub">${t('title.sub')}</div>
-  `;
-  const play = document.createElement('button');
-  play.className = 'big-btn';
-  play.textContent = save.completed.length ? t('btn.continue') : t('btn.play');
-  play.onclick = () => {
-    audio.click();
-    showLevelSelect();
-  };
-  ov.appendChild(play);
-  const blurb = document.createElement('div');
-  blurb.className = 'win-stats';
-  blurb.innerHTML = t('title.blurb');
-  ov.appendChild(blurb);
-  const opts = document.createElement('button');
-  opts.className = 'big-btn secondary title-options';
-  opts.textContent = t('menu.options');
-  opts.onclick = () => {
-    audio.click();
-    showOptions(showTitle);
-  };
-  ov.appendChild(opts);
-  uiRoot.appendChild(ov);
-  drawIdleBackdrop();
+  drawIdleBackdrop(); // ensure the idle scene exists behind the hero
+  frontDoor.show();
+  window.scrollTo(0, 0);
+}
+
+// Leave the front door and start play (level select).
+function enterGame(): void {
+  document.body.classList.remove('front-door');
+  document.body.classList.add('in-game');
+  frontDoor.hide();
+  window.scrollTo(0, 0);
+  showLevelSelect();
+}
+
+// Legacy entry point: "back to title" and options-return now land on the front
+// door. Kept as an alias so existing call sites don't need to change.
+function showTitle(): void {
+  enterFrontDoor();
 }
 
 // Is there a running level whose progress would be lost?
