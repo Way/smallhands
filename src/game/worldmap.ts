@@ -248,8 +248,6 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   );
   svg.appendChild(isle);
 
-  void medalTimesFor; // consumed in Task 4
-
   // ---- popover: one at a time, anchored at a node ----
   let pop: HTMLElement | null = null;
   let popAnchor: HTMLElement | null = null;
@@ -390,6 +388,121 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       });
     wrap.appendChild(btn);
   }
+
+  // ---- custom-level card (same markup the old workshop grid used) ----
+  function customCard(lvl: CustomLevelData): HTMLElement {
+    const done = deps.customDone(lvl.id);
+    const card = document.createElement('div');
+    card.className = 'level-card custom';
+    card.innerHTML = `
+      <div class="lv-num">★</div>
+      <div class="lv-name"></div>
+      <div class="lv-desc"></div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
+    `;
+    (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
+    (card.querySelector('.lv-desc') as HTMLElement).textContent =
+      lvl.desc || t('custom.defaultDesc');
+    deps.addMedalBits(card, lvl.id, medalTimesFor(lvl).gold);
+    card.onclick = () => {
+      deps.click();
+      deps.onPlayCustom(lvl);
+    };
+    const actions = document.createElement('div');
+    actions.className = 'lv-actions';
+    const mkBtn = (label: string, titleTxt: string, fn: () => void) => {
+      const b = document.createElement('button');
+      b.className = 'lv-action-btn';
+      b.textContent = label;
+      b.title = titleTxt;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        deps.click();
+        fn();
+      };
+      actions.appendChild(b);
+    };
+    mkBtn('✎', t('action.edit'), () => deps.onEditCustom(lvl));
+    mkBtn('⧉', t('action.copy'), () => deps.onCopyCustom(lvl));
+    mkBtn('✕', t('action.delete'), () => deps.onDeleteCustom(lvl));
+    card.appendChild(actions);
+    return card;
+  }
+
+  // ---- my-levels drawer ----
+  let drawer: HTMLElement | null = null;
+  const closeDrawer = () => {
+    drawer?.remove();
+    drawer = null;
+  };
+  const openDrawer = () => {
+    if (drawer) {
+      closeDrawer();
+      return;
+    }
+    drawer = document.createElement('div');
+    drawer.className = 'panel custom-drawer';
+    const head = document.createElement('div');
+    head.className = 'drawer-head';
+    const h = document.createElement('span');
+    h.textContent = `★ ${t('legend.mine')}`;
+    head.appendChild(h);
+    const x = document.createElement('button');
+    x.className = 'lv-action-btn drawer-close';
+    x.textContent = '✕';
+    x.onclick = () => {
+      deps.click();
+      closeDrawer();
+    };
+    head.appendChild(x);
+    drawer.appendChild(head);
+    if (!deps.customLevels.length) {
+      const empty = document.createElement('div');
+      empty.className = 'drawer-empty';
+      empty.textContent = t('drawer.empty');
+      drawer.appendChild(empty);
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'level-grid drawer-grid';
+      for (const lvl of deps.customLevels) grid.appendChild(customCard(lvl));
+      drawer.appendChild(grid);
+    }
+    ov.appendChild(drawer);
+  };
+  ov.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawer && !pop) closeDrawer();
+  });
+
+  // ---- legend bar ----
+  const legend = document.createElement('div');
+  legend.className = 'legend-bar';
+  const cap = document.createElement('span');
+  cap.className = 'legend-cap';
+  cap.textContent = t('legend.title');
+  legend.appendChild(cap);
+  const legendBtn = (icon: string, label: string, cls: string, fn: () => void) => {
+    const b = document.createElement('button');
+    b.className = `legend-btn ${cls}`;
+    b.innerHTML = `<span class="lg-icon">${icon}</span><span class="lg-label"></span>`;
+    (b.querySelector('.lg-label') as HTMLElement).textContent = label;
+    b.onclick = () => {
+      deps.click();
+      fn();
+    };
+    legend.appendChild(b);
+    return b;
+  };
+  legendBtn('🎲', t('gen.cardName'), 'generate', deps.onGenerate);
+  legendBtn('✎', t('editor.cardName'), 'editor', deps.onEditor);
+  legendBtn('⇩', t('import.cardName'), 'import', deps.onImport);
+  const mine = legendBtn('★', t('legend.mine'), 'mine', openDrawer);
+  if (deps.customLevels.length) {
+    const n = document.createElement('span');
+    n.className = 'lg-count';
+    n.textContent = String(deps.customLevels.length);
+    mine.appendChild(n);
+  }
+  ov.appendChild(legend);
 
   return ov;
 }
