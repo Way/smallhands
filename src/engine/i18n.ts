@@ -397,27 +397,11 @@ const D: Record<string, [string, string]> = {
     'Noch keine Level — baue eins im Editor oder importiere einen Code.',
   ],
 
-  'camp3.unlocked': [
-    'Campaign 3 — Weight & Wheel: the counterweight hoist',
-    'Kampagne 3 — Gewicht & Rad: der Gegengewichts-Aufzug',
-  ],
-  'camp3.locked': [
-    'Campaign 3 — Weight & Wheel 🔒 finish Campaign 2 to unlock',
-    'Kampagne 3 — Gewicht & Rad 🔒 schließe Kampagne 2 ab',
-  ],
   'win.campaign3': [
     '<b>⚙ Campaign 3 unlocked — Weight & Wheel!</b><br/>Two cars on a pulley and one law: the heavier side sinks. Send ballast down to raise your cargo to the heights.',
     '<b>⚙ Kampagne 3 freigeschaltet — Gewicht & Rad!</b><br/>Zwei Körbe an einer Seilrolle und ein Gesetz: die schwerere Seite sinkt. Schicke Ballast hinab, um deine Fracht in die Höhen zu heben.',
   ],
 
-  'camp2.unlocked': [
-    'Campaign 2 — Storm & Tide: water, weather and the dark of night',
-    'Kampagne 2 — Sturm & Flut: Wasser, Wetter und die dunkle Nacht',
-  ],
-  'camp2.locked': [
-    'Campaign 2 — Storm & Tide 🔒 finish Campaign 1 to unlock',
-    'Kampagne 2 — Sturm & Flut 🔒 schließe Kampagne 1 ab',
-  ],
   'status.ready': ['Ready', 'Bereit'],
   'status.locked': ['Locked', 'Gesperrt'],
   'status.done': ['✓ Complete', '✓ Geschafft'],
@@ -431,10 +415,6 @@ const D: Record<string, [string, string]> = {
   'medal.bronze': ['Bronze', 'Bronze'],
   'slot.medal': ['{tier} medal', '{tier}-Medaille'],
   'slot.none': ['No medal yet', 'Noch keine Medaille'],
-  'workshop.title': [
-    'Workshop — endless levels, daily challenge & your own creations',
-    'Werkstatt — endlose Level, Tages-Challenge & eigene Kreationen',
-  ],
   'daily.name': ['Daily Challenge', 'Tages-Challenge'],
   'daily.desc': [
     '{label} · difficulty ★{d}. One shared seed per day — same mountain for everyone.',

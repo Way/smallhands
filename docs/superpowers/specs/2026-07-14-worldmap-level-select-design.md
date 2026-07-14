@@ -37,7 +37,9 @@ Three layers inside the existing `.overlay` system:
 
 1. **Top bar** — small game title, trophy cartouche (medal counts × gold/silver/bronze,
    feat pins, gold progress `a/b`). Cartouche hidden while `save.records` is empty
-   (same rule as today's shelf).
+   (same rule as today's shelf), and the session buttons on the right: Resume
+   (only while a run is in progress), Back to title, Options — these lived under
+   the old grid's bottom button row.
 2. **Map** — one inline `<svg>` with a fixed `viewBox` (1600×900),
    `preserveAspectRatio: xMidYMid meet`, filling the space between bars. Below ~700px
    CSS width the map container switches to `overflow-x: auto` with a min-width

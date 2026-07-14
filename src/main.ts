@@ -21,9 +21,11 @@ import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud, TOOL_ICON } from './game/ui';
 import { Editor } from './game/editor';
-import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, medalTimesFor, verifyLevel } from './game/leveldata';
+import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
 import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
+import { buildWorldMap } from './game/worldmap';
+import type { MapCampaignState } from './game/worldmap';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui-root') as HTMLDivElement;
@@ -407,199 +409,111 @@ function showOptions(returnTo: () => void): void {
   uiRoot.appendChild(ov);
 }
 
+// trophy cartouche: the collection at a glance (world-map top bar)
+function buildShelf(): HTMLElement | null {
+  if (Object.keys(save.records).length === 0) return null;
+  const shelf = document.createElement('div');
+  shelf.className = 'shelf';
+  const counts = { gold: 0, silver: 0, bronze: 0, feats: 0 };
+  for (const r of Object.values(save.records)) {
+    if (r.medal) counts[r.medal]++;
+    counts.feats += r.feats.length;
+  }
+  for (const tier of ['gold', 'silver', 'bronze'] as const) {
+    const c = document.createElement('span');
+    c.className = 'count';
+    c.appendChild(mkIcon(`medal_${tier}`, 30));
+    c.appendChild(document.createTextNode(`× ${counts[tier]}`));
+    shelf.appendChild(c);
+  }
+  const sep = document.createElement('span');
+  sep.className = 'sep';
+  shelf.appendChild(sep);
+  const pins = document.createElement('span');
+  pins.className = 'count';
+  pins.appendChild(mkIcon('pin_feat', 24));
+  pins.appendChild(document.createTextNode(`× ${counts.feats}`));
+  shelf.appendChild(pins);
+  const sep2 = document.createElement('span');
+  sep2.className = 'sep';
+  shelf.appendChild(sep2);
+  const campaignGold = LEVELS.filter((l) => save.records[`c${l.id}`]?.medal === 'gold').length;
+  const pct = document.createElement('span');
+  pct.className = 'pct';
+  pct.innerHTML = t('shelf.gold', { a: campaignGold, b: LEVELS.length });
+  shelf.appendChild(pct);
+  return shelf;
+}
+
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
-  const ov = document.createElement('div');
-  ov.className = 'overlay level-select';
-  const h = document.createElement('div');
-  h.className = 'title-logo';
-  h.style.fontSize = '38px';
-  h.textContent = t('select.title');
-  ov.appendChild(h);
 
-  // ---- trophy shelf: the collection at a glance ----
-  if (Object.keys(save.records).length > 0) {
-    const shelf = document.createElement('div');
-    shelf.className = 'shelf';
-    const counts = { gold: 0, silver: 0, bronze: 0, feats: 0 };
-    for (const r of Object.values(save.records)) {
-      if (r.medal) counts[r.medal]++;
-      counts.feats += r.feats.length;
-    }
-    for (const tier of ['gold', 'silver', 'bronze'] as const) {
-      const c = document.createElement('span');
-      c.className = 'count';
-      c.appendChild(mkIcon(`medal_${tier}`, 30));
-      c.appendChild(document.createTextNode(`× ${counts[tier]}`));
-      shelf.appendChild(c);
-    }
-    const sep = document.createElement('span');
-    sep.className = 'sep';
-    shelf.appendChild(sep);
-    const pins = document.createElement('span');
-    pins.className = 'count';
-    pins.appendChild(mkIcon('pin_feat', 24));
-    pins.appendChild(document.createTextNode(`× ${counts.feats}`));
-    shelf.appendChild(pins);
-    const sep2 = document.createElement('span');
-    sep2.className = 'sep';
-    shelf.appendChild(sep2);
-    const campaignGold = LEVELS.filter((l) => save.records[`c${l.id}`]?.medal === 'gold').length;
-    const pct = document.createElement('span');
-    pct.className = 'pct';
-    pct.innerHTML = t('shelf.gold', { a: campaignGold, b: LEVELS.length });
-    shelf.appendChild(pct);
-    ov.appendChild(shelf);
-  }
+  // Campaign/unlock state — same rules as the old grid: a campaign opens once
+  // every level of all previous campaigns is done; within a campaign levels
+  // unlock in sequence (the globally previous level must be completed).
+  const ids = [...new Set(LEVELS.map((l) => l.campaign ?? 1))].sort((a, b) => a - b);
+  const doneByCampaign = new Map(
+    ids.map((c) => [
+      c,
+      LEVELS.filter((l) => (l.campaign ?? 1) === c).every((l) => save.completed.includes(l.id)),
+    ])
+  );
+  const gate = (c: number) => ids.filter((x) => x < c).every((x) => doneByCampaign.get(x));
+  const campaigns: MapCampaignState[] = ids.map((c) => ({
+    campaign: c,
+    unlocked: gate(c),
+    complete: doneByCampaign.get(c)!,
+    levels: LEVELS.map((def, index) => ({ def, index }))
+      .filter(({ def }) => (def.campaign ?? 1) === c)
+      .map(({ def, index }) => ({
+        index,
+        def,
+        unlocked: gate(c) && (index === 0 || save.completed.includes(LEVELS[index - 1].id)),
+        done: save.completed.includes(def.id),
+      })),
+  }));
 
-  // ---- campaigns ----
-  // Each campaign opens only once every level of the previous one is finished;
-  // within each campaign, levels unlock in sequence as before.
-  const campaign1 = LEVELS.filter((l) => (l.campaign ?? 1) === 1);
-  const campaign1Done = campaign1.every((l) => save.completed.includes(l.id));
-  const campaign2 = LEVELS.filter((l) => (l.campaign ?? 1) === 2);
-  const campaign2Done = campaign2.every((l) => save.completed.includes(l.id));
-  const levelUnlocked = (i: number): boolean => {
-    if ((LEVELS[i].campaign ?? 1) >= 2 && !campaign1Done) return false;
-    if ((LEVELS[i].campaign ?? 1) >= 3 && !campaign2Done) return false;
-    return i === 0 || save.completed.includes(LEVELS[i - 1].id);
-  };
-  const buildCampaignGrid = (levels: typeof LEVELS): HTMLElement => {
-    const grid = document.createElement('div');
-    grid.className = 'level-grid';
-    for (const lvl of levels) {
-      const i = LEVELS.indexOf(lvl);
-      const unlocked = levelUnlocked(i);
-      const done = save.completed.includes(lvl.id);
-      const card = document.createElement('button');
-      card.className = 'level-card' + (unlocked ? '' : ' locked');
-      card.innerHTML = `
-        <div class="lv-num">${unlocked ? lvl.id : '🔒'}</div>
-        <div class="lv-name">${t(lvl.name)}</div>
-        <div class="lv-desc">${t(lvl.desc)}</div>
-        <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : unlocked ? t('status.ready') : t('status.locked')}</div></div>
-      `;
-      if (unlocked && lvl.medals) {
-        addMedalBits(card, `c${lvl.id}`, lvl.medals.gold);
-      }
-      if (unlocked) {
-        card.onclick = () => {
-          audio.click();
-          confirmIfInProgress(
-            t('confirm.abandonNamed', { name: t(game?.level.name ?? '') }),
-            t('btn.abandon'),
-            () => startLevel(i)
-          );
-        };
-      }
-      grid.appendChild(card);
-    }
-    return grid;
-  };
-  ov.appendChild(buildCampaignGrid(campaign1));
-
-  // campaign 2 — storm & tide
-  {
-    const sec = document.createElement('div');
-    sec.className = 'section-title';
-    sec.textContent = campaign1Done ? t('camp2.unlocked') : t('camp2.locked');
-    ov.appendChild(sec);
-    ov.appendChild(buildCampaignGrid(campaign2));
-  }
-
-  // campaign 3 — weight & wheel
-  {
-    const sec = document.createElement('div');
-    sec.className = 'section-title';
-    sec.textContent = campaign2Done ? t('camp3.unlocked') : t('camp3.locked');
-    ov.appendChild(sec);
-    ov.appendChild(buildCampaignGrid(LEVELS.filter((l) => (l.campaign ?? 1) === 3)));
-  }
-
-  // ---- workshop: daily challenge, generator, editor, custom levels ----
-  const sec = document.createElement('div');
-  sec.className = 'section-title';
-  sec.textContent = t('workshop.title');
-  ov.appendChild(sec);
-
-  const wgrid = document.createElement('div');
-  wgrid.className = 'level-grid workshop-grid';
-  ov.appendChild(wgrid);
-
-  // daily challenge
-  {
-    const daily = dailySeed();
-    const done = save.completedCustom.includes(daily.seed);
-    const card = document.createElement('button');
-    card.className = 'level-card daily';
-    card.innerHTML = `
-      <div class="lv-num">📅</div>
-      <div class="lv-name">${t('daily.name')}</div>
-      <div class="lv-desc">${t('daily.desc', { label: daily.label, d: daily.difficulty })}</div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
-    `;
-    // the daily's gold time isn't known until the level is generated, so pass
-    // null; the empty medal/feat slots still show as the replay magnet
-    addMedalBits(card, daily.seed, null);
-    card.onclick = () => {
-      audio.click();
+  const daily = dailySeed();
+  const ov = buildWorldMap({
+    campaigns,
+    daily: { ...daily, done: save.completedCustom.includes(daily.seed) },
+    customLevels,
+    shelf: buildShelf(),
+    resumeLabel: gameInProgress() ? t('btn.resume', { name: t(game!.level.name) }) : null,
+    bestMedal: (key) => save.records[key]?.medal ?? null,
+    addMedalBits,
+    customDone: (id) => save.completedCustom.includes(id),
+    click: () => audio.click(),
+    onPlayLevel: (i) =>
+      confirmIfInProgress(
+        t('confirm.abandonNamed', { name: t(game?.level.name ?? '') }),
+        t('btn.abandon'),
+        () => startLevel(i)
+      ),
+    onPlayDaily: () =>
       confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => {
         const data = generateVerifiedLevel({ seed: daily.seed, difficulty: daily.difficulty });
         data.id = daily.seed; // stable id so completion sticks
         data.name = t('daily.title', { label: daily.label });
         startCustomLevel(data, {});
-      });
-    };
-    wgrid.appendChild(card);
-  }
-
-  // generate
-  {
-    const card = document.createElement('button');
-    card.className = 'level-card action';
-    card.innerHTML = `
-      <div class="lv-num">🎲</div>
-      <div class="lv-name">${t('gen.cardName')}</div>
-      <div class="lv-desc">${t('gen.cardDesc')}</div>
-      <div class="lv-foot"><div class="lv-status">${t('status.endless')}</div></div>
-    `;
-    card.onclick = () => {
-      audio.click();
-      showGenerateDialog();
-    };
-    wgrid.appendChild(card);
-  }
-
-  // new level in editor
-  {
-    const card = document.createElement('button');
-    card.className = 'level-card action';
-    card.innerHTML = `
-      <div class="lv-num">✎</div>
-      <div class="lv-name">${t('editor.cardName')}</div>
-      <div class="lv-desc">${t('editor.cardDesc')}</div>
-      <div class="lv-foot"><div class="lv-status">${t('status.create')}</div></div>
-    `;
-    card.onclick = () => {
-      audio.click();
-      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor());
-    };
-    wgrid.appendChild(card);
-  }
-
-  // import code
-  {
-    const card = document.createElement('button');
-    card.className = 'level-card action';
-    card.innerHTML = `
-      <div class="lv-num">⇩</div>
-      <div class="lv-name">${t('import.cardName')}</div>
-      <div class="lv-desc">${t('import.cardDesc')}</div>
-      <div class="lv-foot"><div class="lv-status">${t('status.share')}</div></div>
-    `;
-    card.onclick = () => {
-      audio.click();
+      }),
+    onPlayCustom: (lvl) =>
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => startCustomLevel(lvl, {})),
+    onEditCustom: (lvl) =>
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor(lvl)),
+    onCopyCustom: (lvl) => {
+      const code = encodeShareCode(lvl);
+      navigator.clipboard?.writeText(code).catch(() => window.prompt(t('ed.copyPrompt'), code));
+    },
+    onDeleteCustom: (lvl) =>
+      showConfirm(t('confirm.delete', { name: lvl.name }), t('btn.delete'), () => {
+        customLevels = deleteCustomLevel(customLevels, lvl.id);
+        showLevelSelect();
+      }),
+    onGenerate: showGenerateDialog,
+    onEditor: () => confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor()),
+    onImport: () => {
       const code = window.prompt(t('import.prompt'));
       if (!code) return;
       const data = decodeShareCode(code);
@@ -609,85 +523,11 @@ function showLevelSelect(): void {
       }
       customLevels = upsertCustomLevel(customLevels, data);
       showLevelSelect();
-    };
-    wgrid.appendChild(card);
-  }
-
-  // saved custom levels
-  for (const lvl of customLevels) {
-    const done = save.completedCustom.includes(lvl.id);
-    const card = document.createElement('div');
-    card.className = 'level-card custom';
-    card.innerHTML = `
-      <div class="lv-num">★</div>
-      <div class="lv-name"></div>
-      <div class="lv-desc"></div>
-      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
-    `;
-    (card.querySelector('.lv-name') as HTMLElement).textContent = lvl.name;
-    (card.querySelector('.lv-desc') as HTMLElement).textContent = lvl.desc || t('custom.defaultDesc');
-    addMedalBits(card, lvl.id, medalTimesFor(lvl).gold);
-    card.onclick = () => {
-      audio.click();
-      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => startCustomLevel(lvl, {}));
-    };
-    const actions = document.createElement('div');
-    actions.className = 'lv-actions';
-    const mkBtn = (label: string, title: string, fn: (e: Event) => void) => {
-      const b = document.createElement('button');
-      b.className = 'lv-action-btn';
-      b.textContent = label;
-      b.title = title;
-      b.onclick = (e) => {
-        e.stopPropagation();
-        audio.click();
-        fn(e);
-      };
-      actions.appendChild(b);
-    };
-    mkBtn('✎', t('action.edit'), () =>
-      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => openEditor(lvl))
-    );
-    mkBtn('⧉', t('action.copy'), () => {
-      const code = encodeShareCode(lvl);
-      navigator.clipboard?.writeText(code).catch(() => window.prompt(t('ed.copyPrompt'), code));
-    });
-    mkBtn('✕', t('action.delete'), () =>
-      showConfirm(t('confirm.delete', { name: lvl.name }), t('btn.delete'), () => {
-        customLevels = deleteCustomLevel(customLevels, lvl.id);
-        showLevelSelect();
-      })
-    );
-    card.appendChild(actions);
-    wgrid.appendChild(card);
-  }
-
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  if (gameInProgress()) {
-    const resume = document.createElement('button');
-    resume.className = 'big-btn';
-    resume.textContent = t('btn.resume', { name: t(game!.level.name) });
-    resume.onclick = () => {
-      audio.click();
-      resumeGame();
-    };
-    row.appendChild(resume);
-  }
-  const back = document.createElement('button');
-  back.className = 'big-btn secondary';
-  back.textContent = t('btn.title');
-  back.onclick = () => showTitle();
-  row.appendChild(back);
-  const opts = document.createElement('button');
-  opts.className = 'big-btn secondary';
-  opts.textContent = t('menu.options');
-  opts.onclick = () => {
-    audio.click();
-    showOptions(showLevelSelect);
-  };
-  row.appendChild(opts);
-  ov.appendChild(row);
+    },
+    onResume: resumeGame,
+    onTitle: showTitle,
+    onOptions: () => showOptions(showLevelSelect),
+  });
   uiRoot.appendChild(ov);
 }
 
