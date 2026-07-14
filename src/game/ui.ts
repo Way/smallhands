@@ -344,14 +344,23 @@ export class Hud {
     const val = el('b', 'res-keep-val', row);
     const plus = el('button', 'res-step', row);
     plus.textContent = '+';
+    const acts = el('div', 'res-pop-acts', pop);
+    const allBtn = el('button', 'res-act', acts);
+    allBtn.textContent = t('hud.keepAll');
+    const resetBtn = el('button', 'res-act', acts);
+    resetBtn.textContent = t('hud.keepReset');
     el('div', 'res-pop-note', pop).textContent = t('hud.keepNote');
-    const step = (delta: number): void => {
-      g.setKeep(item, g.keep[item] + delta);
+    // "All" pins keep at the cap so every unit stays in store (haulers ship
+    // nothing); setKeep clamps, so a large value resolves to the max.
+    const setKeepTo = (n: number): void => {
+      g.setKeep(item, n);
       val.textContent = String(g.keep[item]);
       this.refreshKeepBadge(item);
     };
-    minus.onclick = () => step(-1);
-    plus.onclick = () => step(1);
+    minus.onclick = () => setKeepTo(g.keep[item] - 1);
+    plus.onclick = () => setKeepTo(g.keep[item] + 1);
+    allBtn.onclick = () => setKeepTo(Infinity);
+    resetBtn.onclick = () => setKeepTo(0);
     const refresh = (): void => {
       nameEl.textContent = t('hud.inStore', { name: t(`item.${item}`), n: g.stock[item] });
       val.textContent = String(g.keep[item]);
