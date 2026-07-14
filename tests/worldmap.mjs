@@ -1,16 +1,11 @@
 // Browser test for the world-map level select: territories/fog, node popover,
 // play flow, daily landmark, legend bar and the my-levels drawer.
 // Needs `npm run build && npm run preview` and CHROME_PATH (see e2e.mjs).
-//
-// Note: on this branch the game still lives at /play/ (the front-door
-// unification that serves the game at `/` via `.fd-play` — see the #4
-// commit stream — has not landed here yet), so BASE_URL points at /play/
-// and the title screen's `button.big-btn` is the entry click, matching the
-// pattern already used by tests/editor-generator.mjs.
+// The unified front door serves the game at `/`; `.fd-play` enters it.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/play/';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -41,7 +36,7 @@ const check = (name, cond) => {
 
 await page.goto(BASE_URL);
 await page.waitForTimeout(800);
-await page.click('button.big-btn');
+await page.click('.fd-play');
 await page.waitForTimeout(400);
 
 // ---- structure on a fresh profile ----
@@ -130,7 +125,7 @@ await page.evaluate(() => {
 });
 await page.goto(BASE_URL);
 await page.waitForTimeout(800);
-await page.click('button.big-btn');
+await page.click('.fd-play');
 await page.waitForTimeout(400);
 
 check('legend mine count badge shows 1', (await page.textContent('.legend-btn.mine .lg-count')) === '1');

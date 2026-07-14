@@ -14,8 +14,6 @@
 
 html, body {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
   background: #10141d;
   font-family: var(--font);
   color: var(--text);
@@ -23,18 +21,32 @@ html, body {
   user-select: none;
 }
 
-#app { position: fixed; inset: 0; }
+/* The game canvas is a fixed backdrop in both modes. Front-door mode lets the
+   document scroll (marketing sections scroll up over the canvas); in-game mode
+   locks scroll and makes the canvas the interactive play surface. */
+body.front-door { overflow-x: hidden; overflow-y: auto; }
+body.in-game { overflow: hidden; height: 100%; }
 
 #game-canvas {
-  position: absolute;
+  position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
   touch-action: none;
+  z-index: 0;
 }
+body.front-door #game-canvas { pointer-events: none; } /* let the page scroll */
+body.in-game #game-canvas { pointer-events: auto; }
 
-#ui-root { position: absolute; inset: 0; pointer-events: none; }
+#frontdoor { position: relative; z-index: 1; }
+body.in-game #frontdoor { display: none; }
+
+/* #ui-root hosts the HUD in-game and modal overlays (options/confirm) in BOTH
+   modes. It is empty and click-through (pointer-events:none) in front-door mode,
+   so it needs no hiding — and an options overlay opened from the front door must
+   stay visible, so it must NOT be display:none here. */
+#ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #ui-root > * { pointer-events: auto; }
 
 .panel {
@@ -493,13 +505,6 @@ html, body {
   text-shadow: 0 4px 0 #7a5a10, 0 8px 24px rgba(0, 0, 0, 0.6);
   font-family: Georgia, 'Times New Roman', serif;
 }
-.title-sub {
-  font-size: 15px;
-  color: var(--text-dim);
-  margin-top: -10px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
 
 .big-btn {
   padding: 13px 42px;
@@ -650,7 +655,6 @@ html, body {
   color: #ff9a8b;
 }
 .seg-btn.danger:hover { background: rgba(255, 122, 107, 0.15); }
-.title-options { margin-top: 6px; }
 .win-stats.camp-unlock {
   border: 1px solid rgba(143, 198, 240, 0.4);
   background: rgba(43, 74, 110, 0.35);

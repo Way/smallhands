@@ -108,20 +108,21 @@ skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Site layout
 
-The site is a two-page static build:
+The site is a single-page static build with one front door:
 
-- `/` — a small, playful **landing page** (`index.html` + `src/landing.ts`)
-  that pitches Smallhands as the sweet spot between Lemmings and The Settlers.
-  It is bilingual (English/German, toggle in the top bar) and draws its icons
-  from the game's own pixel-art atlas; the language choice is written to the
-  same save slot the game reads, so it carries straight into play.
-- `/play/` — the game itself (`play/index.html` + `src/main.ts`).
+- `/` — the game itself (`index.html` + `src/main.ts` + `src/game/frontdoor.ts`).
+  It opens on the game's animated title screen, with the marketing content
+  scrolling up beneath it — the pitch for Smallhands as the sweet spot between
+  Lemmings and The Settlers. It is bilingual (English/German, toggle in the top
+  bar) and draws its icons from the game's own pixel-art atlas; the language
+  choice persists to the save slot, so it carries straight into play.
+- `/play/` — a redirect stub to `/`, so old links and bookmarks survive.
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # dev server with HMR (landing at /, game at /play/)
+npm run dev      # dev server with HMR (unified front door at /)
 npm run build    # typecheck + production build into dist/
 npm run preview  # serve the production build locally
 ```
@@ -131,7 +132,7 @@ npm run preview  # serve the production build locally
 With a preview server running on port 4173, this drives a real browser through
 levels 1 and 2 (harvesting, sawmill production, goal deliveries, cargo lift and
 ladder logistics) and fails if the levels can't be completed. The browser
-suites target the game at `/play/`; override with `BASE_URL` if needed:
+suites target the game at `/` (the front door); override with `BASE_URL` if needed:
 
 ```bash
 npm run build && npm run preview &   # serve dist on :4173
@@ -174,17 +175,17 @@ A third browser suite (`npm run test:i18n`, preview server required) switches
 the game to German through the options menu and verifies every open surface —
 title, level select, in-game HUD — re-renders live and the choice persists.
 
-The landing page has its own smoke test (`npm run test:landing`, preview
-server required): it drives the front door at `/`, checks the bilingual toggle
+The front door has its own smoke test (`npm run test:landing`, preview
+server required): it drives the unified page at `/`, checks the bilingual toggle
 switches the copy and writes the shared save slot, that the pixel-art icons
-actually draw, and that the **Play** button reaches the game at `/play/` in the
-language the landing persisted.
+actually draw, and that the **Play** button starts the game in place at `/` in
+the language the front door persisted.
 
 ## Hosting
 
 The build output in `dist/` is a fully static site with relative asset paths —
-the landing page at `dist/index.html` and the game at `dist/play/` — so you can
-host it anywhere (GitHub Pages, itch.io, Netlify, any static file server).
+the front door at `dist/index.html`, with `dist/play/` a redirect stub to `/` —
+so you can host it anywhere (GitHub Pages, itch.io, Netlify, any static file server).
 A GitHub Actions workflow (`.github/workflows/deploy.yml`) is included that
 builds and publishes to GitHub Pages on every push to `main` — enable
 **Settings → Pages → Source: GitHub Actions** in the repository to activate it.

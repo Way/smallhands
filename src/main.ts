@@ -20,6 +20,7 @@ import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud, TOOL_ICON } from './game/ui';
+import { FrontDoor } from './game/frontdoor';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
@@ -29,6 +30,7 @@ import type { MapCampaignState } from './game/worldmap';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui-root') as HTMLDivElement;
+const frontDoorRoot = document.getElementById('frontdoor') as HTMLDivElement;
 
 buildAtlas();
 
@@ -175,37 +177,46 @@ function clearOverlay(): void {
   document.querySelectorAll('.overlay').forEach((e) => e.remove());
 }
 
-function showTitle(): void {
+// The front door: the game's animated title screen doubles as the marketing
+// page. It renders into #frontdoor over the live idle backdrop; Play enters the
+// game in place (no navigation).
+const frontDoor = new FrontDoor(frontDoorRoot, {
+  onPlay: () => {
+    audio.click();
+    enterGame();
+  },
+  onOptions: () => {
+    audio.click();
+    showOptions(enterFrontDoor);
+  },
+  onLang: (l) => applyLanguage(l),
+  continueLabel: () => (save.completed.length ? t('btn.continue') : t('btn.play')),
+});
+
+// Show the scroll-reveal front door over the idle backdrop.
+function enterFrontDoor(): void {
+  document.body.classList.add('front-door');
+  document.body.classList.remove('in-game');
   clearOverlay();
   running = false;
-  const ov = document.createElement('div');
-  ov.className = 'overlay';
-  ov.innerHTML = `
-    <div class="title-logo">SMALLHANDS</div>
-    <div class="title-sub">${t('title.sub')}</div>
-  `;
-  const play = document.createElement('button');
-  play.className = 'big-btn';
-  play.textContent = save.completed.length ? t('btn.continue') : t('btn.play');
-  play.onclick = () => {
-    audio.click();
-    showLevelSelect();
-  };
-  ov.appendChild(play);
-  const blurb = document.createElement('div');
-  blurb.className = 'win-stats';
-  blurb.innerHTML = t('title.blurb');
-  ov.appendChild(blurb);
-  const opts = document.createElement('button');
-  opts.className = 'big-btn secondary title-options';
-  opts.textContent = t('menu.options');
-  opts.onclick = () => {
-    audio.click();
-    showOptions(showTitle);
-  };
-  ov.appendChild(opts);
-  uiRoot.appendChild(ov);
-  drawIdleBackdrop();
+  drawIdleBackdrop(); // ensure the idle scene exists behind the hero
+  frontDoor.show();
+  window.scrollTo(0, 0);
+}
+
+// Leave the front door and start play (level select).
+function enterGame(): void {
+  document.body.classList.remove('front-door');
+  document.body.classList.add('in-game');
+  frontDoor.hide();
+  window.scrollTo(0, 0);
+  showLevelSelect();
+}
+
+// Legacy entry point: "back to title" and options-return now land on the front
+// door. Kept as an alias so existing call sites don't need to change.
+function showTitle(): void {
+  enterFrontDoor();
 }
 
 // Is there a running level whose progress would be lost?
@@ -1377,6 +1388,7 @@ function drawIdleBackdrop(): void {
 let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
+let idleStaticTime: number | null = null;
 
 const RUN_SPRITE: Partial<Record<Tool, string>> = {
   ramp: 'tile_ramp',
@@ -1403,6 +1415,10 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
   ctx.globalAlpha = 1;
 };
 
+// Honour the OS "reduce motion" preference for the decorative idle backdrop.
+const reduceMotion = () =>
+  typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function frame(now: number): void {
   const dtReal = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -1426,24 +1442,48 @@ function frame(now: number): void {
 
   const active = running && game ? game : idleGame;
   if (active) {
-    acc += dtReal * (active === game ? speed : 1);
-    let iter = 0;
-    while (acc >= FIXED && iter < 8) {
-      active.tick(FIXED);
-      acc -= FIXED;
-      iter++;
-    }
-    if (acc >= FIXED) acc = 0; // drop time if we can't keep up
+    // The idle backdrop is decorative: skip it entirely when it can't be seen
+    // (front-door scrolled past the hero, or the tab is hidden) and freeze it
+    // to a static frame under prefers-reduced-motion.
+    const isIdle = active === idleGame;
+    const idleHidden =
+      isIdle &&
+      (document.hidden ||
+        (document.body.classList.contains('front-door') && window.scrollY >= window.innerHeight));
+    const idleStatic = isIdle && reduceMotion();
 
-    if (active === idleGame) {
-      // slow auto-pan across the idle scene
-      cam.zoom = 2;
-      const maxX = idleGame!.world.w * TILE * 2 - renderer.viewW;
-      cam.x = (Math.sin(now / 9000) * 0.5 + 0.5) * Math.max(0, maxX);
-      cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
-    }
+    if (!idleHidden) {
+      if (!idleStatic) {
+        acc += dtReal * (active === game ? speed : 1);
+        let iter = 0;
+        while (acc >= FIXED && iter < 8) {
+          active.tick(FIXED);
+          acc -= FIXED;
+          iter++;
+        }
+        if (acc >= FIXED) acc = 0; // drop time if we can't keep up
+      }
 
-    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
+      if (isIdle) {
+        // slow auto-pan across the idle scene (fixed camera under reduced motion)
+        cam.zoom = 2;
+        const maxX = idleGame!.world.w * TILE * 2 - renderer.viewW;
+        cam.x = idleStatic ? 0 : (Math.sin(now / 9000) * 0.5 + 0.5) * Math.max(0, maxX);
+        cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
+      }
+
+      // Under reduced motion, freeze the clock fed to the renderer too, so
+      // time-driven decoration (clouds, wind sway, smoke, flags) holds still —
+      // not just the camera pan and the sim.
+      if (isIdle && idleStatic) {
+        idleStaticTime ??= now;
+      } else {
+        idleStaticTime = null;
+      }
+      const drawTime = idleStaticTime ?? now;
+
+      renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, drawTime / 1000, runOverlay);
+    }
   }
 
   // Refresh the drag-run cost readout against live stock every frame — the same
