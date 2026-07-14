@@ -3,31 +3,15 @@
 // and fails unless the simulation reaches the win state. This is the same
 // "verified completable end-to-end" bar the campaign-1 levels were held to.
 //
-// Bundles the TypeScript sources with esbuild (dev dep via vite) and imports
+// Bundles the TypeScript sources with rolldown (see bundle.mjs) and imports
 // the result from an in-memory data URL, so it runs with plain `node`.
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-const res = await build({
-  stdin: {
-    contents: `
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-      export { t } from './src/engine/i18n.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  write: false,
-});
-const { Game, LEVELS, t } = await import(
-  'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
-);
+const { Game, LEVELS, t } = await bundleExports(`
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+  export { t } from './src/engine/i18n.ts';
+`);
 
 let failures = 0;
 

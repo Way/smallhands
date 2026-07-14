@@ -1,28 +1,19 @@
-// Headless checks for the Ramp/Bridge feature. Bundles the TS sim with esbuild
-// (a vite dep) and imports it from a data URL, so it runs with plain `node`.
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+// Headless checks for the Ramp/Bridge feature. Bundles the TS sim with
+// rolldown (see bundle.mjs) and imports it from a data URL, so it runs with
+// plain `node`.
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-const res = await build({
-  stdin: {
-    contents: `
-      export { World } from './src/game/world.ts';
-      export { findPath } from './src/game/nav.ts';
-      export { T } from './src/game/types.ts';
-      export { canPlaceRamp, rampRunCells, bridgeRunCells } from './src/game/world.ts';
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-      export { TOOL_DEFS } from './src/game/types.ts';
-      export { t } from './src/engine/i18n.ts';
-      export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true, format: 'esm', platform: 'node', write: false,
-});
-const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
+const mod = await bundleExports(`
+  export { World } from './src/game/world.ts';
+  export { findPath } from './src/game/nav.ts';
+  export { T } from './src/game/types.ts';
+  export { canPlaceRamp, rampRunCells, bridgeRunCells } from './src/game/world.ts';
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+  export { TOOL_DEFS } from './src/game/types.ts';
+  export { t } from './src/engine/i18n.ts';
+  export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
+`);
 const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
 
 let failures = 0;

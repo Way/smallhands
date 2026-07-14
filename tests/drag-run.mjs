@@ -1,24 +1,14 @@
 // Headless checks for the drag-stack build feature (Ladder/Ramp/Bridge runs +
-// runPlan affordability). Bundles the TS sim with esbuild (a vite dep) and
-// imports it from a data URL, so it runs with plain `node`.
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+// runPlan affordability). Bundles the TS sim with rolldown (see bundle.mjs)
+// and imports it from a data URL, so it runs with plain `node`.
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-const res = await build({
-  stdin: {
-    contents: `
-      export { World, ladderRunCells, rampRunCells, bridgeRunCells } from './src/game/world.ts';
-      export { T } from './src/game/types.ts';
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true, format: 'esm', platform: 'node', write: false,
-});
-const mod = await import('data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64'));
+const mod = await bundleExports(`
+  export { World, ladderRunCells, rampRunCells, bridgeRunCells } from './src/game/world.ts';
+  export { T } from './src/game/types.ts';
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+`);
 const { World, ladderRunCells, rampRunCells, bridgeRunCells, T, Game, LEVELS } = mod;
 
 let failures = 0;

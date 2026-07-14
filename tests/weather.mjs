@@ -1,30 +1,14 @@
 // Headless checks for the weather crossfade: the sim blend ramp and the pure
-// WeatherLook lerp. Bundles the TS sources with esbuild and imports from an
-// in-memory data URL, so it runs with plain `node` (same pattern as unit.mjs).
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+// WeatherLook lerp. Bundles the TS sources with rolldown (see bundle.mjs) and
+// imports from an in-memory data URL, so it runs with plain `node`.
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-const res = await build({
-  stdin: {
-    contents: `
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-      export { WEATHER_FADE, WET_WORK_FACTOR } from './src/game/types.ts';
-      export { weatherLook, lerpLook } from './src/game/weather-look.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  write: false,
-});
-const { Game, LEVELS, WEATHER_FADE, WET_WORK_FACTOR, weatherLook, lerpLook } = await import(
-  'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
-);
+const { Game, LEVELS, WEATHER_FADE, WET_WORK_FACTOR, weatherLook, lerpLook } = await bundleExports(`
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+  export { WEATHER_FADE, WET_WORK_FACTOR } from './src/game/types.ts';
+  export { weatherLook, lerpLook } from './src/game/weather-look.ts';
+`);
 
 let failures = 0;
 function check(name, cond) {
