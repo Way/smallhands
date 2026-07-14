@@ -44,7 +44,6 @@ body.in-game #frontdoor { display: none; }
 
 #ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #ui-root > * { pointer-events: auto; }
-body.front-door #ui-root { display: none; }
 
 .panel {
   background: var(--panel-bg);
