@@ -62,6 +62,13 @@ await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 await page.waitForTimeout(50);
 check('resume dialog not duplicated', (await page.locator('.resume-overlay').count()) === 1);
 
+// Keyboard must not leak past the modal dialog: Space (which toggles pause) is
+// swallowed, so the sim can't be unpaused behind the overlay.
+await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' })));
+await page.waitForTimeout(30);
+check('Space does not unpause behind the dialog', await page.evaluate(() => window.__smallhands.game.paused));
+check('dialog still up after Space', (await page.locator('.resume-overlay').count()) === 1);
+
 // ---- click Resume -> unpaused at the original speed -------------------------
 await page.click('.resume-overlay .big-btn');
 await page.waitForTimeout(50);

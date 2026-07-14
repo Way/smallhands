@@ -1367,6 +1367,11 @@ window.addEventListener('keydown', (e) => {
     }
   }
   if (!game || !running) return;
+  // The resume-after-focus dialog is modal: the sim stays paused until the
+  // player clicks Resume. Swallow the game shortcuts (Space toggles speed, tool
+  // keys) so nothing runs or retools behind the overlay — the pointer overlay
+  // alone doesn't block the keyboard.
+  if (uiRoot.querySelector('.resume-overlay')) return;
   const def = TOOL_DEFS.find((d) => d.key === e.key);
   if (def && (!game.level.allowedTools || game.level.allowedTools.includes(def.id))) {
     setTool(def.id);
