@@ -1554,6 +1554,10 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
   ctx.globalAlpha = 1;
 };
 
+// Honour the OS "reduce motion" preference for the decorative idle backdrop.
+const reduceMotion = () =>
+  typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function frame(now: number): void {
   const dtReal = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -1577,24 +1581,38 @@ function frame(now: number): void {
 
   const active = running && game ? game : idleGame;
   if (active) {
-    acc += dtReal * (active === game ? speed : 1);
-    let iter = 0;
-    while (acc >= FIXED && iter < 8) {
-      active.tick(FIXED);
-      acc -= FIXED;
-      iter++;
-    }
-    if (acc >= FIXED) acc = 0; // drop time if we can't keep up
+    // The idle backdrop is decorative: skip it entirely when it can't be seen
+    // (front-door scrolled past the hero, or the tab is hidden) and freeze it
+    // to a static frame under prefers-reduced-motion.
+    const isIdle = active === idleGame;
+    const idleHidden =
+      isIdle &&
+      (document.hidden ||
+        (document.body.classList.contains('front-door') && window.scrollY >= window.innerHeight));
+    const idleStatic = isIdle && reduceMotion();
 
-    if (active === idleGame) {
-      // slow auto-pan across the idle scene
-      cam.zoom = 2;
-      const maxX = idleGame!.world.w * TILE * 2 - renderer.viewW;
-      cam.x = (Math.sin(now / 9000) * 0.5 + 0.5) * Math.max(0, maxX);
-      cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
-    }
+    if (!idleHidden) {
+      if (!idleStatic) {
+        acc += dtReal * (active === game ? speed : 1);
+        let iter = 0;
+        while (acc >= FIXED && iter < 8) {
+          active.tick(FIXED);
+          acc -= FIXED;
+          iter++;
+        }
+        if (acc >= FIXED) acc = 0; // drop time if we can't keep up
+      }
 
-    renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
+      if (isIdle) {
+        // slow auto-pan across the idle scene (fixed camera under reduced motion)
+        cam.zoom = 2;
+        const maxX = idleGame!.world.w * TILE * 2 - renderer.viewW;
+        cam.x = idleStatic ? 0 : (Math.sin(now / 9000) * 0.5 + 0.5) * Math.max(0, maxX);
+        cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
+      }
+
+      renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
+    }
   }
 
   // Refresh the drag-run cost readout against live stock every frame — the same
