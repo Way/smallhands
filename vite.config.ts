@@ -1,8 +1,4 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const root = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   // Relative base so the built site works on GitHub Pages, itch.io, or any subpath.

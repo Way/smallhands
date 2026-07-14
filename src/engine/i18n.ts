@@ -312,11 +312,6 @@ const D: Record<string, [string, string]> = {
   'ui.dismiss': ['dismiss', 'ausblenden'],
 
   // ---- menus, overlays, toasts ----------------------------------------------------
-  'title.sub': ['Tiny workers · Big plans', 'Kleine Hände · Große Pläne'],
-  'title.blurb': [
-    'You never control the smallhands directly.<br/>Shape the world — ladders, lifts, workshops — and they do the rest.',
-    'Du steuerst die Smallhands nie direkt.<br/>Forme die Welt — Leitern, Aufzüge, Werkstätten — den Rest erledigen sie.',
-  ],
   'btn.play': ['Play', 'Spielen'],
   'btn.continue': ['Continue', 'Weiter'],
   'btn.title': ['Title', 'Titelbild'],

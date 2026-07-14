@@ -1,7 +1,7 @@
 // End-to-end smoke test: drives a real browser through levels 1 and 2 and
 // fails if they cannot be completed. Requires the production build to be
-// served (default http://localhost:4173/play/ — `npm run preview`; the game
-// now lives at /play/, with the marketing landing page at the site root).
+// served (default http://localhost:4173/ — `npm run preview`; the game is
+// served at the site's single front door, `/`).
 //
 // Uses the game's window.__smallhands debug hook to act as a scripted player:
 // it marks resources and places buildings, then the simulation does the rest.
