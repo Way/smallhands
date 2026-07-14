@@ -38,7 +38,8 @@ await page.goto(BASE_URL);
 await page.waitForTimeout(800);
 await page.click('.fd-play');
 await page.waitForTimeout(300);
-await page.click('.level-card:not(.locked)');
+await page.click('.map-node:not(:disabled)');
+await page.click('.map-popover .pop-play');
 await page.waitForFunction(() => window.__smallhands);
 await page.waitForTimeout(300);
 

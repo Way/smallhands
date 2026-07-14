@@ -32,14 +32,16 @@ check('front-door re-renders in German', (await page.textContent('.tagline')) ==
 // enter the game in German
 await page.click('.fd-play'); // Spielen
 await page.waitForTimeout(300);
-const header = await page.textContent('.title-logo:not(:first-child), .level-select .title-logo');
+const header = await page.textContent('.worldmap .map-title');
 check('level select header is German', header === 'Wähle ein Level');
-const firstName = await page.textContent('.level-card .lv-name');
+await page.click('.map-node:not(:disabled)');
+await page.waitForTimeout(200);
+const firstName = await page.textContent('.map-popover .lv-name');
 check('level 1 name is German', firstName === 'Erste Schritte');
 
 
 // start level 1: HUD in German
-await page.click('.level-card:not(.locked)');
+await page.click('.map-popover .pop-play');
 await page.waitForTimeout(600);
 const deliver = await page.textContent('.objectives h3 span');
 check('HUD "Deliver" header is German', deliver === 'Liefern');

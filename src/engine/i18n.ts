@@ -378,33 +378,28 @@ const D: Record<string, [string, string]> = {
     'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
   ],
 
-  'camp3.unlocked': [
-    'Campaign 3 — Weight & Wheel: the counterweight hoist',
-    'Kampagne 3 — Gewicht & Rad: der Gegengewichts-Aufzug',
+  // world map (level select)
+  'map.terr1': ['Home Meadows', 'Heimatwiesen'],
+  'map.terr2': ['Storm & Tide', 'Sturm & Flut'],
+  'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
+  'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
+  'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
+  'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
+  'legend.title': ['Legend', 'Legende'],
+  'legend.mine': ['My levels', 'Meine Level'],
+  'drawer.empty': [
+    'No levels yet — build one in the editor or import a share code.',
+    'Noch keine Level — baue eins im Editor oder importiere einen Code.',
   ],
-  'camp3.locked': [
-    'Campaign 3 — Weight & Wheel 🔒 finish Campaign 2 to unlock',
-    'Kampagne 3 — Gewicht & Rad 🔒 schließe Kampagne 2 ab',
-  ],
+
   'win.campaign3': [
     '<b>⚙ Campaign 3 unlocked — Weight & Wheel!</b><br/>Two cars on a pulley and one law: the heavier side sinks. Send ballast down to raise your cargo to the heights.',
     '<b>⚙ Kampagne 3 freigeschaltet — Gewicht & Rad!</b><br/>Zwei Körbe an einer Seilrolle und ein Gesetz: die schwerere Seite sinkt. Schicke Ballast hinab, um deine Fracht in die Höhen zu heben.',
   ],
 
-  'camp2.unlocked': [
-    'Campaign 2 — Storm & Tide: water, weather and the dark of night',
-    'Kampagne 2 — Sturm & Flut: Wasser, Wetter und die dunkle Nacht',
-  ],
-  'camp2.locked': [
-    'Campaign 2 — Storm & Tide 🔒 finish Campaign 1 to unlock',
-    'Kampagne 2 — Sturm & Flut 🔒 schließe Kampagne 1 ab',
-  ],
   'status.ready': ['Ready', 'Bereit'],
   'status.locked': ['Locked', 'Gesperrt'],
   'status.done': ['✓ Complete', '✓ Geschafft'],
-  'status.endless': ['Endless', 'Endlos'],
-  'status.create': ['Create', 'Erstellen'],
-  'status.share': ['Share', 'Teilen'],
   'card.best': ['Best', 'Bestzeit'],
   'card.gold': ['Gold', 'Gold'],
   'medal.gold': ['Gold', 'Gold'],
@@ -412,10 +407,6 @@ const D: Record<string, [string, string]> = {
   'medal.bronze': ['Bronze', 'Bronze'],
   'slot.medal': ['{tier} medal', '{tier}-Medaille'],
   'slot.none': ['No medal yet', 'Noch keine Medaille'],
-  'workshop.title': [
-    'Workshop — endless levels, daily challenge & your own creations',
-    'Werkstatt — endlose Level, Tages-Challenge & eigene Kreationen',
-  ],
   'daily.name': ['Daily Challenge', 'Tages-Challenge'],
   'daily.desc': [
     '{label} · difficulty ★{d}. One shared seed per day — same mountain for everyone.',
@@ -423,20 +414,8 @@ const D: Record<string, [string, string]> = {
   ],
   'daily.title': ['Daily · {label}', 'Täglich · {label}'],
   'gen.cardName': ['Generate a level', 'Level generieren'],
-  'gen.cardDesc': [
-    'Roll a fresh, verified level from a seed. Pick your difficulty, share the seed with friends.',
-    'Würfle ein frisches, geprüftes Level aus einem Seed. Wähle die Schwierigkeit, teile den Seed mit Freunden.',
-  ],
   'editor.cardName': ['Level editor', 'Level-Editor'],
-  'editor.cardDesc': [
-    'Sculpt terrain, plant resources, set the delivery order — then playtest and share it as a code.',
-    'Forme Terrain, pflanze Ressourcen, lege den Lieferauftrag fest — dann teste und teile es als Code.',
-  ],
   'import.cardName': ['Import code', 'Code importieren'],
-  'import.cardDesc': [
-    "Paste a shared level code (SMH1.…) to add someone else's level to your list.",
-    'Füge einen geteilten Level-Code (SMH1.…) ein, um das Level von jemand anderem zu übernehmen.',
-  ],
   'import.prompt': ['Paste a Smallhands level code:', 'Füge einen Smallhands-Level-Code ein:'],
   'import.error': [
     'That code could not be read — make sure the whole SMH1.… string was copied.',
