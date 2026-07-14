@@ -10,14 +10,8 @@ export default defineConfig({
   build: {
     target: 'es2022',
     assetsInlineLimit: 8192,
-    rollupOptions: {
-      input: {
-        // The marketing landing page is the site's front door…
-        main: resolve(root, 'index.html'),
-        // …and the game itself lives one level down at /play/.
-        play: resolve(root, 'play/index.html'),
-      },
-    },
+    // One front door: the game and its marketing scroll both live at index.html.
+    // /play/ is a static redirect stub (public/play/index.html), not a build input.
   },
   server: {
     host: true,
