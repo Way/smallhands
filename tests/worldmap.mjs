@@ -107,6 +107,45 @@ if (confirmBtn) {
 }
 check('editor opens from legend', !!(await page.$('.editor-panel')));
 
+// ---- drawer shows a seeded custom level (fresh load) ----
+await page.evaluate(() => {
+  const lvl = {
+    v: 1,
+    id: 'test-custom-1',
+    name: 'Seed Peak',
+    desc: 'A seeded custom level for testing.',
+    width: 32,
+    height: 20,
+    tiles: '0x640',
+    nodes: [],
+    townhall: { x: 4, y: 10 },
+    goal: { x: 20, y: 10 },
+    objectives: [{ item: 'plank', amount: 6 }],
+    startStock: { log: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1 },
+    startWorkers: 4,
+    startThLevel: 1,
+  };
+  localStorage.setItem('smallhands-custom-v1', JSON.stringify([lvl]));
+});
+await page.goto(BASE_URL);
+await page.waitForTimeout(800);
+await page.click('button.big-btn');
+await page.waitForTimeout(400);
+
+check('legend mine count badge shows 1', (await page.textContent('.legend-btn.mine .lg-count')) === '1');
+await page.click('.legend-btn.mine');
+await page.waitForTimeout(150);
+check('drawer opens with the seeded level', !!(await page.$('.custom-drawer')));
+const seededCards = await page.$$('.custom-drawer .level-card.custom');
+check('drawer shows exactly one custom level card', seededCards.length === 1);
+const seededActionBtns = await page.$$('.custom-drawer .level-card.custom .lv-action-btn');
+check('custom card has exactly 3 action buttons', seededActionBtns.length === 3);
+check(
+  'custom card name matches the seeded level',
+  (await page.textContent('.custom-drawer .level-card.custom .lv-name')) === 'Seed Peak'
+);
+
 await browser.close();
 if (failures) {
   console.error(`WORLDMAP FAIL: ${failures} checks failed`);

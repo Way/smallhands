@@ -405,9 +405,6 @@ const D: Record<string, [string, string]> = {
   'status.ready': ['Ready', 'Bereit'],
   'status.locked': ['Locked', 'Gesperrt'],
   'status.done': ['✓ Complete', '✓ Geschafft'],
-  'status.endless': ['Endless', 'Endlos'],
-  'status.create': ['Create', 'Erstellen'],
-  'status.share': ['Share', 'Teilen'],
   'card.best': ['Best', 'Bestzeit'],
   'card.gold': ['Gold', 'Gold'],
   'medal.gold': ['Gold', 'Gold'],
@@ -422,20 +419,8 @@ const D: Record<string, [string, string]> = {
   ],
   'daily.title': ['Daily · {label}', 'Täglich · {label}'],
   'gen.cardName': ['Generate a level', 'Level generieren'],
-  'gen.cardDesc': [
-    'Roll a fresh, verified level from a seed. Pick your difficulty, share the seed with friends.',
-    'Würfle ein frisches, geprüftes Level aus einem Seed. Wähle die Schwierigkeit, teile den Seed mit Freunden.',
-  ],
   'editor.cardName': ['Level editor', 'Level-Editor'],
-  'editor.cardDesc': [
-    'Sculpt terrain, plant resources, set the delivery order — then playtest and share it as a code.',
-    'Forme Terrain, pflanze Ressourcen, lege den Lieferauftrag fest — dann teste und teile es als Code.',
-  ],
   'import.cardName': ['Import code', 'Code importieren'],
-  'import.cardDesc': [
-    "Paste a shared level code (SMH1.…) to add someone else's level to your list.",
-    'Füge einen geteilten Level-Code (SMH1.…) ein, um das Level von jemand anderem zu übernehmen.',
-  ],
   'import.prompt': ['Paste a Smallhands level code:', 'Füge einen Smallhands-Level-Code ein:'],
   'import.error': [
     'That code could not be read — make sure the whole SMH1.… string was copied.',

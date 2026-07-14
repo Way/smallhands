@@ -131,8 +131,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     const r = viewport.getBoundingClientRect();
     if (!r.width || !r.height) return;
     let s = Math.min(r.width / VIEW_W, r.height / VIEW_H);
-    const minS = Math.min(900 / VIEW_W, r.height / VIEW_H);
-    if (s < minS) s = minS;
+    s = Math.max(s, 900 / VIEW_W);
     wrap.style.width = `${VIEW_W * s}px`;
     wrap.style.height = `${VIEW_H * s}px`;
   };
@@ -270,6 +269,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     // flip below the node near the top edge; clamp x so it never leaves the map
     pop.className = 'level-card map-popover' + (at.y < 300 ? ' below' : '');
     pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-modal', 'true');
     place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
     fill(pop);
     wrap.appendChild(pop);
@@ -302,6 +302,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
     `;
     (card.querySelector('.lv-name') as HTMLElement).textContent = name;
+    (card.querySelector('.lv-name') as HTMLElement).id = 'map-pop-title';
+    card.setAttribute('aria-labelledby', 'map-pop-title');
     (card.querySelector('.lv-desc') as HTMLElement).textContent = desc;
     deps.addMedalBits(card, recordKey, goldTime);
     const play = document.createElement('button');
@@ -317,6 +319,10 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
 
   // ---- level nodes ----
   for (const c of deps.campaigns) {
+    if (!MAP_LAYOUT.some((tr) => tr.campaign === c.campaign)) {
+      console.warn(`map layout: no territory for campaign ${c.campaign} — its levels are not shown`);
+      continue;
+    }
     const positions = nodePositions(c.campaign, c.levels.length);
     c.levels.forEach((lv, i) => {
       const p = positions[i];
@@ -444,6 +450,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     }
     drawer = document.createElement('div');
     drawer.className = 'panel custom-drawer';
+    drawer.setAttribute('role', 'dialog');
+    drawer.setAttribute('aria-label', t('legend.mine'));
     const head = document.createElement('div');
     head.className = 'drawer-head';
     const h = document.createElement('span');
@@ -470,6 +478,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       drawer.appendChild(grid);
     }
     ov.appendChild(drawer);
+    x.focus();
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && drawer && !pop) closeDrawer();

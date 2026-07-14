@@ -89,8 +89,8 @@ export function nodePositions(campaign: number, count: number): Pt[] {
       `map layout: campaign ${campaign} has ${count} levels but only ${terr.nodes.length} slots`
     );
     const n = terr.nodes;
-    const a = n[n.length - 2];
     const b = n[n.length - 1];
+    const a = n[n.length - 2] ?? { x: b.x - 60, y: b.y };
     for (let i = n.length; i < count; i++) {
       const k = i - n.length + 1;
       pts.push({ x: b.x + (b.x - a.x) * k, y: b.y + (b.y - a.y) * k });

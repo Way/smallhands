@@ -27,7 +27,7 @@ coastlines, water hatching, contour lines — inspired by Thronefall's map). Rea
   animated until done today.
 - **Creation tools = legend bar** pinned at the bottom: Generate · Editor · Import ·
   My Levels. My Levels opens a slide-up drawer with the saved custom levels.
-- **Trophy shelf = corner cartouche** next to a compass rose.
+- **Trophy shelf = corner cartouche.**
 
 No page scroll; the map scales to fit. The old grid UI is fully replaced.
 
@@ -119,7 +119,9 @@ Styled as the map's legend on a parchment strip:
 ## Edge cases
 
 - `prefers-reduced-motion`: no node pulse, no daily glow animation.
-- Narrow screens: horizontal pan (see Screen structure); legend bar wraps.
+- Narrow screens: horizontal pan (see Screen structure); legend bar wraps. Very short
+  viewports (landscape phone) pan vertically as well, since the scale floor keeps
+  nodes at a tappable size.
 - Empty `save.records`: no cartouche. No custom levels: drawer shows empty-state hint.
 - Popover near map edge: flip/clamp into viewport.
 - Mid-run confirm ("abandon level?") flows exactly as today for every start path.
