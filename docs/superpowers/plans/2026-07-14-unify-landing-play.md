@@ -761,9 +761,12 @@ body.in-game #game-canvas { pointer-events: auto; }
 #frontdoor { position: relative; z-index: 1; }
 body.in-game #frontdoor { display: none; }
 
+/* #ui-root hosts the HUD in-game and modal overlays (options/confirm) in BOTH
+   modes. It is empty and click-through (pointer-events:none) in front-door mode,
+   so it needs no hiding — and an options overlay opened from the front door must
+   stay visible, so it must NOT be display:none here. */
 #ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #ui-root > * { pointer-events: auto; }
-body.front-door #ui-root { display: none; }
 ```
 
 - [ ] **Step 3: Update `vite.config.ts` to a single root input**
