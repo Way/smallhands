@@ -31,10 +31,14 @@ self-contained static site (~22 kB gzipped).
   iron veins → forge (plank + iron → spear).
 - **Town Hall progression** — upgrade to unlock the forge and cargo lift and to
   grow your crew.
-- **Two handcrafted campaigns** — nine levels, each verified completable
+- **Three handcrafted campaigns** — twelve levels, each verified completable
   end-to-end. Campaign 1 (four levels) teaches the logistics core, from a
-  gentle tutorial to a three-terrace summit supply line. **Campaign 2 —
-  Storm & Tide** (five levels, unlocked by finishing Campaign 1) adds:
+  gentle tutorial to a three-terrace summit supply line. **Campaign 3 —
+  Weight & Wheel** (three levels, unlocked by finishing Campaign 2) is the
+  counterweight hoist's teaching arc: send cargo down, pay stone ballast to
+  raise it up, then run a forge in the sky while storms seize the wheel.
+  **Campaign 2 — Storm & Tide** (five levels, unlocked by finishing
+  Campaign 1) adds:
   - **Water** — rivers and ponds are impassable and goods dropped in are lost
     for good; bridge them or lose the cargo.
   - **Dynamic weather on a visible forecast** — rain slows chopping and
@@ -138,10 +142,11 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
-Five headless suites need no browser at all: `tests/unit.mjs` covers pure
+Six headless suites need no browser at all: `tests/unit.mjs` covers pure
 simulation logic (ladders, reserves, medals, water, weather, flood, night),
-`tests/campaign2.mjs` plays every Campaign 2 level start-to-finish with a
-scripted player and fails unless the win state is reached,
+`tests/campaign2.mjs` and `tests/campaign3.mjs` play every Campaign 2 and 3
+level start-to-finish with a scripted player and fail unless the win state
+is reached,
 `tests/terrain.mjs` pins the generator's terrain invariants across a
 seed × difficulty matrix (determinism, verifier-clean, no 2-tile steps,
 flat build pads, a liftable face on every cliff), `tests/motion.mjs`
@@ -154,6 +159,7 @@ ballast level end-to-end:
 ```bash
 npm run test:unit
 npm run test:campaign2
+npm run test:campaign3
 npm run test:terrain
 npm run test:motion
 npm run test:hoist

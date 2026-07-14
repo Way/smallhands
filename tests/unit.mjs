@@ -174,7 +174,7 @@ function findLadderCells(g, count) {
 
 // ---- campaign structure -----------------------------------------------------
 {
-  check('nine campaign levels ship', LEVELS.length === 9);
+  check('twelve campaign levels ship', LEVELS.length === 12);
   check('level ids stay sequential', LEVELS.every((l, i) => l.id === i + 1));
   check('campaign 1 keeps its four levels', LEVELS.filter((l) => (l.campaign ?? 1) === 1).length === 4);
   check('campaign 2 brings five levels', LEVELS.filter((l) => l.campaign === 2).length === 5);

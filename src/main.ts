@@ -454,12 +454,15 @@ function showLevelSelect(): void {
   }
 
   // ---- campaigns ----
-  // Campaign 2 opens only once every Campaign 1 level is finished; within each
-  // campaign, levels unlock in sequence as before.
+  // Each campaign opens only once every level of the previous one is finished;
+  // within each campaign, levels unlock in sequence as before.
   const campaign1 = LEVELS.filter((l) => (l.campaign ?? 1) === 1);
   const campaign1Done = campaign1.every((l) => save.completed.includes(l.id));
+  const campaign2 = LEVELS.filter((l) => (l.campaign ?? 1) === 2);
+  const campaign2Done = campaign2.every((l) => save.completed.includes(l.id));
   const levelUnlocked = (i: number): boolean => {
     if ((LEVELS[i].campaign ?? 1) >= 2 && !campaign1Done) return false;
+    if ((LEVELS[i].campaign ?? 1) >= 3 && !campaign2Done) return false;
     return i === 0 || save.completed.includes(LEVELS[i - 1].id);
   };
   const buildCampaignGrid = (levels: typeof LEVELS): HTMLElement => {
@@ -502,7 +505,16 @@ function showLevelSelect(): void {
     sec.className = 'section-title';
     sec.textContent = campaign1Done ? t('camp2.unlocked') : t('camp2.locked');
     ov.appendChild(sec);
-    ov.appendChild(buildCampaignGrid(LEVELS.filter((l) => (l.campaign ?? 1) === 2)));
+    ov.appendChild(buildCampaignGrid(campaign2));
+  }
+
+  // campaign 3 — weight & wheel
+  {
+    const sec = document.createElement('div');
+    sec.className = 'section-title';
+    sec.textContent = campaign2Done ? t('camp3.unlocked') : t('camp3.locked');
+    ov.appendChild(sec);
+    ov.appendChild(buildCampaignGrid(LEVELS.filter((l) => (l.campaign ?? 1) === 3)));
   }
 
   // ---- workshop: daily challenge, generator, editor, custom levels ----
@@ -903,10 +915,10 @@ function showWin(): void {
     const next = LEVELS[currentLevelIdx + 1];
     if (next) {
       const cur = LEVELS[currentLevelIdx];
-      if ((next.campaign ?? 1) === 2 && (cur.campaign ?? 1) === 1) {
+      if ((next.campaign ?? 1) !== (cur.campaign ?? 1)) {
         const unlock = document.createElement('div');
         unlock.className = 'win-stats camp-unlock';
-        unlock.innerHTML = t('win.campaign2');
+        unlock.innerHTML = t((next.campaign ?? 1) === 3 ? 'win.campaign3' : 'win.campaign2');
         ov.appendChild(unlock);
       }
       const nb = document.createElement('button');

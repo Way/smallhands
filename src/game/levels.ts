@@ -25,7 +25,7 @@ export interface LevelDef {
   hints?: LevelHint[];
   camera?: { x: number; y: number };
   medals?: MedalTimes; // completion-time thresholds in seconds
-  campaign?: number; // 1 (default) or 2 — grouping + unlock gate on the level select
+  campaign?: number; // 1 (default), 2 or 3 — grouping + unlock gate on the level select
   weather?: WeatherPhase[]; // looping phase schedule; omit for an always-clear sky
   night?: boolean; // night level: work only happens in the light (see lanterns)
   flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
@@ -681,5 +681,189 @@ export const LEVELS: LevelDef[] = [
       },
     ],
     camera: { x: 10, y: 22 },
+  },
+
+  // ============================ CAMPAIGN 3 — WEIGHT & WHEEL ============================
+  // The Counterweight Hoist: two cars on a pulley, and one law — the heavier
+  // side sinks. Teaching arc: introduce (send down) → invert (ballast lifts
+  // cargo up) → combine (a plateau forge fed by the wheel, under storm brakes).
+
+  {
+    id: 10,
+    campaign: 3,
+    name: 'lvl10.name',
+    desc: 'lvl10.desc',
+    width: 60,
+    height: 30,
+    objectives: [
+      { item: 'plank', amount: 6 },
+      { item: 'stone', amount: 4 },
+    ],
+    medals: { gold: 300, silver: 420, bronze: 660 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'hoist', 'demolish'],
+    startStock: { log: 2, plank: 3, iron: 1 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    startThLevel: 2,
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [13, 28], // the mining shelf: town, trees, boulders
+          [8, 32], // the valley below, where the caravan waits
+        ])
+      );
+      townhall(g, 3);
+      goal(g, 44);
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      tree(g, 15);
+      boulder(g, 18);
+      boulder(g, 20);
+    },
+    hints: [
+      {
+        id: 'wheel',
+        text: 'lvl10.hint.wheel',
+        when: () => true,
+      },
+      {
+        id: 'route',
+        text: 'lvl10.hint.route',
+        when: (g) => g.hoists.some((b) => b.state === 'ready'),
+      },
+      {
+        id: 'hop',
+        text: 'lvl10.hint.hop',
+        when: (g) => g.time > 25,
+      },
+    ],
+    camera: { x: 6, y: 14 },
+  },
+  {
+    id: 11,
+    campaign: 3,
+    name: 'lvl11.name',
+    desc: 'lvl11.desc',
+    width: 64,
+    height: 30,
+    objectives: [
+      { item: 'plank', amount: 8 },
+      { item: 'stone', amount: 6 },
+    ],
+    medals: { gold: 390, silver: 540, bronze: 840 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'hoist', 'demolish'],
+    startStock: { log: 4, plank: 3, iron: 1 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    startThLevel: 2,
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [8, 22], // the valley: town and timber
+          [15, 42], // the ridge: the caravan and its stone
+        ])
+      );
+      // the old adit: a floor-level tunnel into the ridge with a ladder shaft
+      // left by the miners of the Ember Road. Empty hands climb it freely —
+      // cargo will not touch a ladder, so goods only ride the wheel.
+      const { world } = g;
+      for (let x = 22; x < 30; x++) world.set(x, 21, T.AIR);
+      for (let y = 15; y <= 21; y++) world.set(30, y, T.LADDER);
+      townhall(g, 4);
+      goal(g, 36); // up on the ridge
+      tree(g, 10);
+      tree(g, 12);
+      tree(g, 14);
+      tree(g, 16);
+      boulder(g, 26);
+      boulder(g, 28);
+      boulder(g, 32);
+      boulder(g, 34);
+    },
+    hints: [
+      {
+        id: 'up',
+        text: 'lvl11.hint.up',
+        when: () => true,
+      },
+      {
+        id: 'ballast',
+        text: 'lvl11.hint.ballast',
+        when: (g) => g.hoists.some((b) => b.state === 'ready'),
+      },
+      {
+        id: 'backpath',
+        text: 'lvl11.hint.backpath',
+        when: (g) => g.time > 20,
+      },
+    ],
+    camera: { x: 8, y: 14 },
+  },
+  {
+    id: 12,
+    campaign: 3,
+    name: 'lvl12.name',
+    desc: 'lvl12.desc',
+    width: 76,
+    height: 32,
+    objectives: [
+      { item: 'spear', amount: 3 },
+      { item: 'plank', amount: 6 },
+    ],
+    medals: { gold: 540, silver: 750, bronze: 1080 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'hoist', 'rope', 'demolish'],
+    startStock: { log: 4, plank: 3, iron: 1, stone: 2 },
+    startRoles: { hauler: 3, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    weather: [
+      { kind: 'clear', duration: 60 },
+      { kind: 'storm', duration: 20 },
+    ],
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [9, 26], // the valley: town and timber
+          [17, 50], // the high plateau: iron, stone — and room for a forge
+        ])
+      );
+      // the old adit again — deeper this time (see Level 11)
+      const { world } = g;
+      for (let x = 26; x < 36; x++) world.set(x, 22, T.AIR);
+      for (let y = 15; y <= 22; y++) world.set(36, y, T.LADDER);
+      townhall(g, 4);
+      goal(g, 58); // the garrison caravan, high on the plateau
+      tree(g, 10);
+      tree(g, 12);
+      tree(g, 14);
+      tree(g, 16);
+      tree(g, 18);
+      boulder(g, 21);
+      // the plateau: stone for ballast and the forge, iron for the order
+      boulder(g, 32);
+      boulder(g, 34);
+      vein(g, 40);
+      vein(g, 43);
+      vein(g, 46);
+      boulder(g, 50);
+      boulder(g, 53);
+    },
+    hints: [
+      {
+        id: 'highforge',
+        text: 'lvl12.hint.highforge',
+        when: () => true,
+      },
+      {
+        id: 'stormbrake',
+        text: 'lvl12.hint.stormbrake',
+        when: (g) => g.weather === 'storm',
+      },
+    ],
+    camera: { x: 8, y: 16 },
   },
 ];

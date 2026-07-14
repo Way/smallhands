@@ -897,13 +897,16 @@ export class Game {
   // Candidates whose path legs recently failed are paused for a few seconds
   // so they don't starve the per-pass attempt budget (e.g. items stranded in
   // a pit before a lift exists would otherwise crowd out reachable work).
+  // Keyed PER WORKER: reachability depends on where a worker stands — on
+  // split terrain (a hoist shelf, a one-way drop) a stranded hauler's failed
+  // attempt must not poison the same candidate for a hauler who can do it.
   private haulCooldown = new Map<string, number>();
 
-  private candKey(source: Source, sink: Sink, item: ItemType): string {
+  private candKey(w: Worker, source: Source, sink: Sink, item: ItemType): string {
     const s = source.t === 'stock' ? 'stock' : `${source.t}:${source.id}`;
     const k =
       sink.t === 'stock' ? 'stock' : sink.t === 'hoist' ? `hoist:${sink.id}:${sink.car}` : `${sink.t}:${sink.id}`;
-    return `${s}>${k}:${item}`;
+    return `${w.id}:${s}>${k}:${item}`;
   }
 
   private tryAssignHaul(w: Worker): boolean {
@@ -915,8 +918,10 @@ export class Game {
     }
     const cands: Candidate[] = [];
 
-    // 1. goal deliveries — from stock, and straight from loose items (so goods
-    // a hoist raised to the goal's plateau don't detour through the town hall)
+    // 1. goal deliveries — from stock, straight from loose items, and straight
+    // from workshop outputs. The direct routes matter wherever the town hall
+    // is not on the caravan's level (e.g. goods a hoist raised to a plateau):
+    // funnelling through the stockpile would need a cargo route back up.
     const goal = this.goal;
     if (goal) {
       for (const o of this.objectives) {
@@ -928,9 +933,17 @@ export class Game {
           if (gi.reserved || gi.item !== o.item) continue;
           cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
         }
+        for (const b of this.buildings) {
+          if (b.state !== 'ready') continue;
+          if (this.outAvailable(b, o.item) > 0) {
+            cands.push({ source: { t: 'output', id: b.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+          }
+        }
       }
     }
-    // 2. feed production buildings
+    // 2. feed production buildings — from stock or straight from loose items
+    // (a forge on a plateau eats the iron mined beside it and the planks the
+    // hoist just landed, without a round trip through the town hall)
     for (const b of this.buildings) {
       if (b.state !== 'ready') continue;
       const recipe = RECIPES[b.kind];
@@ -939,8 +952,13 @@ export class Game {
         const item = k as ItemType;
         const have = (b.inputs[item] ?? 0) + (b.inbound[item] ?? 0);
         if (have >= (need as number) * 2) continue; // keep a small buffer
-        if (this.available(item) <= 0) continue;
-        cands.push({ source: { t: 'stock' }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+        if (this.available(item) > 0) {
+          cands.push({ source: { t: 'stock' }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+        }
+        for (const gi of this.groundItems) {
+          if (gi.reserved || gi.item !== item) continue;
+          cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+        }
       }
     }
     // 2b. load counterweight hoist cars: routed items from stock or loose
@@ -1007,7 +1025,7 @@ export class Game {
     let attempts = 0;
     for (const c of cands) {
       if (attempts >= 10) break;
-      const key = this.candKey(c.source, c.sink, c.item);
+      const key = this.candKey(w, c.source, c.sink, c.item);
       const coolUntil = this.haulCooldown.get(key);
       if (coolUntil !== undefined && this.time < coolUntil) continue;
       attempts++;
@@ -1139,6 +1157,13 @@ export class Game {
   }
 
   private schedule(): void {
+    // expired cooldown entries accumulate (per-worker keys over churning item
+    // ids) — sweep them occasionally so the map stays small on long sessions
+    if (this.haulCooldown.size > 2000) {
+      for (const [k, until] of this.haulCooldown) {
+        if (this.time >= until) this.haulCooldown.delete(k);
+      }
+    }
     this.rebalanceRoles();
     for (const w of this.workers) {
       if (w.task && w.task.kind !== 'wander') continue;

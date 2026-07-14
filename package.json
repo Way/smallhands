@@ -13,6 +13,7 @@
     "test:motion": "node tests/motion.mjs",
     "test:hoist": "node tests/hoist.mjs",
     "test:campaign2": "node tests/campaign2.mjs",
+    "test:campaign3": "node tests/campaign3.mjs",
     "test:i18n": "node tests/i18n.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:drag-tooltip": "node tests/drag-tooltip.mjs",
