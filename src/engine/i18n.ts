@@ -293,6 +293,8 @@ const D: Record<string, [string, string]> = {
   'hud.upgrading': ['Upgrading… {p}%', 'Ausbau… {p} %'],
   'hud.chipTitle': ['{name} — click to keep some in store', '{name} — klicke, um etwas im Lager zu behalten'],
   'hud.keep': ['Keep', 'Behalten'],
+  'hud.keepAll': ['All', 'Alle'],
+  'hud.keepReset': ['Reset', 'Zurücksetzen'],
   'hud.keepNote': ['Haulers ship only the surplus to the caravan.', 'Träger liefern nur den Überschuss zur Karawane.'],
   'hud.inStore': ['{name} · {n} in store', '{name} · {n} im Lager'],
   'tt.uses': ['Uses', 'Braucht'],

@@ -107,6 +107,13 @@ html, body {
   color: var(--text); font-size: 15px; font-weight: 700; line-height: 1;
 }
 .res-step:hover { border-color: var(--accent); }
+.res-pop-acts { display: flex; gap: 6px; margin-top: 8px; }
+.res-act {
+  flex: 1; height: 24px; border-radius: 5px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid var(--panel-border-light);
+  color: var(--text); font-size: 11px; font-weight: 700; line-height: 1;
+}
+.res-act:hover { border-color: var(--accent); }
 .res-pop-note { margin-top: 6px; color: var(--text-dim); font-size: 11px; }
 
 .spacer { flex: 1; pointer-events: none !important; }
