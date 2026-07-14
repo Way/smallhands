@@ -605,6 +605,11 @@ body.in-game #frontdoor { display: none; }
 }
 .confirm-msg { font-size: 16px; line-height: 1.5; text-align: center; }
 
+/* resume-after-focus dialog: same box as confirm, accent-framed instead of danger */
+.resume-overlay { z-index: 30; }
+.resume-box { border-color: var(--accent); }
+.resume-title { font-size: 20px; font-weight: 800; color: var(--accent); text-align: center; }
+
 .win-stats { font-size: 14px; color: var(--text-dim); text-align: center; line-height: 1.7; }
 
 /* ---- options menu ---- */

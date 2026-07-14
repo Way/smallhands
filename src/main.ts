@@ -273,6 +273,79 @@ function resumeGame(): void {
   setSpeed(prevSpeed > 0 ? prevSpeed : 1);
 }
 
+// ---- auto-pause on focus loss -------------------------------------------------
+// Losing the tab/window focus freezes the sim so the player never comes back to
+// find time (and disasters) ran on without them. Regaining focus does NOT
+// silently resume: it raises a resume dialog and the game stays paused until the
+// player dismisses it. `blur` covers window focus loss; `visibilitychange` covers
+// tab switches — both funnel through the same guarded pause/resume pair.
+let autoPaused = false;
+let autoPausedSpeed = 1;
+
+// Only a live, unfinished level should auto-pause. Front door, level select,
+// options and the editor all leave `running` false (or `game` won), so they're
+// naturally excluded.
+function inPlayableGame(): boolean {
+  return running && game !== null && !game.won;
+}
+
+function autoPauseOnFocusLoss(): void {
+  if (autoPaused || !inPlayableGame()) return;
+  if (speed === 0) return; // already paused by the player — nothing to freeze
+  autoPaused = true;
+  autoPausedSpeed = speed;
+  setSpeed(0);
+}
+
+function resumeDialogOnFocus(): void {
+  if (!autoPaused) return;
+  // The player may have left the level while away (menu, restart, title). If we
+  // aren't in a running game anymore, just drop the auto-pause state silently.
+  if (!inPlayableGame()) {
+    autoPaused = false;
+    return;
+  }
+  if (uiRoot.querySelector('.resume-overlay')) return; // dialog already up
+  showResumeDialog();
+}
+
+function showResumeDialog(): void {
+  const ov = document.createElement('div');
+  ov.className = 'overlay confirm-overlay resume-overlay';
+  const box = document.createElement('div');
+  box.className = 'panel confirm-box resume-box';
+  const title = document.createElement('div');
+  title.className = 'resume-title';
+  title.textContent = t('resume.title');
+  box.appendChild(title);
+  const msg = document.createElement('div');
+  msg.className = 'confirm-msg';
+  msg.textContent = t('resume.body');
+  box.appendChild(msg);
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  const btn = document.createElement('button');
+  btn.className = 'big-btn';
+  btn.textContent = t('resume.btn');
+  btn.onclick = () => {
+    ov.remove();
+    autoPaused = false;
+    setSpeed(autoPausedSpeed > 0 ? autoPausedSpeed : 1); // setSpeed plays the click
+  };
+  row.appendChild(btn);
+  box.appendChild(row);
+  ov.appendChild(box);
+  uiRoot.appendChild(ov);
+  btn.focus();
+}
+
+window.addEventListener('blur', autoPauseOnFocusLoss);
+window.addEventListener('focus', resumeDialogOnFocus);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) autoPauseOnFocusLoss();
+  else resumeDialogOnFocus();
+});
+
 // ---- options menu -------------------------------------------------------------
 
 // Language switch re-renders every open surface: the HUD is rebuilt in place

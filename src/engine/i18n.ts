@@ -324,6 +324,12 @@ const D: Record<string, [string, string]> = {
   'btn.title': ['Title', 'Titelbild'],
   'btn.cancel': ['Cancel', 'Abbrechen'],
   'btn.resume': ['▶ Resume {name}', '▶ Weiter: {name}'],
+  'resume.title': ['Paused while you were away', 'Pausiert, während du weg warst'],
+  'resume.body': [
+    'The game paused when the tab lost focus, so nothing ran without you.',
+    'Das Spiel wurde pausiert, als der Tab den Fokus verlor — es lief nichts ohne dich weiter.',
+  ],
+  'resume.btn': ['▶ Resume', '▶ Weiter'],
   'btn.levels': ['Levels', 'Level'],
   'menu.levels': ['☰ Levels', '☰ Level'],
   'menu.restart': ['↺ Restart', '↺ Neustart'],
