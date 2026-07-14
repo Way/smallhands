@@ -593,6 +593,10 @@ const D: Record<string, [string, string]> = {
     'Spears need a forge (Town Hall 2) — stone for the upgrade and forge may run short.',
     'Speere brauchen eine Schmiede (Rathaus 2) — der Stein für Ausbau und Schmiede könnte knapp werden.',
   ],
+  'verify.waterFloat': [
+    '{n} water tile(s) without ground below or banks beside (first at ({x}, {y})) — the pool would float in mid-air.',
+    '{n} Wasserfeld(er) ohne Boden darunter oder Ufer daneben (erstes bei ({x}, {y})) — der Teich würde in der Luft schweben.',
+  ],
   'verify.thDoor': ['No standable spot at the Town Hall door.', 'Kein begehbarer Platz an der Rathaustür.'],
   'verify.sealed': [
     'The {kind} at ({x}, {y}) is sealed off from the Town Hall — no air path connects them.',

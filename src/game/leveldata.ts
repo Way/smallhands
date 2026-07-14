@@ -297,6 +297,23 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
     }
   }
 
+  // floating water: every water cell needs support below and banks (or more
+  // water) beside, or pools hover mid-air. The campaign water helper and the
+  // flood table are consistent by construction — this catches imported codes.
+  let floatFirst: { x: number; y: number } | null = null;
+  let floatCount = 0;
+  for (let y = 0; y < world.h; y++) {
+    for (let x = 0; x < world.w; x++) {
+      if (world.get(x, y) !== T.WATER) continue;
+      const open = (nx: number, ny: number) => world.inBounds(nx, ny) && world.get(nx, ny) === T.AIR;
+      if (open(x, y + 1) || open(x - 1, y) || open(x + 1, y)) {
+        floatCount++;
+        if (!floatFirst) floatFirst = { x, y };
+      }
+    }
+  }
+  if (floatFirst) warnings.push(t('verify.waterFloat', { n: floatCount, x: floatFirst.x, y: floatFirst.y }));
+
   const objectives = data.objectives.filter((o) => o.amount > 0);
   if (objectives.length === 0) problems.push(t('verify.noObjectives'));
 
