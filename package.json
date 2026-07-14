@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test:unit": "node tests/unit.mjs",
     "test:maplayout": "node tests/maplayout.mjs",
+    "test:worldmap": "node tests/worldmap.mjs",
     "test:terrain": "node tests/terrain.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:hoist": "node tests/hoist.mjs",
