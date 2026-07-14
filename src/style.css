@@ -1033,3 +1033,94 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 }
 .map-svg .lh-tower { fill: #e8dfc0; stroke: #4c5c55; stroke-width: 2; }
 .map-svg .lh-light { fill: var(--accent); }
+
+.map-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid #4c5c55;
+  background: #f3ecd2;
+  color: #3c4740;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s, box-shadow 0.12s;
+  z-index: 2;
+}
+.map-node:hover:not(:disabled),
+.map-node:focus-visible {
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+.map-node.done.gold { border-color: #f0c419; }
+.map-node.done.silver { border-color: #c8ccd4; }
+.map-node.done.bronze { border-color: #c98a4b; }
+.map-node.next {
+  border-color: var(--accent);
+  animation: node-pulse 1.6s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 201, 77, 0.55); }
+  50% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), 0 0 0 12px rgba(255, 201, 77, 0); }
+}
+.map-node.locked {
+  background: #9aa39c;
+  color: #5d665f;
+  cursor: default;
+  opacity: 0.7;
+}
+.map-daily {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 2;
+}
+.map-daily.fresh { animation: node-pulse 1.6s ease-in-out infinite; }
+.terr-lock {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(20, 28, 34, 0.75);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+.terr-flag {
+  position: absolute;
+  transform: translate(-50%, -140%);
+  font-size: 22px;
+  pointer-events: none;
+}
+.level-card.map-popover {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 30px));
+  width: 230px;
+  cursor: default;
+  z-index: 5;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+.level-card.map-popover.below { transform: translate(-50%, 30px); }
+.map-popover .pop-play {
+  margin-top: 12px;
+  padding: 9px 0;
+  width: 100%;
+  font-size: 15px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-node.next,
+  .map-daily.fresh { animation: none; }
+}

@@ -248,7 +248,148 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   );
   svg.appendChild(isle);
 
-  void medalTimesFor; void nodePositions; void place; // consumed in Tasks 3–4
+  void medalTimesFor; // consumed in Task 4
+
+  // ---- popover: one at a time, anchored at a node ----
+  let pop: HTMLElement | null = null;
+  let popAnchor: HTMLElement | null = null;
+  const closePopover = () => {
+    if (!pop) return;
+    pop.remove();
+    pop = null;
+    popAnchor?.focus();
+    popAnchor = null;
+  };
+  const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
+    deps.click();
+    if (pop) {
+      pop.remove();
+      pop = null;
+    }
+    popAnchor = anchor;
+    pop = document.createElement('div');
+    // flip below the node near the top edge; clamp x so it never leaves the map
+    pop.className = 'level-card map-popover' + (at.y < 300 ? ' below' : '');
+    pop.setAttribute('role', 'dialog');
+    place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
+    fill(pop);
+    wrap.appendChild(pop);
+    (pop.querySelector('.pop-play') as HTMLElement | null)?.focus();
+  };
+  ov.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pop) {
+      e.stopPropagation();
+      closePopover();
+    }
+  });
+  ov.addEventListener('pointerdown', (e) => {
+    const tgt = e.target as Node;
+    if (pop && !pop.contains(tgt) && popAnchor !== tgt && !popAnchor?.contains(tgt)) closePopover();
+  });
+
+  // shared popover body: name/desc/status + medal bits + play button
+  const popBody = (
+    card: HTMLElement,
+    name: string,
+    desc: string,
+    done: boolean,
+    recordKey: string,
+    goldTime: number | null,
+    onPlay: () => void
+  ) => {
+    card.innerHTML = `
+      <div class="lv-name"></div>
+      <div class="lv-desc"></div>
+      <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
+    `;
+    (card.querySelector('.lv-name') as HTMLElement).textContent = name;
+    (card.querySelector('.lv-desc') as HTMLElement).textContent = desc;
+    deps.addMedalBits(card, recordKey, goldTime);
+    const play = document.createElement('button');
+    play.className = 'big-btn pop-play';
+    play.textContent = t('btn.play');
+    play.onclick = () => {
+      deps.click();
+      closePopover();
+      onPlay();
+    };
+    card.appendChild(play);
+  };
+
+  // ---- level nodes ----
+  for (const c of deps.campaigns) {
+    const positions = nodePositions(c.campaign, c.levels.length);
+    c.levels.forEach((lv, i) => {
+      const p = positions[i];
+      const node = document.createElement('button');
+      node.className = 'map-node';
+      node.textContent = String(lv.def.id);
+      if (lv.done) node.classList.add('done', deps.bestMedal(`c${lv.def.id}`) ?? 'none');
+      if (lv.unlocked && !lv.done) node.classList.add('next');
+      if (!lv.unlocked) {
+        node.classList.add('locked');
+        node.disabled = true;
+      }
+      const status = lv.done ? t('status.done') : lv.unlocked ? t('status.ready') : t('status.locked');
+      node.setAttribute(
+        'aria-label',
+        t('map.nodeAria', { n: lv.def.id, name: t(lv.def.name), status })
+      );
+      place(node, p);
+      node.onclick = () =>
+        openPopover(node, p, (card) =>
+          popBody(card, t(lv.def.name), t(lv.def.desc), lv.done, `c${lv.def.id}`,
+            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index))
+        );
+      wrap.appendChild(node);
+    });
+  }
+
+  // ---- territory lock badges / completion flags ----
+  deps.campaigns.forEach((c, ci) => {
+    const terr = MAP_LAYOUT.find((tr) => tr.campaign === c.campaign);
+    if (!terr) return;
+    if (!c.unlocked) {
+      const prev = MAP_LAYOUT.find((tr) => tr.campaign === deps.campaigns[ci - 1]?.campaign);
+      const badge = document.createElement('div');
+      badge.className = 'terr-lock';
+      badge.textContent = `🔒 ${t('map.lockedHint', { name: prev ? t(prev.nameKey) : '…' })}`;
+      place(badge, terr.badge);
+      wrap.appendChild(badge);
+    } else if (c.complete) {
+      const flag = document.createElement('div');
+      flag.className = 'terr-flag';
+      flag.textContent = '🚩';
+      place(flag, terr.badge);
+      wrap.appendChild(flag);
+    }
+  });
+
+  // ---- daily challenge button on the lighthouse ----
+  {
+    const btn = document.createElement('button');
+    btn.className = 'map-daily' + (deps.daily.done ? ' done' : ' fresh');
+    btn.textContent = '📅';
+    btn.setAttribute(
+      'aria-label',
+      t('map.daily.aria', { status: deps.daily.done ? t('status.done') : t('status.ready') })
+    );
+    place(btn, DAILY_SPOT);
+    btn.onclick = () =>
+      openPopover(btn, DAILY_SPOT, (card) => {
+        card.classList.add('daily');
+        popBody(
+          card,
+          t('daily.name'),
+          t('daily.desc', { label: deps.daily.label, d: deps.daily.difficulty }),
+          deps.daily.done,
+          deps.daily.seed,
+          null,
+          deps.onPlayDaily
+        );
+      });
+    wrap.appendChild(btn);
+  }
 
   return ov;
 }
