@@ -168,11 +168,11 @@ export class FrontDoor {
           <h2>${this.tr('contentHead')}</h2>
           <ul class="feats">
             <li>${this.icon('goal')}<span>${this.tr('feat1')}</span></li>
-            <li>${this.icon('lantern')}<span>${this.tr('feat2')}</span></li>
-            <li>${this.icon('icon_harvest')}<span>${this.tr('feat3')}</span></li>
-            <li>${this.icon('crate')}<span>${this.tr('feat4')}</span></li>
-            <li>${this.icon('medal_gold')}<span>${this.tr('feat5')}</span></li>
-            <li>${this.icon('item_iron')}<span>${this.tr('feat6')}</span></li>
+            <li>${this.icon('boulder')}<span>${this.tr('feat2')}</span></li>
+            <li>${this.icon('lantern')}<span>${this.tr('feat3')}</span></li>
+            <li>${this.icon('icon_harvest')}<span>${this.tr('feat4')}</span></li>
+            <li>${this.icon('crate')}<span>${this.tr('feat5')}</span></li>
+            <li>${this.icon('medal_gold')}<span>${this.tr('feat6')}</span></li>
           </ul>
           <p class="tech-note">${this.tr('techNote')}</p>
         </div>

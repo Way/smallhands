@@ -59,11 +59,11 @@ export const S: Record<string, Str> = {
   ],
   contentHead: ['Plenty to build', 'Viel zu bauen'],
   feat1: ['2 hand-crafted campaigns · 9 levels', '2 handgemachte Kampagnen · 9 Level'],
-  feat2: ['Storm & Tide: water, weather, rising floods, night & lanterns', 'Sturm & Flut: Wasser, Wetter, steigende Fluten, Nacht & Laternen'],
-  feat3: ['Level editor + procedural generator', 'Level-Editor + prozeduraler Generator'],
-  feat4: ['Daily challenge & shareable seed codes', 'Tages-Challenge & teilbare Seed-Codes'],
-  feat5: ['Medals, best times & feats', 'Medaillen, Bestzeiten & Meisterstücke'],
-  feat6: ['English & German, switchable in-game', 'Englisch & Deutsch, im Spiel umschaltbar'],
+  feat2: ['Varied terrain: water, cliffs & rising floods', 'Abwechslungsreiches Terrain: Wasser, Klippen & steigende Fluten'],
+  feat3: ['Dynamic weather: storms, night & lanterns', 'Dynamisches Wetter: Stürme, Nacht & Laternen'],
+  feat4: ['Level editor + procedural generator', 'Level-Editor + prozeduraler Generator'],
+  feat5: ['Daily challenge & shareable seed codes', 'Tages-Challenge & teilbare Seed-Codes'],
+  feat6: ['Medals, best times & feats', 'Medaillen, Bestzeiten & Meisterstücke'],
   techNote: [
     '100% hand-built for the web — TypeScript + Canvas, zero runtime dependencies, procedurally generated pixel art. No installs, no accounts. Runs anywhere a browser does.',
     '100 % von Hand fürs Web gebaut — TypeScript + Canvas, keine Laufzeit-Abhängigkeiten, prozedural erzeugte Pixel-Art. Keine Installation, kein Konto. Läuft in jedem Browser.',
@@ -74,8 +74,8 @@ export const S: Record<string, Str> = {
     'Markiere einen Baum, setze ein Sägewerk und sieh zu, wie der kleine Plan aufgeht.',
   ],
   footer: [
-    'An original homage to the genre. All code, pixel art and audio are original to this project.',
-    'Eine originale Hommage ans Genre. Code, Pixel-Art und Audio sind allesamt original.',
+    'A loving homage to the genre. All code, pixel art and audio were made from scratch for this project.',
+    'Eine liebevolle Hommage ans Genre. Code, Pixel-Art und Audio sind allesamt eigens für dieses Spiel entstanden.',
   ],
   brandOptions: ['Options', 'Optionen'],
 };
