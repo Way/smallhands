@@ -18,26 +18,19 @@ const check = (name, cond) => {
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--no-sandbox', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto('http://localhost:4173/play/');
+await page.goto('http://localhost:4173/');
 await page.waitForTimeout(600);
 
-// English title by default (headless is en-US)
-check('title subtitle is English', (await page.textContent('.title-sub')) === 'Tiny workers · Big plans');
+// English front door by default (headless is en-US)
+check('front-door tagline is English', (await page.textContent('.tagline')) === 'Tiny workers · Big plans');
 
-// open options from the title, switch to German
-await page.click('.title-options');
-await page.waitForTimeout(200);
-check('options menu opens', (await page.$$('.options-box')).length === 1);
-await page.click('.seg-btn:has-text("Deutsch")');
+// switch to German via the hero language toggle; the front door re-renders
+await page.click('.seg-btn[data-lang="de"]');
 await page.waitForTimeout(300);
-check('options re-render in German', (await page.textContent('.opt-title')) === 'Optionen');
+check('front-door re-renders in German', (await page.textContent('.tagline')) === 'Kleine Hände · Große Pläne');
 
-await page.click('.options-box .big-btn'); // back -> title
-await page.waitForTimeout(200);
-check('title re-renders in German', (await page.textContent('.title-sub')) === 'Kleine Hände · Große Pläne');
-
-// level select in German
-await page.click('button.big-btn'); // Spielen
+// enter the game in German
+await page.click('.fd-play'); // Spielen
 await page.waitForTimeout(300);
 const header = await page.textContent('.title-logo:not(:first-child), .level-select .title-logo');
 check('level select header is German', header === 'Wähle ein Level');

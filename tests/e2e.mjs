@@ -8,7 +8,7 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/play/';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -33,7 +33,7 @@ page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
 await page.goto(BASE_URL);
 await page.waitForTimeout(800);
-await page.click('button.big-btn');
+await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.level-card:not(.locked)');
 await page.waitForTimeout(400);

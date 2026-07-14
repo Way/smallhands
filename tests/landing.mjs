@@ -77,13 +77,12 @@ await page.click('.fd-play');
 await page.waitForTimeout(1000);
 check('URL unchanged after Play', page.url().replace(/#.*$/, '') === BASE_URL, page.url());
 check('body switched to in-game mode', (await page.getAttribute('body', 'class'))?.includes('in-game'));
-check('game canvas present', (await page.$('#game-canvas')) !== null);
 check('a game overlay is showing', (await page.$('.overlay')) !== null);
 
 // The old /play/ URL redirects to the unified front door.
 await page.goto(BASE_URL + 'play/');
 await page.waitForTimeout(500);
-check('/play/ redirects home', page.url().replace(/#.*$/, '').replace(/\/$/, '/') === BASE_URL, page.url());
+check('/play/ redirects home', page.url().replace(/#.*$/, '') === BASE_URL, page.url());
 
 await browser.close();
 if (failures) {

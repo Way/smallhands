@@ -12,8 +12,7 @@
 import { chromium } from 'playwright-core';
 
 const CHROME = process.env.CHROME_PATH;
-// The game now lives at /play/ (the site root is the marketing landing page).
-const BASE = process.env.BASE_URL || 'http://localhost:4173/play/';
+const BASE = process.env.BASE_URL || 'http://localhost:4173/';
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
@@ -27,7 +26,7 @@ const check = (name, cond) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}
 try {
   await page.goto(BASE, { waitUntil: 'load' });
   await page.waitForTimeout(800);
-  await page.click('button.big-btn'); // Play -> level select
+  await page.click('.fd-play'); // Play -> level select
   await page.click('.level-card:not(.locked)'); // boot any unlocked level to get the debug hook
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 
