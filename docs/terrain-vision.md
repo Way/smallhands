@@ -287,11 +287,18 @@ are the screenshots players share; they cost a sprite each.
    at ★4+ — plus ragged 1-tile notched lips on cliffs ≥ 4 (the face keeps a
    clean ≥ 3 rise, so the lift-face invariant holds) and motif-aware naming
    ("Foggy Table", "Silent Ridge"). Still open: the optional d1 natural ramp.
-5. ◐ **Parallax done, set pieces open**: three strict layers — sky-drowned
-   horizon range, biome-shaped mid ridge (buttes for red rock, dunes for
-   chalk, peaks with snow tips for slate, rolling hills elsewhere) with a
-   distant tree line, and a near scrub line. Still open: valley fog,
-   waterfalls, standing stones and other scenic one-offs.
+5. ✅ **Parallax + scenic layer**: three strict layers — sky-drowned horizon
+   range, biome-shaped mid ridge (buttes for red rock, dunes for chalk,
+   peaks with snow tips for slate, rolling hills elsewhere) with a distant
+   tree line, and a near scrub line. Plus the scenic one-offs, all
+   render-only and deterministic per level: valley fog pooled over the
+   lowest ground (deep maps only), at most one monument (standing stones or
+   a ruined arch on the highest span, clear of the town hall and caravan),
+   and a waterfall wherever a cliff drops ≥ 3 straight into open water —
+   which means flood levels grow falls as the tide rises.
+
+Still open from the whole vision: the optional ★1 natural-ramp motif (it
+needs sim-side care — natural ramps must not refund planks on demolish).
 
 Each phase ships independently and is verifiable on its own; nothing blocks
 on anything later in the list.

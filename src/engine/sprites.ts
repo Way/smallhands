@@ -185,6 +185,41 @@ const FRINGE_ROWS = [
   '..k...',
 ];
 
+// ---- scenic set pieces (one quiet monument per level, at most) -------------
+// Chars: r/R/k/K stone, g/k grass creep. Drawn behind nodes and buildings.
+
+const SETPIECE_ROWS: Record<string, string[]> = {
+  setpiece_stones: [
+    '..RRRRR...RRRR........',
+    '..rKrrK...rKrK........',
+    '..............RRRR....',
+    '..rR..rR......rKrK....',
+    '..rR..Rr..rR..........',
+    '..Rr..rR..rR....rR....',
+    '..rR..rR..Rr....Rr....',
+    '..Rr..Rr..rR....rR....',
+    '..rR..rR..rR....Rr....',
+    '..Rr..Rr..Rr....rR....',
+    '.grRg.rRg.gRr..grRg...',
+    'g.g..g..g....gg..g.g..',
+  ],
+  setpiece_arch: [
+    '....RRRRRR........',
+    '...RKrrrKRR.......',
+    '..Rr.....rR.......',
+    '..rR......Rr......',
+    '..Rr..............',
+    '..rR..............',
+    '..Rr........rR....',
+    '..rR........Rr....',
+    '..Rr........rR....',
+    '..rR........Rr....',
+    '.grRg......grRg...',
+    'g.g..g......g.g.g.',
+  ],
+};
+export const SETPIECE_KINDS = Object.keys(SETPIECE_ROWS);
+
 // ---- surface props (tiny, muted, drawn behind everything that matters) ----
 
 const PROP_ROWS: Record<string, string[]> = {
@@ -274,6 +309,11 @@ function buildBiomeSet(b: Biome): void {
   };
   for (const [name, rows] of Object.entries(PROP_ROWS)) {
     makeSprite(`${name}${sfx}`, propPal, rows);
+  }
+  // monuments share the biome's stone, with a little grass creeping up the feet
+  const monPal = { r: look.stone.r, R: look.stone.R, k: look.stone.k, K: look.stone.K, g: look.blades.k };
+  for (const [name, rows] of Object.entries(SETPIECE_ROWS)) {
+    makeSprite(`${name}${sfx}`, monPal, rows);
   }
 }
 

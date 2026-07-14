@@ -136,11 +136,14 @@ export class Renderer {
     this.harvestFocus += ((harvNode ? 1 : 0) - this.harvestFocus) * Math.min(1, dt * 14);
 
     this.drawTerrain(game, cam);
+    this.drawValleyFog(game, cam, timeSec);
+    this.drawSetPiece(game);
     this.drawNodes(game, timeSec, harvNode?.id ?? -1, this.harvestFocus, look);
     this.drawBuildings(game, timeSec);
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
     this.drawWater(game, cam, timeSec);
+    this.drawWaterfall(game, cam, timeSec);
     this.drawRipples(timeSec);
     this.drawWorkers(game, timeSec);
     this.drawParticles(game);
@@ -636,6 +639,131 @@ export class Renderer {
     }
 
     this.drawTerrainDressing(game, r, surf, sfx, snowY);
+  }
+
+  // ---- scenic layer (fog, monuments, waterfalls) ------------------------------
+  //
+  // One-off atmosphere, all render-only and deterministic per level: nothing
+  // here exists for the sim, the verifier, placement or the editor. Everything
+  // draws between the terrain and the things that live on it, so gameplay
+  // always sits in front, crisp.
+
+  // Tiny deterministic hash of a level id (string or number) for scenic rolls.
+  private static levelHash(id: string | number): number {
+    const s = String(id);
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+    return ((h >>> 0) % 9973) / 9973;
+  }
+
+  // Valley fog: a faint mist pooled over the lowest ground so deep floors read
+  // deep. A slow breath unless motion is reduced; shallow maps earn no fog.
+  private drawValleyFog(game: Game, cam: Camera, t: number): void {
+    const { ctx } = this;
+    const { world } = game;
+    const surf = this.surfCache; // filled by drawTerrain this frame
+    let lo = 0; // lowest ground row (largest y)
+    let hi = world.h; // highest summit row
+    for (let x = 0; x < world.w; x++) {
+      if (surf[x] >= world.h) continue;
+      if (surf[x] > lo) lo = surf[x];
+      if (surf[x] < hi) hi = surf[x];
+    }
+    if (lo - hi < 8) return;
+    const night = !!game.level.night;
+    const breathe = this.reduceMotion ? 0 : Math.sin(t * 0.3) * 0.02;
+    const a = (night ? 0.07 : 0.11) + breathe;
+    const topY = (lo - 5) * TILE;
+    const botY = (lo + 3) * TILE;
+    const g = ctx.createLinearGradient(0, topY, 0, botY);
+    g.addColorStop(0, 'rgba(226,236,248,0)');
+    g.addColorStop(1, `rgba(226,236,248,${a.toFixed(3)})`);
+    ctx.fillStyle = g;
+    const r = this.visibleRange(game, cam);
+    ctx.fillRect(r.x0 * TILE, topY, (r.x1 - r.x0 + 1) * TILE, botY - topY);
+  }
+
+  // One quiet monument per level, at most: standing stones or a ruined arch on
+  // the highest level span, well clear of the town hall and the caravan.
+  private drawSetPiece(game: Game): void {
+    const roll = Renderer.levelHash(game.level.id);
+    if (roll < 0.45) return; // most levels stay plain
+    const { ctx } = this;
+    const { world } = game;
+    const surf = this.surfCache;
+    // the highest flat run at least 6 columns wide
+    let best: { x0: number; x1: number; y: number } | null = null;
+    let run = 0;
+    for (let x = 1; x <= world.w; x++) {
+      if (x < world.w && surf[x] < world.h && surf[x] === surf[x - 1]) {
+        run++;
+        continue;
+      }
+      if (run >= 5 && (!best || surf[x - 1] < best.y)) best = { x0: x - 1 - run, x1: x - 1, y: surf[x - 1] };
+      run = 0;
+    }
+    if (!best) return;
+    const cx = Math.floor((best.x0 + best.x1) / 2);
+    for (const b of game.buildings) {
+      if ((b.kind === 'townhall' || b.kind === 'goal') && Math.abs(b.x + 2 - cx) < 7) return;
+    }
+    if (world.get(cx, best.y) !== T.GRASS) return;
+    const sfx = biomeSuffix((game.level.biome ?? 'meadow') as Biome);
+    const kind = roll > 0.72 ? 'setpiece_stones' : 'setpiece_arch';
+    const spr = sprite(`${kind}${sfx}`).canvas;
+    ctx.drawImage(spr, cx * TILE + TILE / 2 - spr.width / 2, best.y * TILE - spr.height);
+  }
+
+  // A scenic waterfall, only where it means something: the tallest cliff face
+  // that drops straight into open water gets a thin animated fall and a foam
+  // patch. Recomputed per frame (cheap), so rising flood water re-homes it.
+  private drawWaterfall(game: Game, cam: Camera, t: number): void {
+    if (Renderer.levelHash(`${game.level.id}~fall`) < 0.2) return; // a few levels stay still
+    const { ctx } = this;
+    const { world } = game;
+    const surf = this.surfCache;
+    let best: { x: number; topY: number; botY: number } | null = null;
+    for (let x = 0; x < world.w; x++) {
+      // topmost water cell of this column, if it is open to the sky
+      let wy = -1;
+      for (let y = 0; y < world.h; y++) {
+        const tt = world.get(x, y);
+        if (tt === T.WATER) {
+          wy = y;
+          break;
+        }
+        if (tt !== T.AIR) break;
+      }
+      if (wy < 0) continue;
+      for (const side of [-1, 1]) {
+        const sy = surf[x + side];
+        if (sy === undefined || sy >= world.h) continue;
+        const drop = wy - sy;
+        if (drop >= 3 && (!best || drop > best.botY - best.topY)) {
+          best = { x, topY: sy, botY: wy };
+        }
+      }
+    }
+    if (!best) return;
+    const r = this.visibleRange(game, cam);
+    if (best.x < r.x0 - 1 || best.x > r.x1 + 1) return;
+    const px = best.x * TILE + TILE / 2;
+    const top = best.topY * TILE + 2;
+    const bot = best.botY * TILE + 3;
+    const osc = this.reduceMotion ? 0 : 1;
+    // the stream: a translucent ribbon with brighter chunks sliding down it
+    ctx.fillStyle = 'rgba(120,180,230,0.66)';
+    ctx.fillRect(px - 1, top, 3, bot - top);
+    ctx.fillStyle = 'rgba(250,253,255,0.85)';
+    for (let y = top + (((t * 46 * osc) % 8) | 0); y < bot; y += 8) {
+      ctx.fillRect(px - 1, y, 3, 3);
+    }
+    // foam where it lands
+    const foam = 0.5 + Math.sin(t * 5) * 0.15 * osc;
+    ctx.fillStyle = `rgba(235,246,255,${foam.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(px, bot, 5.5, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // The organic layer over the raw tiles: grass banks on 1-tile steps, blades
