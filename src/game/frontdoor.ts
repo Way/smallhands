@@ -109,6 +109,7 @@ export class FrontDoor {
           <p class="tagline">${this.tr('tagline')}</p>
           <p class="lede">${this.tr('lede')}</p>
           <p class="sub-lede">${this.tr('subLede')}</p>
+          <p class="hero-hook">${this.tr('heroHook')}</p>
           <div class="cta-row">
             ${play}
             <span class="cta-note">${this.tr('playNote')}</span>
@@ -183,6 +184,9 @@ export class FrontDoor {
           <h2>${this.tr('ctaHead')}</h2>
           <p>${this.tr('ctaBody')}</p>
           ${play}
+        </div>
+        <div class="fd-skyline" aria-hidden="true">
+          ${this.icon('tree')}${this.icon('sawmill')}${this.icon('ling_walk_a')}${this.icon('townhall')}${this.icon('ling_work')}${this.icon('forge')}${this.icon('tree')}
         </div>
       </section>
     </main>
