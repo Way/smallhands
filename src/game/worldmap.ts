@@ -82,9 +82,109 @@ function place(el: HTMLElement, p: Pt): void {
   el.style.top = `${(p.y / VIEW_H) * 100}%`;
 }
 
+// A compact chip list of what makes a level worth playing: its delivery order,
+// its special conditions (night / weather / rising tide) and its scale — so the
+// map pills read as a briefing, not just a name and a blurb.
+function levelFactsEl(def: LevelDef): HTMLElement {
+  const facts = document.createElement('div');
+  facts.className = 'lv-facts';
+
+  if (def.objectives.length) {
+    const row = document.createElement('div');
+    row.className = 'lv-obj-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'lv-obj-lbl';
+    lbl.textContent = t('hud.deliver');
+    row.appendChild(lbl);
+    for (const o of def.objectives) {
+      const chip = document.createElement('span');
+      chip.className = 'lv-obj';
+      const b = document.createElement('b');
+      b.textContent = String(o.amount);
+      chip.append(b, ` ${t(`item.${o.item}`)}`);
+      row.appendChild(chip);
+    }
+    facts.appendChild(row);
+  }
+
+  const tags: string[] = [];
+  if (def.night) tags.push(`🌙 ${t('map.tag.night')}`);
+  if (def.weather?.some((w) => w.kind === 'rain')) tags.push(`🌧 ${t('map.tag.rain')}`);
+  if (def.weather?.some((w) => w.kind === 'storm')) tags.push(`⚡ ${t('map.tag.storm')}`);
+  if (def.flood) tags.push(`🌊 ${t('map.tag.tide')}`);
+  if (tags.length) {
+    const tagRow = document.createElement('div');
+    tagRow.className = 'lv-tags';
+    for (const txt of tags) {
+      const tag = document.createElement('span');
+      tag.className = 'lv-tag';
+      tag.textContent = txt;
+      tagRow.appendChild(tag);
+    }
+    facts.appendChild(tagRow);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'lv-meta';
+  const toolCount = def.allowedTools?.length ?? 0;
+  meta.textContent =
+    `${def.width} × ${def.height}` + (toolCount ? ` · ${t('map.facts.tools', { n: toolCount })}` : '');
+  facts.appendChild(meta);
+
+  return facts;
+}
+
+// The daily is generated on demand, so we can't cheaply preview its order — but
+// we can still sell the challenge: how hard today's is, and that it's one shared
+// procedural mountain everyone races on the same day.
+function dailyFactsEl(daily: MapDailyState): HTMLElement {
+  const facts = document.createElement('div');
+  facts.className = 'lv-facts';
+
+  const d = Math.max(1, Math.min(5, daily.difficulty));
+  const diff = document.createElement('div');
+  diff.className = 'lv-diff';
+  const stars = document.createElement('span');
+  stars.className = 'diff-stars';
+  stars.textContent = '★'.repeat(d) + '☆'.repeat(5 - d);
+  const lbl = document.createElement('span');
+  lbl.className = 'diff-lbl';
+  lbl.textContent =
+    daily.difficulty <= 2 ? t('daily.diff.easy') : daily.difficulty >= 4 ? t('daily.diff.hard') : t('daily.diff.med');
+  diff.append(stars, lbl);
+  facts.appendChild(diff);
+
+  const tagRow = document.createElement('div');
+  tagRow.className = 'lv-tags';
+  for (const txt of [`🎲 ${t('daily.tag.proc')}`, `🌍 ${t('daily.tag.shared')}`]) {
+    const tag = document.createElement('span');
+    tag.className = 'lv-tag';
+    tag.textContent = txt;
+    tagRow.appendChild(tag);
+  }
+  facts.appendChild(tagRow);
+
+  return facts;
+}
+
 export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   const ov = document.createElement('div');
   ov.className = 'overlay worldmap';
+
+  // ---- progression state: shared by the journey trail, the region rim-light
+  // and the progress counter. `frontier` is the index of the current objective
+  // along the ordered journey; the trail is lit up to it and dotted beyond. ----
+  const orderedLevels: MapLevelState[] = [];
+  for (const terr of MAP_LAYOUT) {
+    const c = deps.campaigns.find((cc) => cc.campaign === terr.campaign);
+    if (c) orderedLevels.push(...c.levels);
+  }
+  const totalLevels = orderedLevels.length;
+  const doneLevels = orderedLevels.filter((l) => l.done).length;
+  let frontier = orderedLevels.findIndex((l) => l.unlocked && !l.done);
+  if (frontier < 0) frontier = totalLevels - 1; // everything cleared → trail lit end to end
+  const currentCampaign =
+    deps.campaigns.find((c) => c.levels.some((l) => l.unlocked && !l.done))?.campaign ?? null;
 
   // ---- top bar: title, trophy cartouche, session buttons ----
   const top = document.createElement('div');
@@ -93,6 +193,20 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   title.className = 'title-logo map-title';
   title.textContent = t('select.title');
   top.appendChild(title);
+  // progress counter — how much of the journey is cleared (drives the grind)
+  const prog = document.createElement('div');
+  prog.className = 'map-progress';
+  prog.setAttribute('aria-label', t('map.progress', { done: doneLevels, total: totalLevels }));
+  const flag = document.createElement('span');
+  flag.className = 'mp-flag';
+  flag.textContent = '⚑';
+  const done = document.createElement('span');
+  done.textContent = String(doneLevels);
+  const total = document.createElement('span');
+  total.className = 'mp-total';
+  total.textContent = ` / ${totalLevels}`;
+  prog.append(flag, done, total);
+  top.appendChild(prog);
   if (deps.shelf) {
     deps.shelf.classList.add('cartouche');
     top.appendChild(deps.shelf);
@@ -178,6 +292,18 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   });
   fog.appendChild(svgEl('path', { d: 'M0 12 L 12 0', class: 'fog-line', 'stroke-width': '2' }));
   defs.appendChild(fog);
+  // vertical sea gradient: lighter at the horizon, deepening toward the bottom
+  const seaGrad = svgEl('linearGradient', {
+    id: 'map-sea-grad',
+    x1: '0',
+    y1: '0',
+    x2: '0',
+    y2: '1',
+  });
+  seaGrad.appendChild(svgEl('stop', { offset: '0', 'stop-color': '#1b2a3a' }));
+  seaGrad.appendChild(svgEl('stop', { offset: '0.55', 'stop-color': '#122031' }));
+  seaGrad.appendChild(svgEl('stop', { offset: '1', 'stop-color': '#0c1420' }));
+  defs.appendChild(seaGrad);
   svg.appendChild(defs);
 
   // sea + wave hatching
@@ -197,6 +323,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     g.classList.add('territory');
     if (!c.unlocked) g.classList.add('locked');
     if (c.complete) g.classList.add('complete');
+    if (c.campaign === currentCampaign) g.classList.add('current');
     g.appendChild(
       svgEl('path', { d: terr.outline, class: 'shore-far', fill: 'none', 'stroke-width': '26' })
     );
@@ -205,27 +332,39 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     );
     g.appendChild(svgEl('path', { d: terr.outline, class: 'land' }));
     if (!c.unlocked) g.appendChild(svgEl('path', { d: terr.outline, fill: 'url(#map-fog)' }));
+    const name = t(terr.nameKey);
     const label = svgEl('text', {
       x: String(terr.label.x),
       y: String(terr.label.y),
       class: 'terr-name',
       'text-anchor': 'middle',
     });
-    label.textContent = t(terr.nameKey);
+    label.textContent = name;
     g.appendChild(label);
+    // gold dash under the region name — echoes the landing page's section rule
+    const uw = Math.min(180, Math.max(80, name.length * 12));
+    g.appendChild(
+      svgEl('line', {
+        x1: String(terr.label.x - uw / 2),
+        y1: String(terr.label.y + 15),
+        x2: String(terr.label.x + uw / 2),
+        y2: String(terr.label.y + 15),
+        class: 'terr-underline',
+      })
+    );
     svg.appendChild(g);
   }
 
-  // dotted journey line under the nodes
+  // the journey line under the nodes, in two coats: a faint dotted trail for the
+  // whole route, then a lit gold trail over the stretch already walked.
   const counts = new Map(deps.campaigns.map((c) => [c.campaign, c.levels.length]));
   const pts = journeyPoints(counts);
-  svg.appendChild(
-    svgEl('path', {
-      d: pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '),
-      class: 'journey',
-      fill: 'none',
-    })
-  );
+  const toPath = (ps: Pt[]) => ps.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+  svg.appendChild(svgEl('path', { d: toPath(pts), class: 'journey', fill: 'none' }));
+  const walked = pts.slice(0, Math.min(frontier + 1, pts.length));
+  if (walked.length >= 2) {
+    svg.appendChild(svgEl('path', { d: toPath(walked), class: 'journey-walked', fill: 'none' }));
+  }
 
   // daily lighthouse island (art only; the interactive button lands in Task 3)
   const isle = svgEl('g');
@@ -247,6 +386,40 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   );
   svg.appendChild(isle);
 
+  // decorative compass rose resting on the open water below the meadows
+  {
+    const cx = 250;
+    const cy = 798;
+    const r = 50;
+    const arm = 40;
+    const w = 9;
+    const rose = svgEl('g');
+    rose.classList.add('map-compass');
+    rose.appendChild(svgEl('circle', { cx: String(cx), cy: String(cy), r: String(r), class: 'compass-ring' }));
+    rose.appendChild(svgEl('circle', { cx: String(cx), cy: String(cy), r: String(r - 9), class: 'compass-ring' }));
+    rose.appendChild(
+      svgEl('polygon', {
+        points: `${cx},${cy - arm} ${cx + w},${cy} ${cx},${cy + arm} ${cx - w},${cy}`,
+        class: 'compass-star',
+      })
+    );
+    rose.appendChild(
+      svgEl('polygon', {
+        points: `${cx - arm},${cy} ${cx},${cy - w} ${cx + arm},${cy} ${cx},${cy + w}`,
+        class: 'compass-star',
+      })
+    );
+    const nlabel = svgEl('text', {
+      x: String(cx),
+      y: String(cy - r - 6),
+      class: 'compass-n',
+      'text-anchor': 'middle',
+    });
+    nlabel.textContent = 'N';
+    rose.appendChild(nlabel);
+    svg.appendChild(rose);
+  }
+
   // ---- popover: one at a time, anchored at a node ----
   let pop: HTMLElement | null = null;
   let popAnchor: HTMLElement | null = null;
@@ -266,8 +439,10 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     }
     popAnchor = anchor;
     pop = document.createElement('div');
-    // flip below the node near the top edge; clamp x so it never leaves the map
-    pop.className = 'level-card map-popover' + (at.y < 300 ? ' below' : '');
+    // flip below for any node in the upper half — the enriched pills are tall,
+    // so a node near the top would otherwise overflow above the map. Clamp x so
+    // the pill never leaves the map horizontally.
+    pop.className = 'level-card map-popover' + (at.y < 470 ? ' below' : '');
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-modal', 'true');
     place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
@@ -294,7 +469,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     done: boolean,
     recordKey: string,
     goldTime: number | null,
-    onPlay: () => void
+    onPlay: () => void,
+    facts: HTMLElement | null = null
   ) => {
     card.innerHTML = `
       <div class="lv-name"></div>
@@ -305,6 +481,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     (card.querySelector('.lv-name') as HTMLElement).id = 'map-pop-title';
     card.setAttribute('aria-labelledby', 'map-pop-title');
     (card.querySelector('.lv-desc') as HTMLElement).textContent = desc;
+    if (facts) card.insertBefore(facts, card.querySelector('.lv-foot'));
     deps.addMedalBits(card, recordKey, goldTime);
     const play = document.createElement('button');
     play.className = 'big-btn pop-play';
@@ -344,7 +521,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       node.onclick = () =>
         openPopover(node, p, (card) =>
           popBody(card, t(lv.def.name), t(lv.def.desc), lv.done, `c${lv.def.id}`,
-            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index))
+            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index), levelFactsEl(lv.def))
         );
       wrap.appendChild(node);
     });
@@ -374,7 +551,15 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   {
     const btn = document.createElement('button');
     btn.className = 'map-daily' + (deps.daily.done ? ' done' : ' fresh');
-    btn.textContent = '📅';
+    // a tear-off calendar showing TODAY's day, parsed from the daily seed's
+    // date label (YYYY-MM-DD) — the plain 📅 emoji always drew a frozen "17"
+    const dnum = Number(deps.daily.label.slice(-2));
+    const calTop = document.createElement('span');
+    calTop.className = 'cal-top';
+    const calDay = document.createElement('span');
+    calDay.className = 'cal-day';
+    calDay.textContent = Number.isFinite(dnum) && dnum > 0 ? String(dnum) : deps.daily.label.slice(-2);
+    btn.append(calTop, calDay);
     btn.setAttribute(
       'aria-label',
       t('map.daily.aria', { status: deps.daily.done ? t('status.done') : t('status.ready') })
@@ -390,7 +575,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
           deps.daily.done,
           deps.daily.seed,
           null,
-          deps.onPlayDaily
+          deps.onPlayDaily,
+          dailyFactsEl(deps.daily)
         );
       });
     wrap.appendChild(btn);

@@ -973,24 +973,94 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .flyout-body { transform: none; }
 }
 
-/* ---- world map level select ---- */
+/* ---- world map level select ------------------------------------------------
+   A treasure map inside the game's pixel-world. The ocean fills the whole
+   viewport (no boxed panel); parchment islands carry the level medallions; a
+   gold journey trail lights up where you've already walked. The palette,
+   Pixelify display font and corner-pixel motifs mirror the front door
+   (src/frontdoor.css) so the map and the landing page read as one world. */
 .overlay.worldmap {
+  --map-pixel: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif;
+  --map-sea-top: #16202e;
+  --map-sea-deep: #0d1119;
+  --map-gold: #ffc94d;
+  --map-ink: #2a2113;
   justify-content: flex-start;
   padding: 0;
   gap: 0;
   overflow: hidden;
+  /* the open ocean: a vertical gradient matched to the SVG sea (#map-sea-grad)
+     so the letterbox water around the island wrap reads as one seamless sea */
+  background:
+    radial-gradient(130% 100% at 50% 42%, rgba(40, 62, 86, 0.32), transparent 60%),
+    linear-gradient(#182734, #0b131e);
 }
+
+/* top bar: floats over the water, separated only by a pixel-dashed hairline */
 .map-topbar {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 10px 18px;
+  gap: 16px;
+  padding: 11px 20px;
   flex-wrap: wrap;
+  z-index: 4;
+  background-image: repeating-linear-gradient(90deg, var(--panel-border) 0 8px, transparent 8px 16px);
+  background-size: 100% 2px;
+  background-position: bottom;
+  background-repeat: no-repeat;
 }
-.map-title { font-size: 26px; }
-.map-topbtns { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
-.map-topbtn { padding: 8px 18px; font-size: 14px; }
+/* the Pixelify display font misreads some glyphs (C→O, 2→8), so — exactly like
+   the front door — it's reserved for curated pixel words (region names, LEGEND,
+   "Play"); functional text and every number use the clean sans for legibility. */
+.map-title {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 27px;
+  letter-spacing: 0.3px;
+  color: var(--map-gold);
+  text-shadow: 0 3px 0 #7a5a10, 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+/* progress cartouche: a pixel-notched chip that drives the grind */
+.map-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--map-gold);
+  padding: 5px 13px 6px;
+  background: rgba(255, 201, 77, 0.09);
+  border: 1px solid rgba(255, 201, 77, 0.4);
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
+}
+.map-progress .mp-flag { font-size: 13px; filter: saturate(1.2); }
+.map-progress .mp-total { color: var(--text-dim); font-weight: 700; }
+.map-topbtns { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+/* ghost pixel buttons — the gold 3-D button stays reserved for the play CTA */
+.map-topbtn.big-btn.secondary {
+  padding: 8px 16px;
+  font-family: var(--map-pixel);
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  background: rgba(24, 30, 42, 0.66);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  box-shadow: none;
+  transition: border-color 0.14s, transform 0.14s, background-color 0.14s;
+}
+.map-topbtn.big-btn.secondary:hover {
+  transform: translateY(-1px);
+  border-color: var(--map-gold);
+  background: rgba(24, 30, 42, 0.85);
+  box-shadow: none;
+}
+.map-topbtn.big-btn.secondary.resume {
+  border-color: rgba(255, 201, 77, 0.55);
+  color: var(--map-gold);
+}
 
 .map-viewport {
   flex: 1;
@@ -998,98 +1068,234 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   width: 100%;
   display: flex;
   overflow: auto;
+  background: transparent; /* the overlay's ocean shows through the letterbox */
 }
 .map-wrap { position: relative; margin: auto; }
 .map-svg { display: block; width: 100%; height: 100%; }
 
-.map-svg .map-sea { fill: #274b56; }
-.map-svg .wave-line { stroke: rgba(255, 255, 255, 0.07); }
-.map-svg .fog-line { stroke: rgba(16, 22, 30, 0.4); }
-.map-svg .land { fill: #cfc39a; stroke: #4c5c55; stroke-width: 3; }
-.map-svg .shore-near { stroke: rgba(207, 195, 154, 0.28); }
-.map-svg .shore-far { stroke: rgba(207, 195, 154, 0.12); }
-.map-svg .terr-name {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 30px;
-  font-style: italic;
-  fill: #e8dfc0;
-  paint-order: stroke;
-  stroke: rgba(20, 28, 34, 0.55);
-  stroke-width: 4px;
+/* the sea gradient (#map-sea-grad) is authored in worldmap.ts defs */
+.map-svg .map-sea { fill: url(#map-sea-grad); }
+.map-svg .wave-line { stroke: rgba(255, 255, 255, 0.06); }
+.map-svg .fog-line { stroke: rgba(10, 14, 22, 0.45); }
+/* islands: warm parchment with a dark ink coast, floated over the water */
+.map-svg .land { fill: #d9cda2; stroke: #40372a; stroke-width: 3; }
+.map-svg .shore-near { stroke: rgba(230, 214, 160, 0.4); }
+.map-svg .shore-far { stroke: rgba(230, 214, 160, 0.16); }
+.map-svg .territory {
+  transition: opacity 0.3s;
+  filter: drop-shadow(0 7px 9px rgba(0, 0, 0, 0.4));
 }
-.map-svg .territory { transition: opacity 0.3s; }
-.map-svg .territory.locked { opacity: 0.45; filter: grayscale(0.7); }
+.map-svg .territory.locked { opacity: 0.4; filter: grayscale(0.75) drop-shadow(0 5px 7px rgba(0, 0, 0, 0.35)); }
+/* a warm gold rim-light traces the shore of the region you're on now */
+.map-svg .territory.current .land { stroke: rgba(255, 201, 77, 0.7); }
+.map-svg .terr-name {
+  font-family: var(--map-pixel);
+  font-weight: 700;
+  font-size: 27px;
+  letter-spacing: 0.5px;
+  fill: #f2e7c2;
+  paint-order: stroke;
+  stroke: rgba(12, 18, 24, 0.6);
+  stroke-width: 5px;
+}
+/* short gold dash under each region name — echoes the landing's section rule */
+.map-svg .terr-underline { stroke: var(--map-gold); stroke-width: 4; stroke-dasharray: 9 7; stroke-linecap: butt; opacity: 0.8; }
+/* the journey ahead: a faint dotted trail */
 .map-svg .journey {
-  stroke: rgba(232, 223, 192, 0.55);
+  stroke: rgba(242, 231, 194, 0.42);
   stroke-width: 3;
-  stroke-dasharray: 2 12;
+  stroke-dasharray: 2 13;
   stroke-linecap: round;
 }
-.map-svg .lh-tower { fill: #e8dfc0; stroke: #4c5c55; stroke-width: 2; }
-.map-svg .lh-light { fill: var(--accent); }
+/* the path already walked: a lit gold trail with a soft glow */
+.map-svg .journey-walked {
+  stroke: var(--map-gold);
+  stroke-width: 4;
+  stroke-dasharray: 3 11;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px rgba(255, 201, 77, 0.7));
+}
+.map-svg .lh-tower { fill: #f2e7c2; stroke: #40372a; stroke-width: 2; }
+.map-svg .lh-light { fill: var(--map-gold); filter: drop-shadow(0 0 6px rgba(255, 201, 77, 0.9)); }
+/* decorative compass rose, resting on the open water */
+.map-svg .map-compass { opacity: 0.5; }
+.map-svg .compass-ring { fill: none; stroke: rgba(242, 231, 194, 0.5); stroke-width: 2.5; }
+.map-svg .compass-star { fill: rgba(255, 201, 77, 0.55); stroke: rgba(242, 231, 194, 0.55); stroke-width: 1; }
+.map-svg .compass-n { fill: #f2e7c2; font-family: var(--map-pixel); font-weight: 700; font-size: 20px; }
 
+/* Level medallions — a deliberate, mutually-exclusive state system, all on the
+   gold / parchment palette (the old stray green is gone):
+     • .locked            slate disc, dim, a lock — not playable
+     • .next              THE current objective: gold ring, glow pulse, and a
+                          planted pennant ("you are here / play next")
+     • .done              cleared without a medal: parchment disc, dark-gold
+                          ring, a small ✓ badge
+     • .done.gold/.silver/.bronze  cleared WITH a medal: a metal ring and a
+                          metal ★ badge (these classes refine .done) */
 .map-node {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  border: 3px solid #4c5c55;
-  background: #f3ecd2;
-  color: #3c4740;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 900;
+  border: 3px solid #40372a;
+  background: radial-gradient(circle at 38% 32%, #fbf4dc, #e9dcb3);
+  color: var(--map-ink);
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
-  transition: transform 0.12s, box-shadow 0.12s;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 2px 1px rgba(255, 255, 255, 0.6);
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
   z-index: 2;
 }
 .map-node:hover:not(:disabled),
 .map-node:focus-visible {
-  transform: translate(-50%, -50%) scale(1.15);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%) scale(1.16);
+  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.5), inset 0 2px 1px rgba(255, 255, 255, 0.6), 0 0 0 3px rgba(255, 201, 77, 0.35);
+  z-index: 3;
 }
-.map-node.done { border-color: var(--accent2); }
+
+/* cleared — no medal: dark-gold ring + a ✓ badge (never green) */
+.map-node.done { border-color: #b8892e; }
+.map-node.done::after {
+  content: '✓';
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #201607;
+  background: #d7a33e;
+  box-shadow: 0 0 0 2px rgba(20, 16, 8, 0.55);
+}
+/* cleared — with a medal: metal ring + a metal ★ badge */
 .map-node.done.gold { border-color: #f0c419; }
 .map-node.done.silver { border-color: #c8ccd4; }
 .map-node.done.bronze { border-color: #c98a4b; }
+.map-node.done.gold::after { content: '★'; background: #f0c419; }
+.map-node.done.silver::after { content: '★'; background: #c8ccd4; }
+.map-node.done.bronze::after { content: '★'; background: #c98a4b; }
+
+/* current objective: bright gold, pulsing, with a planted pennant on top */
 .map-node.next {
-  border-color: var(--accent);
+  border-color: var(--map-gold);
+  background: radial-gradient(circle at 38% 32%, #fff6da, #ffe6a6);
   animation: node-pulse 1.6s ease-in-out infinite;
 }
+.map-node.next::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 1px);
+  width: 17px;
+  height: 19px;
+  transform: translateX(-50%);
+  transform-origin: bottom left;
+  background: linear-gradient(90deg, #6b4f1c 0 3px, #ffd76e 3px, #f0a929);
+  clip-path: polygon(0 19px, 0 0, 3px 0, 17px 4px, 3px 8px, 3px 19px);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+  animation: flag-wave 2s ease-in-out infinite;
+}
+@keyframes flag-wave {
+  0%, 100% { transform: translateX(-50%) skewY(0deg); }
+  50% { transform: translateX(-50%) skewY(-4deg); }
+}
 @keyframes node-pulse {
-  0%, 100% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 201, 77, 0.55); }
-  50% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35), 0 0 0 12px rgba(255, 201, 77, 0); }
+  0%, 100% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 2px 1px rgba(255, 255, 255, 0.6), 0 0 0 0 rgba(255, 201, 77, 0.6); }
+  50% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 2px 1px rgba(255, 255, 255, 0.6), 0 0 0 12px rgba(255, 201, 77, 0); }
 }
+/* locked: cold slate, dim, a padlock badge */
 .map-node.locked {
-  background: #9aa39c;
-  color: #5d665f;
+  background: radial-gradient(circle at 38% 32%, #6a7480, #4c5661);
+  border-color: #363e48;
+  color: #aab4c1;
   cursor: default;
-  opacity: 0.7;
+  opacity: 0.85;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
 }
+.map-node.locked::after {
+  content: '🔒';
+  position: absolute;
+  right: -5px;
+  bottom: -6px;
+  font-size: 13px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+/* daily challenge: a little tear-off calendar showing TODAY's date, planted on
+   the lighthouse island (the plain 📅 emoji always drew a frozen "17") */
 .map-daily {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  font-size: 24px;
+  width: 44px;
+  height: 46px;
+  padding: 0;
+  border: 2px solid #40372a;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f6eecf;
   cursor: pointer;
   z-index: 2;
+  box-shadow: 0 4px 9px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s, box-shadow 0.12s;
+  display: flex;
+  flex-direction: column;
+}
+.map-daily .cal-top {
+  height: 13px;
+  background: linear-gradient(#ff8f80, #e0554a);
+  border-bottom: 2px solid #40372a;
+  position: relative;
+  flex: 0 0 auto;
+}
+/* two little binding rings on the header */
+.map-daily .cal-top::before,
+.map-daily .cal-top::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 6px;
+  background: #cdbf94;
+  border-radius: 2px;
+}
+.map-daily .cal-top::before { left: 12px; }
+.map-daily .cal-top::after { right: 12px; }
+.map-daily .cal-day {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 21px;
+  line-height: 1;
+  color: var(--map-ink);
+}
+.map-daily:hover { transform: translate(-50%, -50%) translateY(-2px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); }
+.map-daily.done { filter: saturate(0.6) brightness(0.94); }
+.map-daily.done .cal-day::after {
+  content: '✓';
+  position: absolute;
+  font-size: 26px;
+  color: rgba(184, 137, 46, 0.9);
 }
 .map-daily.fresh { animation: node-pulse 1.6s ease-in-out infinite; }
 .terr-lock {
   position: absolute;
   transform: translate(-50%, -50%);
-  background: rgba(20, 28, 34, 0.75);
-  color: var(--text);
-  font-size: 12px;
+  background: rgba(13, 18, 26, 0.82);
+  color: #f2e7c2;
+  font-size: 12.5px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 999px;
+  letter-spacing: 0.2px;
+  padding: 6px 13px 7px;
+  border: 1px solid rgba(255, 201, 77, 0.35);
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
   white-space: nowrap;
   pointer-events: none;
   z-index: 3;
@@ -1097,26 +1303,76 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 .terr-flag {
   position: absolute;
   transform: translate(-50%, -140%);
-  font-size: 22px;
+  font-size: 26px;
   pointer-events: none;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.5));
 }
 .level-card.map-popover {
   position: absolute;
   transform: translate(-50%, calc(-100% - 30px));
-  width: 230px;
+  width: 250px;
   cursor: default;
   z-index: 5;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  border-color: var(--panel-border-light);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.6);
+}
+/* gold corner-pixel frame — the same motif the landing-page cards use */
+.level-card.map-popover::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--map-gold) 0 0) left top,
+    linear-gradient(var(--map-gold) 0 0) right top,
+    linear-gradient(var(--map-gold) 0 0) left bottom,
+    linear-gradient(var(--map-gold) 0 0) right bottom;
+  background-size: 7px 7px;
+  background-repeat: no-repeat;
 }
 .level-card.map-popover.below { transform: translate(-50%, 30px); }
+.map-popover .lv-name { font-family: var(--font); font-weight: 800; font-size: 17px; color: var(--map-gold); }
+.map-popover .lv-desc { margin-bottom: 10px; }
+
+/* fact block: objectives, condition tags, difficulty, size/tools */
+.lv-facts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.lv-obj-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lv-obj-lbl {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.lv-obj {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 700; color: #f3ead0;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgba(255, 201, 77, 0.12);
+  border: 1px solid rgba(255, 201, 77, 0.32);
+}
+.lv-obj b { color: var(--map-gold); font-weight: 800; }
+.lv-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.lv-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; color: var(--text);
+  padding: 3px 8px; border-radius: 6px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+}
+.lv-diff { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+.lv-diff .diff-stars { font-size: 14px; letter-spacing: 1px; color: var(--map-gold); }
+.lv-diff .diff-lbl { font-weight: 800; color: var(--text); }
+.lv-meta { font-size: 11px; color: var(--text-dim); letter-spacing: 0.02em; }
 .map-popover .pop-play {
   margin-top: 12px;
-  padding: 9px 0;
+  padding: 10px 0 11px;
   width: 100%;
-  font-size: 15px;
+  font-family: var(--map-pixel);
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   .map-node.next,
+  .map-node.next::before,
   .map-daily.fresh { animation: none; }
 }
 
@@ -1127,10 +1383,16 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 16px 14px;
+  padding: 12px 16px 14px;
+  z-index: 4;
+  background-image: repeating-linear-gradient(90deg, var(--panel-border) 0 8px, transparent 8px 16px);
+  background-size: 100% 2px;
+  background-position: top;
+  background-repeat: no-repeat;
 }
 .legend-cap {
-  font-size: 11px;
+  font-family: var(--map-pixel);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
