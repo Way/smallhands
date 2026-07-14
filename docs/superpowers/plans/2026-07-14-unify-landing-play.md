@@ -1267,24 +1267,45 @@ Expected: a list to review. Update prose that describes two separate pages to de
 
 For each hit from Step 1 that describes the architecture, edit it to reflect: "The site is a single front door at `/` — the game's animated title screen with marketing content beneath it. `/play/` redirects to `/`." Leave unrelated content untouched.
 
-- [ ] **Step 3: Full test sweep**
+- [ ] **Step 3: Apply the deferred cleanups from the task reviews**
 
-Run each and confirm PASS:
+These four Minor findings were logged during Tasks 2/3/4/7 and deferred to here. Apply each exactly:
+
+1. **`vite.config.ts` — remove now-dead code.** After the single-input change (Task 2), the `rollupOptions.input` block is gone, so its only consumers are unused. Delete the imports and const that are no longer referenced (`import { resolve } from 'node:path';`, `import { fileURLToPath } from 'node:url';`, and `const root = fileURLToPath(new URL('.', import.meta.url));`). Keep `import { defineConfig } from 'vite';` and the whole `export default defineConfig({...})`. Verify by reading the file that nothing else references `resolve`/`root`/`fileURLToPath` before deleting.
+
+2. **`src/style.css` — add the regression-guard comment.** Immediately above the `#ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 2; }` rule, insert:
+
+```css
+/* #ui-root hosts the HUD in-game and modal overlays (options/confirm) in BOTH
+   modes. It is empty and click-through (pointer-events:none) in front-door mode,
+   so it needs no hiding — and an options overlay opened from the front door must
+   stay visible, so it must NOT be display:none here. */
+```
+
+3. **`tests/e2e.mjs` — fix the stale header comment.** The top-of-file comment still says the game lives at `/play/`. Update that sentence to say the game is served at `/` (the front door), consistent with the `BASE_URL` default the file now uses. Comment only — no code change.
+
+4. **`src/engine/i18n.ts` — drop orphaned keys IF unused.** The `title.sub` and `title.blurb` dictionary entries were only used by the old title overlay (gutted in Task 3). Run `grep -rn "title\.sub\|title\.blurb" src/ tests/`. If there are ZERO references, delete those two entries from the `D` dictionary. If any reference remains, leave them untouched and note it in the report.
+
+- [ ] **Step 4: Full test sweep**
+
+Build, then run the whole suite (node sim tests + browser tests) and confirm every one passes:
 
 ```bash
 npm run build
-node tests/frontdoor-data.mjs   # or: node --experimental-strip-types tests/frontdoor-data.mjs
-npm run test:unit
-npm run preview & sleep 2 && node tests/landing.mjs; kill %1
+node tests/frontdoor-data.mjs
+for t in unit terrain motion campaign2 weather; do echo "=== $t ==="; node tests/$t.mjs || echo "FAILED: $t"; done
+npm run preview & PREVIEW=$!; sleep 2
+for t in landing i18n e2e drag-tooltip weather-visual editor-generator; do echo "=== $t ==="; node tests/$t.mjs || echo "FAILED: $t"; done
+kill $PREVIEW
 ```
 
-Expected: build PASS, data PASS, unit PASS, `FRONT-DOOR SMOKE PASS`.
+Expected: build PASS, `FRONTDOOR DATA PASS`, every node sim test PASS, and every browser test prints its PASS line with no `FAILED:` lines. If a test fails for a reason clearly pre-existing and unrelated to this branch's changes, report it as a concern with the exact failure rather than forcing a pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add -A
-git commit -m "#4 docs: describe unified front door; final test sweep"
+git commit -m "#4 docs + deferred cleanups; full suite green"
 ```
 
 ---
