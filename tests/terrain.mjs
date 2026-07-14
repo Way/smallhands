@@ -53,6 +53,7 @@ const difficulties = [1, 2, 3, 4, 5];
 
 let reliefSteps = 0; // |diff| === 1 counts across the whole matrix
 let cliffCount = 0;
+let motifLevels = 0; // levels whose description names a shape motif
 
 for (const seed of seeds) {
   for (const d of difficulties) {
@@ -68,6 +69,7 @@ for (const seed of seeds) {
     const data = generateVerifiedLevel({ seed, difficulty: d });
     const report = verifyLevel(data);
     check(`${label}: verifies (${report.problems.join('; ') || 'clean'})`, report.ok);
+    if (/mesa|canyon|ridge|terraced/.test(data.desc)) motifLevels++;
 
     const world = worldFromData(data);
     const surf = surfaceRows(world);
@@ -112,6 +114,9 @@ for (const seed of seeds) {
 // 6. the relief pass exists: rolling ground somewhere in the matrix
 check(`relief produces 1-tile banks across the matrix (${reliefSteps} found)`, reliefSteps > 20);
 check(`the matrix still produces cliffs (${cliffCount} found)`, cliffCount > 10);
+// 7. the motif grammar exists: mesas/canyons/ridges/terraces show up and
+// (via checks 3+5 above) obey the same invariants as plain cliffs
+check(`shape motifs appear across the matrix (${motifLevels} levels)`, motifLevels > 5);
 
 console.log(failures === 0 ? `\nterrain: all checks passed` : `\nterrain: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

@@ -173,28 +173,37 @@ export class Renderer {
     const bmix = (c: RGB, to: readonly number[], amt: number): RGB =>
       amt <= 0 ? c : [c[0] + (to[0] - c[0]) * amt, c[1] + (to[1] - c[1]) * amt, c[2] + (to[2] - c[2]) * amt];
 
-    // gradient stops + hill/cloud palettes per mood. Night is a level flag, not
-    // weather: it overrides the sky palette, but the wet tint/streaks (drawn in
-    // drawWeatherFx) still crossfade on top.
-    let stops: [string, string, string];
-    let hills: [string, string];
+    // gradient stops + hill/cloud palettes per mood, kept as RGB tuples so the
+    // parallax layers can derive sky-drowned distance tints. Night is a level
+    // flag, not weather: it overrides the sky palette, but the wet tint/streaks
+    // (drawn in drawWeatherFx) still crossfade on top.
+    let stopsRgb: [RGB, RGB, RGB];
+    let hillsRgb: [RGB, RGB];
     let cloudCol: string;
     if (night) {
-      stops = ['#0a1028', '#141e42', '#243654'];
-      hills = ['#2a4a44', '#1d3833'];
+      stopsRgb = [
+        [10, 16, 40],
+        [20, 30, 66],
+        [36, 54, 84],
+      ];
+      hillsRgb = [
+        [42, 74, 68],
+        [29, 56, 51],
+      ];
       cloudCol = 'rgba(46,58,92,0.65)';
     } else {
-      stops = [
-        rgbCss(bmix(look.sky[0], bl.skyTint, bl.skyTintAmt)),
-        rgbCss(bmix(look.sky[1], bl.skyTint, bl.skyTintAmt)),
-        rgbCss(bmix(look.sky[2], bl.skyTint, bl.skyTintAmt)),
+      stopsRgb = [
+        bmix(look.sky[0], bl.skyTint, bl.skyTintAmt),
+        bmix(look.sky[1], bl.skyTint, bl.skyTintAmt),
+        bmix(look.sky[2], bl.skyTint, bl.skyTintAmt),
       ];
-      hills = [
-        rgbCss(bmix(look.hills[0], bl.hillTint, bl.hillTintAmt)),
-        rgbCss(bmix(look.hills[1], bl.hillTint, bl.hillTintAmt)),
+      hillsRgb = [
+        bmix(look.hills[0], bl.hillTint, bl.hillTintAmt),
+        bmix(look.hills[1], bl.hillTint, bl.hillTintAmt),
       ];
       cloudCol = rgbaCss(look.cloudCol);
     }
+    const stops = [rgbCss(stopsRgb[0]), rgbCss(stopsRgb[1]), rgbCss(stopsRgb[2])];
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, stops[0]);
     g.addColorStop(0.55, stops[1]);
@@ -247,22 +256,10 @@ export class Renderer {
       }
     }
 
-    // distant hills, two parallax layers
-    for (const [par, col, base, amp] of [
-      [0.12, hills[0], 0.72, 60],
-      [0.24, hills[1], 0.84, 44],
-    ] as const) {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.moveTo(0, H);
-      for (let x = 0; x <= W; x += 12) {
-        const wxp = (x + cam.x * par) * 0.008;
-        const y = H * base - (Math.sin(wxp) + Math.sin(wxp * 2.7 + 1.4) * 0.5) * amp - cam.y * par * 0.3;
-        ctx.lineTo(x, y);
-      }
-      ctx.lineTo(W, H);
-      ctx.fill();
-    }
+    // distant terrain in three strict parallax layers: a sky-drowned horizon
+    // range, a mid ridge with biome character (plus its dressing), and a near
+    // scrub line. Contrast rises toward the playable grid, never above it.
+    this.drawDistantTerrain(game, W, H, cam, hillsRgb, stopsRgb[1], bmix);
 
     // clouds — the storm drives them hard across the sky
     const cloudSpeed = look.cloudSpeed;
@@ -283,6 +280,115 @@ export class Renderer {
     // birds keep to fair daylight skies; they stop spawning as rain builds but
     // any already aloft finish crossing (no mid-air disappearance)
     if (!night) this.drawBirds(W, H, t, cam, look.rain < 0.05);
+  }
+
+  // ---- distant terrain (three-layer parallax) --------------------------------
+  //
+  // Layer recipe (miniature-diorama rules): the HORIZON range is heavily sky-
+  // tinted and barely moves; the MIDGROUND ridge carries the biome's shape
+  // language and a little dressing (tree line, snow tips); the NEAR scrub line
+  // is the strongest silhouette but still flatter than any playable tile.
+  // Everything is a pure function of camera + biome, so it never flickers.
+
+  private silhouette(
+    W: number,
+    H: number,
+    cam: Camera,
+    par: number,
+    col: string,
+    base: number,
+    amp: number,
+    shape: (wx: number) => number
+  ): void {
+    const { ctx } = this;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      const wx = (x + cam.x * par) * 0.008;
+      ctx.lineTo(x, H * base - shape(wx) * amp - cam.y * par * 0.3);
+    }
+    ctx.lineTo(W, H);
+    ctx.fill();
+  }
+
+  private drawDistantTerrain(
+    game: Game,
+    W: number,
+    H: number,
+    cam: Camera,
+    hills: [RGB, RGB],
+    skyMid: RGB,
+    bmix: (c: RGB, to: readonly number[], amt: number) => RGB
+  ): void {
+    const { ctx } = this;
+    const biome = (game.level.biome ?? 'meadow') as Biome;
+
+    // shape vocabulary (all return 0..1 crest height)
+    const tri = (v: number) => Math.abs((((v % 2) + 2) % 2) - 1);
+    const rolling = (wx: number) => (Math.sin(wx) + Math.sin(wx * 2.7 + 1.4) * 0.5 + 1.5) / 3;
+    const peaks = (wx: number) => tri(wx * 0.9) * 0.72 + tri(wx * 2.2 + 0.6) * 0.28;
+    const buttes = (wx: number) => {
+      const r = rolling(wx);
+      return (Math.floor(r * 3) / 3) * 0.85 + r * 0.15; // stepped mesa tops
+    };
+    const dunes = (wx: number) => Math.abs(Math.sin(wx * 0.8)) * 0.82 + (Math.sin(wx * 2.1) + 1) * 0.05;
+
+    const horizonShape = biome === 'redrock' ? buttes : biome === 'chalk' ? dunes : peaks;
+    const midShape = biome === 'redrock' ? buttes : biome === 'chalk' ? dunes : rolling;
+
+    // 1. horizon range — drowned in sky to read as far distance
+    const horizonCol = bmix(hills[0], skyMid, 0.55);
+    this.silhouette(W, H, cam, 0.05, rgbCss(horizonCol), 0.62, 95, horizonShape);
+    // snow tips on the highest horizon peaks of snow-capped biomes
+    if (BIOME_LOOK[biome].snowcaps) {
+      ctx.fillStyle = rgbCss(bmix(horizonCol, [246, 249, 255], 0.6));
+      for (let x = 0; x <= W; x += 8) {
+        const wx = (x + cam.x * 0.05) * 0.008;
+        const s = horizonShape(wx);
+        if (s > 0.74) {
+          const y = H * 0.62 - s * 95 - cam.y * 0.05 * 0.3;
+          ctx.fillRect(x - 2, y, 5, 2 + (s - 0.74) * 26);
+        }
+      }
+    }
+
+    // 2. midground ridge + dressing
+    const midCol = bmix(hills[0], skyMid, 0.15);
+    this.silhouette(W, H, cam, 0.12, rgbCss(midCol), 0.72, 60, midShape);
+    if (biome === 'meadow' || biome === 'autumn' || biome === 'slate') {
+      // a distant tree line along the mid crest, anchored in layer space so it
+      // parallaxes with its hill; conifers for the highlands, blobs elsewhere
+      const par = 0.12;
+      const treeCol = rgbCss(bmix(midCol, [0, 0, 0], 0.14));
+      ctx.fillStyle = treeCol;
+      const g0 = Math.floor((cam.x * par) / 26) - 1;
+      const g1 = Math.floor((cam.x * par + W) / 26) + 1;
+      for (let gcell = g0; gcell <= g1; gcell++) {
+        const h1 = tileHash(((gcell % 8191) + 8191) % 8191, 23);
+        if (h1 < 0.4) continue;
+        const xw = gcell * 26 + h1 * 16;
+        const sx = xw - cam.x * par;
+        const cy = H * 0.72 - midShape(xw * 0.008) * 60 - cam.y * par * 0.3;
+        const s = 3 + h1 * 3;
+        if (biome === 'slate') {
+          ctx.beginPath();
+          ctx.moveTo(sx, cy - s * 1.6);
+          ctx.lineTo(sx - s * 0.55, cy + 1);
+          ctx.lineTo(sx + s * 0.55, cy + 1);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(sx, cy - s * 0.7, s * 0.62, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillRect(sx - 0.5, cy - s * 0.4, 1, s * 0.6);
+        }
+      }
+    }
+
+    // 3. near scrub line — the strongest of the three, still soft
+    this.silhouette(W, H, cam, 0.24, rgbCss(hills[1]), 0.84, 44, rolling);
   }
 
   // Occasional birds drifting across the upper sky and leaving. Purely decorative,

@@ -73,11 +73,17 @@ interface Flat {
   pit: boolean;
 }
 
+// Shape motifs the grammar can draw beyond the classic single cliff/pit.
+// Every motif is still heights + >= 3 cliffs, so the verifier, the movement
+// contract and the step invariant (0/1 or >= 3, never exactly 2) all hold.
+export type Motif = 'ridge' | 'mesa' | 'canyon' | 'terraces';
+
 interface Plan {
   heights: number[];
   flats: Flat[];
   upCliffs: number;
   pits: number;
+  motifs: Record<Motif, number>;
 }
 
 function planTerrain(rng: Rng, d: number): Plan {
@@ -85,6 +91,9 @@ function planTerrain(rng: Rng, d: number): Plan {
   const flats: Flat[] = [];
   let upCliffs = 0;
   let pits = 0;
+  const motifs: Record<Motif, number> = { ridge: 0, mesa: 0, canyon: 0, terraces: 0 };
+  // large motifs are a meal, not a snack: one per level at ★2–3, two at ★4+
+  let bigLeft = d >= 4 ? 2 : d >= 2 ? 1 : 0;
 
   let h = rng.int(7, 9);
   const pushFlat = (len: number, pit = false) => {
@@ -93,26 +102,97 @@ function planTerrain(rng: Rng, d: number): Plan {
     flats.push({ x0, x1: heights.length - 1, h, pit });
   };
 
+  // Pick the next feature. Large motifs draw first from their budget; the
+  // remainder falls back to the classic cliff/pit/down distribution.
+  const chooseKind = (): string => {
+    const canUp = h < 22;
+    if (bigLeft > 0 && rng.float() < 0.35) {
+      const bigs: string[] = [];
+      if (d >= 2 && canUp && h <= 16) bigs.push('mesa');
+      if (d >= 2 && h >= 11) bigs.push('canyon');
+      if (d >= 3 && h <= 15) bigs.push('terraces');
+      if (bigs.length) {
+        bigLeft--;
+        return rng.pick(bigs);
+      }
+    }
+    const roll = rng.float();
+    if (roll < 0.14 && canUp) return 'ridge';
+    if (roll < (d >= 3 ? 0.48 : 0.43)) return canUp ? 'up' : 'pit';
+    if (roll < 0.78) return 'pit';
+    return h > 9 ? 'down' : 'pit';
+  };
+
   pushFlat(rng.int(13, 17)); // home flat, roomy enough for the Town Hall
   const features = 1 + d + (rng.float() < 0.4 ? 1 : 0);
   for (let i = 0; i < features; i++) {
-    const roll = rng.float();
-    const kind = roll < (d >= 3 ? 0.45 : 0.4) ? 'up' : roll < 0.75 ? 'pit' : 'down';
-    if (kind === 'up' && h < 22) {
-      h += rng.int(3, Math.min(6, 3 + d));
-      upCliffs++;
-      pushFlat(rng.int(8, 13));
-    } else if (kind === 'down' && h > 9) {
-      h -= rng.int(3, 4);
-      pushFlat(rng.int(8, 13));
-    } else {
-      // a pit: down 3..5 and back up — empty hands hop in, cargo needs a lift
-      const depth = rng.int(3, Math.min(5, 2 + d));
-      h -= depth;
-      pits++;
-      pushFlat(rng.int(6, 9), true);
-      h += depth;
-      pushFlat(rng.int(7, 11));
+    switch (chooseKind()) {
+      case 'up':
+        h += rng.int(3, Math.min(6, 3 + d));
+        upCliffs++;
+        pushFlat(rng.int(8, 13));
+        break;
+      case 'down':
+        h -= rng.int(3, 4);
+        pushFlat(rng.int(8, 13));
+        break;
+      case 'ridge': {
+        // a narrow crest: climb it, cross it, rope back down the far side
+        const rise = rng.int(3, 4);
+        h += rise;
+        upCliffs++;
+        motifs.ridge++;
+        pushFlat(rng.int(5, 8));
+        h -= rise;
+        pushFlat(rng.int(8, 12));
+        break;
+      }
+      case 'mesa': {
+        // a flat-topped block rising from the plain, cliffs on both sides —
+        // roomy enough on top to hide resources worth the lift
+        const rise = rng.int(4, Math.min(6, 3 + d));
+        h += rise;
+        upCliffs++;
+        motifs.mesa++;
+        pushFlat(rng.int(9, 12));
+        h -= rise;
+        pushFlat(rng.int(8, 12));
+        break;
+      }
+      case 'canyon': {
+        // the mesa's inverse: two facing walls with real estate between them.
+        // Depth caps at 5 so empty hands can still hop in (MAX_FALL).
+        const depth = rng.int(4, Math.min(5, h - 6));
+        h -= depth;
+        pits++; // budgets like a pit: cargo needs a lift back out
+        motifs.canyon++;
+        pushFlat(rng.int(10, 14));
+        h += depth;
+        pushFlat(rng.int(8, 12));
+        break;
+      }
+      case 'terraces': {
+        // stacked +3 shelves — the classic summit supply line
+        const steps = rng.int(2, 3);
+        motifs.terraces++;
+        for (let s = 0; s < steps && h < 22; s++) {
+          h += 3;
+          upCliffs++;
+          pushFlat(rng.int(5, 7));
+        }
+        pushFlat(rng.int(6, 9));
+        break;
+      }
+      default: {
+        // a pit: down 3..5 and back up — empty hands hop in, cargo needs a lift
+        const depth = rng.int(3, Math.min(5, 2 + d));
+        h -= depth;
+        pits++;
+        pushFlat(rng.int(6, 9), true);
+        h += depth;
+        pushFlat(rng.int(7, 11));
+        break;
+      }
     }
   }
   // goal flat: on higher difficulties bias the finale upward
@@ -123,7 +203,26 @@ function planTerrain(rng: Rng, d: number): Plan {
   pushFlat(rng.int(10, 14));
 
   while (heights.length > MAX_W) heights.pop();
-  return { heights, flats: flats.filter((f) => f.x1 < heights.length), upCliffs, pits };
+  return { heights, flats: flats.filter((f) => f.x1 < heights.length), upCliffs, pits, motifs };
+}
+
+// ---- ragged lips ---------------------------------------------------------------
+//
+// Bite a 1-tile notch into the lip of tall cliffs (>= 4) so faces silhouette
+// like real rock instead of set squares. The notch column steps 1 down from
+// its flat (walkable by everyone) and the face keeps a clean >= 3 rise, so
+// lifts and ropes still find purchase and cargo still can't climb it. Runs on
+// macro heights BEFORE relief; relief's margin never touches boundary columns.
+function notchLips(plan: Plan, rng: Rng, d: number): void {
+  if (d < 2) return;
+  for (let i = 0; i + 1 < plan.flats.length; i++) {
+    const a = plan.flats[i];
+    const b = plan.flats[i + 1];
+    if (b.x0 !== a.x1 + 1) continue;
+    const rise = b.h - a.h;
+    if (rise >= 4 && b.x1 - b.x0 >= 4 && rng.float() < 0.5) plan.heights[b.x0] -= 1;
+    if (-rise >= 4 && a.x1 - a.x0 >= 4 && rng.float() < 0.5) plan.heights[a.x1] -= 1;
+  }
 }
 
 // ---- micro relief -------------------------------------------------------------
@@ -190,12 +289,22 @@ function applyRelief(plan: Plan, rng: Rng, reserved: [number, number][]): void {
 const NAME_A = ['Windy', 'Sunken', 'Broken', 'Mossy', 'Silent', 'Amber', 'Foggy', 'Wild', 'Old', 'Copper', 'Hollow', 'Thorny'];
 const NAME_B = ['Terraces', 'Hollow', 'Reach', 'Steps', 'Quarry', 'Bluffs', 'Crossing', 'Shelf', 'Climb', 'Gorge', 'Cradle', 'Heights'];
 
+// When a level features a motif, its name usually says so — the poetry should
+// describe the terrain the player is about to fight.
+const MOTIF_NAMES: Record<Motif, string[]> = {
+  ridge: ['Ridge', 'Summit', 'Crossing', 'Crest'],
+  mesa: ['Mesa', 'Bluffs', 'Table', 'Heights'],
+  canyon: ['Gorge', 'Canyon', 'Hollow', 'Ravine'],
+  terraces: ['Terraces', 'Steps', 'Climb', 'Stair'],
+};
+
 // ---- the generator ------------------------------------------------------------------
 
 export function generateLevel(opts: GenOptions): CustomLevelData {
   const d = Math.max(1, Math.min(5, Math.round(opts.difficulty)));
   const rng = new Rng(`${opts.seed}|d${d}`);
   const plan = planTerrain(rng, d);
+  notchLips(plan, rng, d);
 
   // Town Hall on the home flat, goal on the last (non-pit) flat — chosen
   // before the relief pass so both build sites can be reserved dead flat.
@@ -298,10 +407,17 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
     if (vLeft > 0) vLeft -= place('vein', vLeft, anywhere);
   }
 
-  const name = `${rng.pick(NAME_A)} ${rng.pick(NAME_B)}`;
+  // the dominant motif names the level; plain cliff-and-pit rolls keep the
+  // classic pool
+  const motifsUsed = (Object.entries(plan.motifs) as [Motif, number][]).filter(([, n]) => n > 0);
+  const dominant = motifsUsed.sort((a, b) => b[1] - a[1])[0];
+  const pool = dominant && rng.float() < 0.75 ? MOTIF_NAMES[dominant[0]] : NAME_B;
+  const name = `${rng.pick(NAME_A)} ${rng.pick(pool)}`;
   const featureBits: string[] = [];
+  for (const [m] of motifsUsed) featureBits.push(t(`gen.feat.${m}`));
   if (plan.upCliffs) featureBits.push(t(plan.upCliffs > 1 ? 'gen.feat.cliff.many' : 'gen.feat.cliff.one', { n: plan.upCliffs }));
-  if (plan.pits) featureBits.push(t(plan.pits > 1 ? 'gen.feat.pit.many' : 'gen.feat.pit.one', { n: plan.pits }));
+  const pitOnly = plan.pits - plan.motifs.canyon; // canyons budget like pits but tell their own story
+  if (pitOnly) featureBits.push(t(pitOnly > 1 ? 'gen.feat.pit.many' : 'gen.feat.pit.one', { n: pitOnly }));
   const desc = t('gen.desc', { seed: opts.seed, d, features: featureBits.length ? ' — ' + featureBits.join(', ') : '' });
 
   return {
