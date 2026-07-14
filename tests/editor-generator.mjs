@@ -9,7 +9,7 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/play/';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -44,7 +44,7 @@ function fail(msg) {
 
 await page.goto(BASE_URL);
 await page.waitForTimeout(600);
-await page.click('button.big-btn'); // Play → level select
+await page.click('.fd-play'); // Play → level select
 await page.waitForTimeout(300);
 
 // ---- 1. the editor ----------------------------------------------------------

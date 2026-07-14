@@ -1,14 +1,14 @@
 // End-to-end smoke test: drives a real browser through levels 1 and 2 and
 // fails if they cannot be completed. Requires the production build to be
-// served (default http://localhost:4173/play/ — `npm run preview`; the game
-// now lives at /play/, with the marketing landing page at the site root).
+// served (default http://localhost:4173/ — `npm run preview`; the game is
+// served at the site's single front door, `/`).
 //
 // Uses the game's window.__smallhands debug hook to act as a scripted player:
 // it marks resources and places buildings, then the simulation does the rest.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/play/';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -33,7 +33,7 @@ page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
 await page.goto(BASE_URL);
 await page.waitForTimeout(800);
-await page.click('button.big-btn');
+await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.level-card:not(.locked)');
 await page.waitForTimeout(400);
