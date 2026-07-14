@@ -1528,6 +1528,7 @@ function drawIdleBackdrop(): void {
 let last = performance.now();
 const FIXED = 1 / 60;
 let acc = 0;
+let idleStaticTime: number | null = null;
 
 const RUN_SPRITE: Partial<Record<Tool, string>> = {
   ramp: 'tile_ramp',
@@ -1611,7 +1612,17 @@ function frame(now: number): void {
         cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
       }
 
-      renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, now / 1000, runOverlay);
+      // Under reduced motion, freeze the clock fed to the renderer too, so
+      // time-driven decoration (clouds, wind sway, smoke, flags) holds still —
+      // not just the camera pan and the sim.
+      if (isIdle && idleStatic) {
+        idleStaticTime ??= now;
+      } else {
+        idleStaticTime = null;
+      }
+      const drawTime = idleStaticTime ?? now;
+
+      renderer.draw(active, cam, running ? hover : { ...hover, visible: false }, drawTime / 1000, runOverlay);
     }
   }
 
