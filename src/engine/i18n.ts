@@ -383,6 +383,20 @@ const D: Record<string, [string, string]> = {
     'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
   ],
 
+  // world map (level select)
+  'map.terr1': ['Home Meadows', 'Heimatwiesen'],
+  'map.terr2': ['Storm & Tide', 'Sturm & Flut'],
+  'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
+  'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
+  'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
+  'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
+  'legend.title': ['Legend', 'Legende'],
+  'legend.mine': ['My levels', 'Meine Level'],
+  'drawer.empty': [
+    'No levels yet — build one in the editor or import a share code.',
+    'Noch keine Level — baue eins im Editor oder importiere einen Code.',
+  ],
+
   'camp3.unlocked': [
     'Campaign 3 — Weight & Wheel: the counterweight hoist',
     'Kampagne 3 — Gewicht & Rad: der Gegengewichts-Aufzug',
