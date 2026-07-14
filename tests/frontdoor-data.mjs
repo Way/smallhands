@@ -1,6 +1,6 @@
 // Verifies the front-door marketing copy table has an [en, de] pair for every
 // key — a cheap guard against a half-translated string sneaking in.
-import { S, FRONTDOOR_COPY_KEYS } from '../src/game/frontdoor.ts';
+import { S, FRONTDOOR_COPY_KEYS } from '../src/game/frontdoor-copy.ts';
 
 let failures = 0;
 const check = (name, cond) => {
