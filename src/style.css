@@ -561,7 +561,10 @@ body.in-game #frontdoor { display: none; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 8px rgba(0, 0, 0, 0.28);
   transition: border-color 0.14s, transform 0.14s, box-shadow 0.14s;
 }
-.level-card:hover:not(.locked) {
+/* :not(.map-popover) — the world-map popover reuses .level-card for styling but
+   is anchored via its own transform; this lift would replace that transform and
+   make the popover jump on hover */
+.level-card:hover:not(.locked):not(.map-popover) {
   border-color: var(--accent);
   transform: translateY(-3px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 9px 22px rgba(0, 0, 0, 0.42);
@@ -1543,8 +1546,10 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .menubar .flyout-body { left: 0; }
   .ctrlbar .flyout-body { right: 0; }
   .flyout.open .flyout-trigger { color: var(--accent); border-color: var(--accent); }
-  /* sticky-hover guards: no lift/recolor stuck on the last-tapped control */
-  .level-card:hover:not(.locked) { transform: none; }
+  /* sticky-hover guards: no lift/recolor stuck on the last-tapped control
+     (:not(.map-popover) — same reason as the desktop rule: preserve the
+     popover's own positioning transform) */
+  .level-card:hover:not(.locked):not(.map-popover) { transform: none; }
   .legend-btn:hover { transform: none; }
   .big-btn:hover { transform: none; box-shadow: 0 5px 0 #a06f14, 0 8px 18px rgba(0, 0, 0, 0.45); }
   .big-btn.secondary:hover { box-shadow: 0 5px 0 #1b2537, 0 8px 18px rgba(0, 0, 0, 0.45); }
