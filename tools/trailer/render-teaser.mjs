@@ -76,25 +76,26 @@ function findFfmpeg() {
 
 // ---- copy deck -----------------------------------------------------------------
 
+// One line per mechanic, headline states the rule, sub lands the consequence.
 const COPY = {
   de: {
-    hook: { h: 'Kleine Hände. Große Pläne.', sub: 'Ein Logistik-Puzzle für den Browser' },
-    build: { h: 'Keine Befehle — bau ihnen den Weg.', sub: 'Leitern, Brücken, Lastenaufzüge' },
-    hoist: { h: 'Schwerkraft ist dein Werkzeug.', sub: 'Die schwerere Seite sinkt' },
-    weather: { h: 'Wetter mit Ansage.', sub: 'Regen bremst, Sturm blockiert die Winde' },
-    night: { h: 'Nachts zählt nur dein Licht.', sub: 'Laternen schieben die Grenze hinaus' },
-    biomes: { h: 'Fünf Biome, endlose Level.', sub: 'Generator · Daily Challenge · Editor' },
-    deliver: { h: 'Liefere den Auftrag.', sub: 'Gold, Silber, Bronze' },
+    hook: { h: 'Du gibst keine Befehle.', sub: 'Du baust die Welt — dein Trupp macht den Rest' },
+    build: { h: 'Leere Hände klettern überall.', sub: 'Fracht braucht einen anderen Weg nach oben' },
+    hoist: { h: 'Die schwerere Seite sinkt.', sub: 'Ballast runter, Fracht rauf' },
+    weather: { h: 'Der Regen steht im Kalender.', sub: 'Er bremst die Arbeit — der Sturm blockiert die Winde' },
+    night: { h: 'Gearbeitet wird nur im Licht.', sub: 'Jede Laterne erobert ein Stück Nacht' },
+    biomes: { h: 'Jeder Seed eine neue Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
+    deliver: { h: 'Liefere. Dann liefere schneller.', sub: 'Gold wartet' },
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
   },
   en: {
-    hook: { h: 'Tiny hands. Big plans.', sub: 'A logistics puzzle for the browser' },
-    build: { h: 'No orders — build them a way.', sub: 'Ladders, bridges, cargo lifts' },
-    hoist: { h: 'Gravity is a tool.', sub: 'The heavier side sinks' },
-    weather: { h: 'Weather on a forecast.', sub: 'Rain slows work, storms lock the winch' },
-    night: { h: 'At night, light is everything.', sub: 'Lanterns push the frontier' },
-    biomes: { h: 'Five biomes, endless levels.', sub: 'Generator · Daily challenge · Editor' },
-    deliver: { h: 'Deliver the order.', sub: 'Gold, silver, bronze' },
+    hook: { h: 'You give no orders.', sub: 'You shape the world — your crew does the rest' },
+    build: { h: 'Empty hands climb anywhere.', sub: 'Cargo needs another way up' },
+    hoist: { h: 'The heavier side sinks.', sub: 'Ballast down, cargo up' },
+    weather: { h: 'The rain is on the schedule.', sub: 'It slows the work — storms lock the winch' },
+    night: { h: 'Work happens in the light.', sub: 'Every lantern claims a piece of the night' },
+    biomes: { h: 'Every seed builds a new world.', sub: '5 biomes · Daily challenge · Level editor' },
+    deliver: { h: 'Deliver. Then deliver faster.', sub: 'Gold is waiting' },
     end: { h: '', sub: '' },
   },
 };
@@ -167,11 +168,12 @@ const pageLib = () => {
     #tov .veil { position: absolute; inset: 0; opacity: 0;
       background: linear-gradient(180deg, rgba(10,13,20,0) 52%, rgba(10,13,20,0.72) 100%); }
     #tov .txt { position: absolute; left: 6%; right: 6%; bottom: 8.5%; text-align: center; opacity: 0; }
-    #tov .h { font-family: Georgia, 'Times New Roman', serif; font-size: 47px; font-weight: 700;
-      color: #e8eef7; letter-spacing: 0.5px; line-height: 1.15;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.9), 0 0 36px rgba(0,0,0,0.65); }
+    /* display type matches the redesigned front door: bundled Pixelify Sans */
+    #tov .h { font-family: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif; font-size: 52px;
+      font-weight: 700; color: #e8eef7; letter-spacing: 0.5px; line-height: 1.1;
+      text-shadow: 0 3px 0 rgba(0,0,0,0.55), 0 2px 14px rgba(0,0,0,0.9); }
     #tov .sub { margin-top: 10px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 21px;
-      font-weight: 600; color: #ffc94d; letter-spacing: 1.6px;
+      font-weight: 600; color: #ffc94d; letter-spacing: 1.2px;
       text-shadow: 0 2px 8px rgba(0,0,0,0.95); }
     #tov .fade { position: absolute; inset: 0; background: #0b0e15; opacity: 1; }
   `;
@@ -461,10 +463,15 @@ async function boot(page, lang) {
   await page.evaluate(() => {
     for (let i = 0; i < 5; i++) window.__vt.advance(1000 / 30);
   });
+  // the trailer overlay uses the front door's bundled pixel font — make sure it
+  // has arrived before the first caption frame samples a fallback
+  await page.evaluate(() => document.fonts.load("700 52px 'Pixelify Sans'").then(() => document.fonts.ready));
   // enter the game with direct DOM clicks — Playwright's actionability checks
-  // rely on real rAF timing, which we've replaced
+  // rely on real rAF timing, which we've replaced. The level select is the
+  // world map: pick the first open node, then its popover's Play button.
   await page.evaluate(() => document.querySelector('.fd-play').click());
-  await page.evaluate(() => document.querySelector('.level-card:not(.locked)').click());
+  await page.evaluate(() => document.querySelector('.map-node:not(:disabled)').click());
+  await page.evaluate(() => document.querySelector('.map-popover .pop-play').click());
   const ok = await page.evaluate(() => !!window.__smallhands);
   if (!ok) throw new Error('debug hook missing after level boot');
   void lang;
@@ -532,6 +539,18 @@ async function renderLang(lang, browser, ffmpeg) {
       // fresh load shows the front door hero over the live idle backdrop
       await page.reload({ waitUntil: 'load' });
       await page.evaluate(pageLib);
+      // The hero's entrance animations start at opacity 0 (fd-rise … forwards);
+      // the global freeze would pin them there. Snap every CSS animation to its
+      // end state instead, so the hero stands fully revealed and static.
+      await page.evaluate(() => {
+        const s = document.createElement('style');
+        s.textContent = `*, *::before, *::after {
+          animation-duration: 0.001s !important; animation-delay: 0s !important;
+          animation-iteration-count: 1 !important; animation-fill-mode: forwards !important;
+          animation-play-state: running !important; }`;
+        document.head.appendChild(s);
+      });
+      await page.waitForTimeout(150); // real time: let the 1 ms animations finish
       await page.evaluate(() => {
         window.scrollTo(0, 0);
         for (let i = 0; i < 3; i++) window.__vt.advance(1000 / 30);
