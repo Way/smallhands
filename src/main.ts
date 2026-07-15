@@ -1129,17 +1129,15 @@ function setTool(tool: Tool): void {
   hover.tool = tool;
   hud.setActiveTool(tool);
   runAnchor = null;
-  // switching tools drops any parked touch aim and re-arms the aim hint
+  // switching tools drops any parked touch aim + inspect tooltip, re-arms the hint
   touchInspect = null;
-  touchInspect = null;
+  hud.hideBuildingHint();
   if (COARSE) {
     clearTouchPlace(false);
     showAimHint();
   } else {
     hud.hideConfirmBar();
   }
-  if (COARSE) showAimHint();
-  else hud.hideConfirmBar();
   applyToolCursor();
   audio.click();
 }
