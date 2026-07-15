@@ -5,7 +5,7 @@
 - `docs/` — Documentation
 - `src/` — Source code
 - `tests/` — Tests
-- `video/` — Teaser video pipeline (Playwright gameplay capture + Remotion montage)
+- `tools/trailer/` — Teaser video renderer (deterministic in-game capture)
 
 ### `src/`
 
