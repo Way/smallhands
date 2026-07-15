@@ -26,7 +26,7 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
     nameKey: 'map.terr1',
     outline:
       'M 250 560 C 260 480 340 440 430 450 C 530 460 590 500 585 570 C 580 650 500 690 400 685 C 310 680 240 640 250 560 Z',
-    label: { x: 420, y: 430 },
+    label: { x: 420, y: 404 },
     badge: { x: 420, y: 570 },
     nodes: [
       { x: 305, y: 615 },
@@ -42,7 +42,7 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
     nameKey: 'map.terr2',
     outline:
       'M 640 340 C 660 250 760 210 870 220 C 980 230 1050 290 1035 370 C 1020 450 920 490 810 480 C 700 470 620 430 640 340 Z',
-    label: { x: 840, y: 200 },
+    label: { x: 840, y: 174 },
     badge: { x: 840, y: 350 },
     nodes: [
       { x: 690, y: 400 },
@@ -58,8 +58,8 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
     campaign: 3,
     nameKey: 'map.terr3',
     outline:
-      'M 1090 660 C 1090 550 1170 470 1280 455 C 1390 440 1500 470 1600 460 L 1600 900 L 1060 900 C 1045 800 1090 740 1090 660 Z',
-    label: { x: 1300, y: 430 },
+      'M 1120 560 C 1150 470 1270 440 1370 452 C 1470 462 1550 515 1540 605 C 1530 700 1430 752 1315 745 C 1200 738 1095 660 1120 560 Z',
+    label: { x: 1300, y: 404 },
     badge: { x: 1300, y: 600 },
     nodes: [
       { x: 1160, y: 620 },

@@ -2,6 +2,7 @@ import {
   BUILD_TIME,
   carCount,
   carWeight,
+  ITEM_ICON,
   ITEM_TYPES,
   RECIPES,
   ROLE_COLORS,
@@ -26,14 +27,6 @@ import { t } from '../engine/i18n';
 import type { Game } from './sim';
 
 // DOM-based HUD. Rebuilt per level; light incremental updates each frame.
-
-const ITEM_ICON: Record<ItemType, string> = {
-  log: 'item_log',
-  plank: 'item_plank',
-  stone: 'item_stone',
-  iron: 'item_iron',
-  spear: 'item_spear',
-};
 
 export const TOOL_ICON: Partial<Record<Tool, string>> = {
   select: 'icon_select',

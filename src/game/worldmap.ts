@@ -6,6 +6,8 @@
 // clicks back to main.ts.
 
 import { t } from '../engine/i18n';
+import { drawIconTo } from '../engine/sprites';
+import { ITEM_ICON } from './types';
 import type { LevelDef } from './levels';
 import { medalTimesFor } from './leveldata';
 import type { CustomLevelData } from './leveldata';
@@ -99,9 +101,13 @@ function levelFactsEl(def: LevelDef): HTMLElement {
     for (const o of def.objectives) {
       const chip = document.createElement('span');
       chip.className = 'lv-obj';
+      // the resource sprite, so players learn what the delivery item looks like
+      const ic = document.createElement('canvas');
+      ic.className = 'lv-obj-icon';
+      drawIconTo(ic, ITEM_ICON[o.item], 18);
       const b = document.createElement('b');
       b.textContent = String(o.amount);
-      chip.append(b, ` ${t(`item.${o.item}`)}`);
+      chip.append(ic, b, ` ${t(`item.${o.item}`)}`);
       row.appendChild(chip);
     }
     facts.appendChild(row);
@@ -171,6 +177,38 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   const ov = document.createElement('div');
   ov.className = 'overlay worldmap';
 
+  // ---- full-bleed sea: the gradient + wave hatching span the ENTIRE screen,
+  // behind everything, so the ocean reaches every edge instead of stopping at
+  // the aspect-locked island wrap. No viewBox → the wave pattern tiles at its
+  // natural CSS-pixel size no matter how wide the screen is. ----
+  const seaBg = svgEl('svg', { class: 'map-sea-bg' });
+  seaBg.setAttribute('aria-hidden', 'true');
+  const seaDefs = svgEl('defs');
+  const seaWaves = svgEl('pattern', {
+    id: 'map-waves',
+    width: '90',
+    height: '36',
+    patternUnits: 'userSpaceOnUse',
+  });
+  seaWaves.appendChild(
+    svgEl('path', {
+      d: 'M0 18 q 11 -7 22 0 t 22 0 t 22 0 t 22 0',
+      fill: 'none',
+      'stroke-width': '2',
+      class: 'wave-line',
+    })
+  );
+  seaDefs.appendChild(seaWaves);
+  const seaGrad = svgEl('linearGradient', { id: 'map-sea-grad', x1: '0', y1: '0', x2: '0', y2: '1' });
+  seaGrad.appendChild(svgEl('stop', { offset: '0', 'stop-color': '#1b2a3a' }));
+  seaGrad.appendChild(svgEl('stop', { offset: '0.55', 'stop-color': '#122031' }));
+  seaGrad.appendChild(svgEl('stop', { offset: '1', 'stop-color': '#0c1420' }));
+  seaDefs.appendChild(seaGrad);
+  seaBg.appendChild(seaDefs);
+  seaBg.appendChild(svgEl('rect', { width: '100%', height: '100%', class: 'map-sea' }));
+  seaBg.appendChild(svgEl('rect', { width: '100%', height: '100%', fill: 'url(#map-waves)' }));
+  ov.appendChild(seaBg);
+
   // ---- progression state: shared by the journey trail, the region rim-light
   // and the progress counter. `frontier` is the index of the current objective
   // along the ordered journey; the trail is lit up to it and dotted beyond. ----
@@ -189,10 +227,12 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   // ---- top bar: title, trophy cartouche, session buttons ----
   const top = document.createElement('div');
   top.className = 'map-topbar';
+  const left = document.createElement('div');
+  left.className = 'map-topleft';
   const title = document.createElement('div');
   title.className = 'title-logo map-title';
   title.textContent = t('select.title');
-  top.appendChild(title);
+  left.appendChild(title);
   // progress counter — how much of the journey is cleared (drives the grind)
   const prog = document.createElement('div');
   prog.className = 'map-progress';
@@ -206,7 +246,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   total.className = 'mp-total';
   total.textContent = ` / ${totalLevels}`;
   prog.append(flag, done, total);
-  top.appendChild(prog);
+  left.appendChild(prog);
+  top.appendChild(left);
   if (deps.shelf) {
     deps.shelf.classList.add('cartouche');
     top.appendChild(deps.shelf);
@@ -270,23 +311,9 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   svg.classList.add('map-svg');
   wrap.appendChild(svg);
 
-  // defs: wave + fog hatching
+  // defs: fog hatching for locked territories (the sea + waves live in the
+  // full-bleed background layer above, drawn once across the whole screen)
   const defs = svgEl('defs');
-  const waves = svgEl('pattern', {
-    id: 'map-waves',
-    width: '90',
-    height: '36',
-    patternUnits: 'userSpaceOnUse',
-  });
-  waves.appendChild(
-    svgEl('path', {
-      d: 'M0 18 q 11 -7 22 0 t 22 0 t 22 0 t 22 0',
-      fill: 'none',
-      'stroke-width': '2',
-      class: 'wave-line',
-    })
-  );
-  defs.appendChild(waves);
   const fog = svgEl('pattern', {
     id: 'map-fog',
     width: '12',
@@ -295,27 +322,7 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   });
   fog.appendChild(svgEl('path', { d: 'M0 12 L 12 0', class: 'fog-line', 'stroke-width': '2' }));
   defs.appendChild(fog);
-  // vertical sea gradient: lighter at the horizon, deepening toward the bottom
-  const seaGrad = svgEl('linearGradient', {
-    id: 'map-sea-grad',
-    x1: '0',
-    y1: '0',
-    x2: '0',
-    y2: '1',
-  });
-  seaGrad.appendChild(svgEl('stop', { offset: '0', 'stop-color': '#1b2a3a' }));
-  seaGrad.appendChild(svgEl('stop', { offset: '0.55', 'stop-color': '#122031' }));
-  seaGrad.appendChild(svgEl('stop', { offset: '1', 'stop-color': '#0c1420' }));
-  defs.appendChild(seaGrad);
   svg.appendChild(defs);
-
-  // sea + wave hatching
-  svg.appendChild(
-    svgEl('rect', { width: String(VIEW_W), height: String(VIEW_H), class: 'map-sea' })
-  );
-  svg.appendChild(
-    svgEl('rect', { width: String(VIEW_W), height: String(VIEW_H), fill: 'url(#map-waves)' })
-  );
 
   // territories: shore contours (same outline stroked wide and faint), land,
   // fog hatch when locked, name label
@@ -676,10 +683,6 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   // ---- legend bar ----
   const legend = document.createElement('div');
   legend.className = 'legend-bar';
-  const cap = document.createElement('span');
-  cap.className = 'legend-cap';
-  cap.textContent = t('legend.title');
-  legend.appendChild(cap);
   const legendBtn = (icon: string, label: string, cls: string, fn: () => void) => {
     const b = document.createElement('button');
     b.className = `legend-btn ${cls}`;

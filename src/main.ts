@@ -190,7 +190,7 @@ const frontDoor = new FrontDoor(frontDoorRoot, {
     showOptions(enterFrontDoor);
   },
   onLang: (l) => applyLanguage(l),
-  continueLabel: () => (save.completed.length ? t('btn.continue') : t('btn.play')),
+  continueLabel: () => t('btn.play'),
 });
 
 // Show the scroll-reveal front door over the idle backdrop.

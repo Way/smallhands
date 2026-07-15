@@ -334,7 +334,7 @@ const D: Record<string, [string, string]> = {
   // ---- menus, overlays, toasts ----------------------------------------------------
   'btn.play': ['Play', 'Spielen'],
   'btn.continue': ['Continue', 'Weiter'],
-  'btn.title': ['Title', 'Titelbild'],
+  'btn.title': ['Home', 'Startseite'],
   'btn.cancel': ['Cancel', 'Abbrechen'],
   'btn.resume': ['▶ Resume {name}', '▶ Weiter: {name}'],
   'resume.title': ['Paused while you were away', 'Pausiert, während du weg warst'],
@@ -410,7 +410,6 @@ const D: Record<string, [string, string]> = {
   'map.tag.rain': ['Rain', 'Regen'],
   'map.tag.storm': ['Storm', 'Sturm'],
   'map.tag.tide': ['Rising tide', 'Steigende Flut'],
-  'legend.title': ['Legend', 'Legende'],
   'legend.mine': ['My levels', 'Meine Level'],
   'drawer.empty': [
     'No levels yet — build one in the editor or import a share code.',

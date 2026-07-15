@@ -1026,7 +1026,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   background-repeat: no-repeat;
 }
 /* the Pixelify display font misreads some glyphs (C→O, 2→8), so — exactly like
-   the front door — it's reserved for curated pixel words (region names, LEGEND,
+   the front door — it's reserved for curated pixel words (region names,
    "Play"); functional text and every number use the clean sans for legibility. */
 .map-title {
   font-family: var(--font);
@@ -1052,7 +1052,11 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 }
 .map-progress .mp-flag { font-size: 13px; filter: saturate(1.2); }
 .map-progress .mp-total { color: var(--text-dim); font-weight: 700; }
-.map-topbtns { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+/* centered-logo bar: left cluster and buttons flex-grow equally, so the medal
+   banner (.cartouche) sits dead-centre regardless of either side's width */
+.map-topleft { flex: 1 1 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-width: 0; }
+.map-topbar .cartouche { flex: 0 0 auto; }
+.map-topbtns { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 /* ghost pixel buttons — the gold 3-D button stays reserved for the play CTA */
 .map-topbtn.big-btn.secondary {
   padding: 8px 16px;
@@ -1077,20 +1081,32 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   color: var(--map-gold);
 }
 
+/* the open sea: gradient + wave hatching drawn full-bleed behind the whole
+   map (topbar and islands float over it), so the waves reach every screen edge */
+.map-sea-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
 .map-viewport {
+  position: relative;
+  z-index: 1; /* islands sit above the full-bleed sea */
   flex: 1;
   min-height: 0;
   width: 100%;
   display: flex;
   overflow: auto;
-  background: transparent; /* the overlay's ocean shows through the letterbox */
+  background: transparent; /* the full-bleed sea shows through the letterbox */
 }
 .map-wrap { position: relative; margin: auto; }
 .map-svg { display: block; width: 100%; height: 100%; }
 
 /* the sea gradient (#map-sea-grad) is authored in worldmap.ts defs */
-.map-svg .map-sea { fill: url(#map-sea-grad); }
-.map-svg .wave-line { stroke: rgba(255, 255, 255, 0.06); }
+.map-sea { fill: url(#map-sea-grad); }
+.wave-line { stroke: rgba(255, 255, 255, 0.06); }
 .map-svg .fog-line { stroke: rgba(10, 14, 22, 0.45); }
 /* islands: warm parchment with a dark ink coast, floated over the water */
 .map-svg .land { fill: #d9cda2; stroke: #40372a; stroke-width: 3; }
@@ -1328,6 +1344,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   width: 250px;
   cursor: default;
   z-index: 5;
+  /* near-square pixel corners so the gold corner-pixels sit flush,
+     matching the landing page's .chain panel (frontdoor.css) */
+  border-radius: 4px;
   border-color: var(--panel-border-light);
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.6);
 }
@@ -1364,6 +1383,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   border: 1px solid rgba(255, 201, 77, 0.32);
 }
 .lv-obj b { color: var(--map-gold); font-weight: 800; }
+.lv-obj-icon { width: 18px; height: 18px; image-rendering: pixelated; margin-left: -2px; }
 .lv-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .lv-tag {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1404,15 +1424,6 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   background-size: 100% 2px;
   background-position: top;
   background-repeat: no-repeat;
-}
-.legend-cap {
-  font-family: var(--map-pixel);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-right: 6px;
 }
 .legend-btn {
   display: inline-flex;

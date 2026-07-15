@@ -18,6 +18,14 @@ export const enum T {
 export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear';
 export const ITEM_TYPES: ItemType[] = ['log', 'plank', 'stone', 'iron', 'spear'];
 // display names live in the i18n table: t(`item.${itemType}`)
+// sprite-atlas keys for each item, shared by the HUD and the map popover
+export const ITEM_ICON: Record<ItemType, string> = {
+  log: 'item_log',
+  plank: 'item_plank',
+  stone: 'item_stone',
+  iron: 'item_iron',
+  spear: 'item_spear',
+};
 
 export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner';
 export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner'];
