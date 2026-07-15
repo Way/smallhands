@@ -19,13 +19,17 @@ html, body {
   color: var(--text);
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* taps act immediately (no double-tap-zoom wait) on every control */
+button, select, input, .res-chip { touch-action: manipulation; }
 
 /* The game canvas is a fixed backdrop in both modes. Front-door mode lets the
    document scroll (marketing sections scroll up over the canvas); in-game mode
    locks scroll and makes the canvas the interactive play surface. */
 body.front-door { overflow-x: hidden; overflow-y: auto; }
-body.in-game { overflow: hidden; height: 100%; }
+body.in-game { overflow: hidden; height: 100%; overscroll-behavior: none; }
 
 #game-canvas {
   position: fixed;
@@ -144,8 +148,11 @@ body.in-game #frontdoor { display: none; }
   margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
+  gap: 8px;
 }
 .objectives h3 .lvlname { color: var(--accent); letter-spacing: 0; text-transform: none; }
+/* collapsed-pill summaries only surface in the mobile layout (see below) */
+.topbar h3 .hsum { display: none; font-variant-numeric: tabular-nums; }
 .obj-row {
   display: flex;
   align-items: center;
@@ -225,6 +232,7 @@ body.in-game #frontdoor { display: none; }
   margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
+  gap: 8px;
 }
 .crew h3 .pop { color: var(--text); }
 .role-row {
@@ -339,8 +347,12 @@ body.in-game #frontdoor { display: none; }
 .speed-btn:hover { color: var(--text); border-color: var(--accent); }
 .speed-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
 
-/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ---- */
-.flyout { position: absolute; }
+/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ----
+   The flyouts live inside the topbar's .hud-row (the mobile layout lines them
+   up beside the resource strip); on desktop the row is display:contents and
+   position:fixed puts the pills back in the viewport's bottom corners. */
+.hud-row { display: contents; }
+.flyout { position: fixed; }
 .menubar { bottom: 12px; left: 12px; }
 .ctrlbar { bottom: 12px; right: 12px; }
 
@@ -614,8 +626,8 @@ body.in-game #frontdoor { display: none; }
 
 /* ---- options menu ---- */
 .options-box {
-  min-width: 340px;
-  max-width: 440px;
+  min-width: min(340px, calc(100vw - 28px));
+  max-width: min(440px, calc(100vw - 20px));
   padding: 18px 22px;
   display: flex;
   flex-direction: column;
@@ -1452,4 +1464,273 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 .drawer-grid { max-width: none; }
 @media (prefers-reduced-motion: reduce) {
   .custom-drawer { animation: none; }
+}
+
+/* ================================ mobile ================================
+   The desktop HUD stays untouched; everything below layers the touch game on
+   top. Three concerns, three scopes:
+   1. @media (hover: none)      — flyouts become tap-toggled pills
+   2. @media (pointer: coarse)  — every hit zone grows to thumb size
+   3. the compact layout query  — phones (and short landscape phones) get the
+      one-glance HUD: resource strip, fold-out info pills, a scrollable
+      bottom tool dock and the confirm bar. */
+
+/* ---- touch confirm bar (tap to aim, ✓ to commit) ---- */
+.confirm-bar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 84px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  width: min(560px, calc(100vw - 12px));
+  z-index: 15;
+  border-color: var(--panel-border-light);
+  animation: toastin 0.18s ease-out;
+}
+.cb-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cb-tool { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; flex-wrap: wrap; }
+.cb-name, .cb-count { white-space: nowrap; }
+.cb-tool canvas { width: 22px; height: 22px; image-rendering: pixelated; }
+.cb-count { color: var(--accent2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cb-count.short { color: var(--accent); }
+.cb-cost { display: flex; gap: 8px; font-size: 13px; }
+.cb-cost span { display: inline-flex; align-items: center; gap: 3px; }
+.cb-cost canvas { width: 16px; height: 16px; image-rendering: pixelated; }
+.cb-cost .insufficient { color: var(--danger); }
+.cb-hint { color: var(--text-dim); font-size: 12px; }
+.cb-btn {
+  flex: 0 0 auto;
+  height: 48px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+.cb-cancel {
+  width: 48px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--panel-border-light);
+  color: var(--text-dim);
+}
+.cb-confirm {
+  padding: 0 20px;
+  border: none;
+  background: linear-gradient(#ffd76e, #f0a929);
+  color: #4a3405;
+  box-shadow: 0 3px 0 #a06f14, 0 5px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+.cb-confirm:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #a06f14; }
+.cb-confirm:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .confirm-bar { animation: none; }
+}
+
+/* ---- no hover: corner flyouts become tap-toggled pills ---- */
+@media (hover: none) {
+  .flyout-trigger { display: inline-flex; }
+  .flyout-body { display: none; }
+  .flyout.open .flyout-body {
+    display: flex;
+    position: absolute;
+    bottom: calc(100% + 8px);
+  }
+  .menubar .flyout-body { left: 0; }
+  .ctrlbar .flyout-body { right: 0; }
+  .flyout.open .flyout-trigger { color: var(--accent); border-color: var(--accent); }
+  /* sticky-hover guards: no lift/recolor stuck on the last-tapped control */
+  .level-card:hover:not(.locked) { transform: none; }
+  .legend-btn:hover { transform: none; }
+  .big-btn:hover { transform: none; box-shadow: 0 5px 0 #a06f14, 0 8px 18px rgba(0, 0, 0, 0.45); }
+  .big-btn.secondary:hover { box-shadow: 0 5px 0 #1b2537, 0 8px 18px rgba(0, 0, 0, 0.45); }
+  .big-btn.danger:hover { box-shadow: 0 5px 0 #8f2c22, 0 8px 18px rgba(0, 0, 0, 0.45); }
+}
+
+/* ---- coarse pointers: thumb-sized hit zones everywhere ---- */
+@media (pointer: coarse) {
+  .role-btn { width: 36px; height: 36px; font-size: 18px; border-radius: 7px; }
+  .role-row { gap: 8px; padding: 3px 0; }
+  .res-step { width: 38px; height: 38px; font-size: 19px; border-radius: 7px; }
+  .res-act { height: 38px; font-size: 12px; }
+  .res-pop { min-width: 190px; padding: 10px 12px; }
+  .res-chip { min-height: 34px; }
+  .speed-btn { min-width: 44px; height: 44px; font-size: 14px; }
+  .flyout-trigger { min-width: 48px; height: 44px; font-size: 16px; }
+  .th-upgrade { padding: 10px 8px; }
+  .th-toast .th-mini { padding: 11px 24px; font-size: 14px; }
+  .toast .dismiss { font-size: 13px; padding: 6px 4px; }
+  .hoist-chip { padding: 7px; }
+  .hoist-route-label { min-width: 78px; }
+  .seg-btn { padding: 11px 16px; }
+  .tool-btn .tool-key { display: none; } /* keyboard hints mean nothing to thumbs */
+  .lv-action-btn { width: 36px; height: 36px; font-size: 14px; }
+  .level-card.custom .lv-num,
+  .level-card.custom .lv-name { padding-right: 124px; }
+  .map-node { width: 44px; height: 44px; font-size: 17px; }
+  .map-daily { width: 46px; height: 48px; }
+  .map-daily .cal-day { font-size: 22px; }
+  .legend-btn { padding: 12px 16px; }
+  .ed-btn { padding: 9px 12px; }
+  .tooltip { max-width: min(260px, calc(100vw - 16px)); }
+}
+
+/* ---- the compact in-game layout: phones, and phone-height landscape ---- */
+@media (max-width: 820px), ((pointer: coarse) and (max-height: 520px)) {
+  /* top bar: resource strip first, then the fold-out info pills */
+  .topbar {
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    right: max(6px, env(safe-area-inset-right));
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .spacer { display: none; }
+  /* row 1: ☰ menu · resource chips · speed pill — system chrome rides along
+     the top, small and quiet; the bottom belongs to the builder tools */
+  .hud-row { display: flex; width: 100%; gap: 6px; align-items: stretch; }
+  /* no bar behind the resources: the strip goes transparent and every chip
+     floats as its own pill, letting the sky show through between them */
+  .res-bar {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .res-chip {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: 5px 9px 5px 6px;
+    border-radius: 9px;
+    background: var(--panel-bg);
+    border-color: var(--panel-border);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* the three info panels collapse to their header pill; tap to fold out */
+  .topbar .collapsible { min-width: 0; max-width: none; padding: 0 10px; }
+  .topbar .collapsible > h3 {
+    margin-bottom: 0;
+    padding: 9px 0;
+    cursor: pointer;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .topbar .collapsible > h3::after { content: '▾'; margin-left: 2px; opacity: 0.7; }
+  .topbar .collapsible.open > h3::after { content: '▴'; }
+  .topbar .collapsible > h3 .hsum { display: inline; color: var(--text); }
+  .topbar .objectives > h3 .lvlname { display: none; }
+  .topbar .collapsible > :not(h3) { display: none; }
+  .topbar .collapsible.open { padding-bottom: 8px; }
+  .topbar .collapsible.open > h3 { margin-bottom: 4px; }
+  .topbar .collapsible.open > :not(h3) { display: flex; }
+  .topbar .crew.open { min-width: 196px; }
+  .topbar .weather.open .wx-row { flex-wrap: wrap; gap: 4px 10px; }
+
+  /* the menu/speed flyouts join row 1 as quiet pills; menus drop DOWN */
+  .flyout { position: relative; bottom: auto; left: auto; right: auto; }
+  .flyout-trigger {
+    min-width: 44px;
+    height: 100%;
+    padding: 0 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .flyout-trigger.non-default { color: var(--accent); }
+  .flyout.open .flyout-body {
+    top: calc(100% + 6px);
+    bottom: auto;
+    z-index: 30;
+  }
+  .menubar .flyout-body { left: 0; right: auto; }
+  .ctrlbar .flyout-body { right: 0; left: auto; }
+
+  /* bottom: the full-width, swipeable tool row — builder actions only, no
+     bar behind them: each tool floats as its own pill over the world */
+  .toolbar {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    transform: none;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 4px 2px;
+    gap: 6px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    /* soft edge fade says "there's more — swipe" */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  /* centre the tools when they fit; auto-margins (not justify-content) keep
+     the leading buttons reachable once the dock overflows into a scroll */
+  .toolbar .tool-btn:first-child { margin-left: auto; }
+  .toolbar .tool-btn:last-child { margin-right: auto; }
+  .tool-btn {
+    flex: 0 0 auto;
+    width: 54px;
+    height: 56px;
+    background: var(--panel-bg);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+  .tool-btn canvas { width: 26px; height: 26px; }
+  .tool-btn .tool-label { font-size: 10px; }
+
+  /* floating readouts clear the dock and the notch */
+  .confirm-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
+  /* toasts move to the top, under the HUD pills: bottom-centre floaters sit in
+     the middle of a phone screen and swallow the very taps that aim tools */
+  .toast-wrap {
+    top: calc(max(6px, env(safe-area-inset-top)) + 92px);
+    bottom: auto;
+    max-width: calc(100vw - 16px);
+  }
+  .pause-note { top: auto; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
+  .resume-overlay .confirm-box, .confirm-box { max-width: min(440px, calc(100vw - 24px)); padding: 22px 18px; }
+
+  /* world map: tighter chrome, swipeable legend, safe-area padding */
+  .map-topbar { padding: 8px 10px; gap: 10px; }
+  .map-title { font-size: 21px; }
+  .map-progress { font-size: 13px; padding: 5px 10px 6px; }
+  .shelf { padding: 6px 12px; gap: 10px; }
+  .shelf .count { font-size: 13px; gap: 4px; }
+  .shelf .count canvas { width: 20px; height: 20px; }
+  .shelf .sep { height: 18px; }
+  .shelf .pct { font-size: 11px; }
+  .map-topbtns { gap: 6px; }
+  .map-topbtn.big-btn.secondary { padding: 10px 14px; font-size: 13px; }
+  .legend-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+  .legend-bar::-webkit-scrollbar { display: none; }
+  .legend-cap { display: none; }
+  .legend-btn { flex: 0 0 auto; }
+  .custom-drawer { bottom: 78px; max-height: 62%; width: calc(100% - 16px); }
+
+  /* overlays breathe on small screens */
+  .overlay { gap: 14px; }
+  .big-btn { padding: 13px 30px; font-size: 17px; }
+  .win-title { font-size: 32px; }
+  .ceremony { width: min(520px, calc(100vw - 20px)); padding: 18px 16px 20px; }
+  .ceremony .feats { gap: 8px; margin-top: 18px; }
 }

@@ -42,7 +42,11 @@
 }
 
 #frontdoor canvas.px { image-rendering: pixelated; display: block; }
-#frontdoor .wrap { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+#frontdoor .wrap {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 0 max(22px, env(safe-area-inset-right)) 0 max(22px, env(safe-area-inset-left));
+}
 #frontdoor a { color: inherit; }
 #frontdoor ::selection { background: rgba(255, 201, 77, 0.35); }
 
@@ -115,6 +119,7 @@
 #frontdoor .hero {
   position: relative;
   min-height: calc(100vh - 49px); /* viewport minus the sticky topbar */
+  min-height: calc(100svh - 49px); /* stable on mobile URL-bar collapse */
   display: flex;
   align-items: center;
   padding: 40px 0 72px;
@@ -507,6 +512,13 @@
   #frontdoor .chain .arrow { font-size: 18px; }
   #frontdoor .hero-hook { font-size: 14px; }
   #frontdoor .fd-skyline { gap: 14px; }
+  #frontdoor .band { padding: 56px 0 48px; }
+}
+/* thumb-sized top-bar controls; the Play button already clears 48px */
+@media (pointer: coarse) {
+  #frontdoor .fd-options { padding: 12px 10px; }
+  #frontdoor .seg-btn { padding: 12px 16px; }
+  #frontdoor button { touch-action: manipulation; }
 }
 @media (prefers-reduced-motion: reduce) {
   #frontdoor *,

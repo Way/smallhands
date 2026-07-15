@@ -85,6 +85,19 @@ export interface HudCallbacks {
   onOptions: () => void;
 }
 
+// The touch confirm bar: one glance says what will be placed, what it costs,
+// and one big ✓ commits it (see the touch-placement block in main.ts).
+export interface ConfirmBarOpts {
+  tool: Tool;
+  cta: string | null; // ✓ label; null = hint-only mode (no ✓ yet)
+  hint: string | null; // "tap to aim" / "tap to extend"
+  rows: ShortfallRow[];
+  count: { a: number; b: number } | null; // run tools: affordable/total tiles
+  confirmDisabled: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
 export class Hud {
   root: HTMLElement;
   private game: Game;
@@ -113,6 +126,15 @@ export class Hud {
   private wxNow: HTMLElement | null = null;
   private wxNext: HTMLElement | null = null;
   private wxSig = '';
+  private objSum: HTMLElement | null = null;
+  private wxSum: HTMLElement | null = null;
+  private hudRow!: HTMLElement;
+  private confirmBar: HTMLElement | null = null;
+  private confirmSig = '';
+  // hover-driven niceties (toolbar tooltips, flyout-on-hover) only make sense
+  // where a hover pointer exists; touch gets tap-driven equivalents instead
+  private readonly hoverOk =
+    typeof matchMedia !== 'undefined' && matchMedia('(hover: hover)').matches;
   activeTool: Tool = 'select';
 
   constructor(root: HTMLElement, game: Game, cbs: HudCallbacks) {
@@ -131,8 +153,14 @@ export class Hud {
   private buildTopBar(): void {
     const bar = el('div', 'topbar', this.root);
 
+    // First row on mobile: [☰ menu] [resource strip] [speed pill] — the menu
+    // and control flyouts are inserted around the resources by their builders.
+    // On desktop the row is display:contents and the flyouts position:fixed
+    // back to the bottom corners, so this wrapper changes nothing there.
+    this.hudRow = el('div', 'hud-row', bar);
+
     // resources
-    const res = el('div', 'panel res-bar', bar);
+    const res = el('div', 'panel res-bar', this.hudRow);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
       chip.title = t('hud.chipTitle', { name: t(`item.${it}`) });
@@ -155,7 +183,8 @@ export class Hud {
     // objectives
     const obj = el('div', 'panel objectives', bar);
     const h = el('h3', undefined, obj);
-    h.innerHTML = `<span>${t('hud.deliver')}</span><span class="lvlname">${t(this.game.level.name)}</span>`;
+    h.innerHTML = `<span>${t('hud.deliver')}</span><span class="hsum"></span><span class="lvlname">${t(this.game.level.name)}</span>`;
+    this.objSum = h.querySelector('.hsum')!;
     for (const o of this.game.objectives) {
       const row = el('div', 'obj-row', obj);
       icon(ITEM_ICON[o.item], 18, row);
@@ -164,19 +193,22 @@ export class Hud {
       const cnt = el('span', 'obj-cnt', row);
       this.objRows.set(o.item, { row, cnt });
     }
+    this.collapsible(obj, h);
 
     // weather forecast — deterministic, so showing it IS the strategy layer
     if (this.game.weatherSchedule) {
       const wx = el('div', 'panel weather', bar);
       const wh = el('h3', undefined, wx);
       wh.innerHTML =
-        `<span>${t('hud.weather')}</span>` +
+        `<span>${t('hud.weather')}</span><span class="hsum wx-sum"></span>` +
         (this.game.level.flood
           ? `<span class="wx-flood" title="${t('wx.floodTitle')}">${t('wx.flood')}</span>`
           : '');
+      this.wxSum = wh.querySelector('.wx-sum')!;
       const row = el('div', 'wx-row', wx);
       this.wxNow = el('div', 'wx-now', row);
       this.wxNext = el('div', 'wx-next', row);
+      this.collapsible(wx, wh);
     }
 
     // crew panel
@@ -184,6 +216,7 @@ export class Hud {
     const ch = el('h3', undefined, crew);
     ch.innerHTML = `<span>${t('hud.crew')}</span><span class="pop"></span>`;
     this.workerPop = ch.querySelector('.pop')!;
+    this.collapsible(crew, ch);
     for (const r of ROLES) {
       const row = el('div', 'role-row', crew);
       const dot = el('span', 'role-dot', row);
@@ -203,6 +236,18 @@ export class Hud {
     this.upgradeBtn.onclick = () => this.cbs.onUpgrade();
   }
 
+  // On narrow/coarse screens the three info panels collapse to their header
+  // pill; tapping a header opens that panel (accordion — one at a time). On
+  // desktop widths the CSS never collapses them, so the handler is inert.
+  private collapsible(panel: HTMLElement, header: HTMLElement): void {
+    panel.classList.add('collapsible');
+    header.onclick = () => {
+      const open = panel.classList.contains('open');
+      this.root.querySelectorAll('.topbar .collapsible.open').forEach((p) => p.classList.remove('open'));
+      if (!open) panel.classList.add('open');
+    };
+  }
+
   private buildToolbar(): void {
     const bar = el('div', 'panel toolbar', this.root);
     for (const def of TOOL_DEFS) {
@@ -214,8 +259,12 @@ export class Hud {
       const label = el('span', 'tool-label', btn);
       label.textContent = t(`tool.${def.id}.label`);
       btn.onclick = () => this.cbs.onTool(def.id);
-      btn.onmouseenter = (e) => this.showTooltip(def.id, e.currentTarget as HTMLElement);
-      btn.onmouseleave = () => this.hideTooltip();
+      // hover tooltips only where hover exists; on touch the confirm bar
+      // carries the tool's name and costs instead
+      if (this.hoverOk) {
+        btn.onmouseenter = (e) => this.showTooltip(def.id, e.currentTarget as HTMLElement);
+        btn.onmouseleave = () => this.hideTooltip();
+      }
       this.toolBtns.set(def.id, btn);
     }
   }
@@ -224,11 +273,39 @@ export class Hud {
   // single pill showing the current speed; hovering expands the full panel. On
   // touch (no hover) the pill is hidden and the panel stays open — see the
   // `@media (hover: hover)` block in style.css.
+  // On touch (no hover) a flyout's pill is the toggle: tap opens, tap closes.
+  // On hover pointers the CSS hover/focus reveal keeps working and this handler
+  // never fires a state the CSS doesn't already show.
+  private wireFlyout(bar: HTMLElement, trigger: HTMLButtonElement, closeOnAction: boolean): void {
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.onclick = () => {
+      if (this.hoverOk) return;
+      const open = bar.classList.contains('open');
+      this.root.querySelectorAll('.flyout.open').forEach((f) => {
+        f.classList.remove('open');
+        f.querySelector('.flyout-trigger')?.setAttribute('aria-expanded', 'false');
+      });
+      bar.classList.toggle('open', !open);
+      trigger.setAttribute('aria-expanded', String(!open));
+    };
+    if (closeOnAction) {
+      bar.addEventListener('click', (e) => {
+        if (this.hoverOk || !bar.classList.contains('open')) return;
+        const tgt = e.target as HTMLElement;
+        if (tgt.closest('button') && !tgt.closest('.flyout-trigger')) {
+          bar.classList.remove('open');
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  }
+
   private buildControlBar(): void {
-    const bar = el('div', 'ctrlbar flyout', this.root);
-    this.speedTrigger = el('div', 'flyout-trigger panel', bar);
-    this.speedTrigger.textContent = '1×';
-    this.speedTrigger.setAttribute('aria-hidden', 'true');
+    const bar = el('div', 'ctrlbar flyout', this.hudRow);
+    const trigger = el('button', 'flyout-trigger panel', bar);
+    trigger.textContent = '1×';
+    trigger.setAttribute('aria-label', t('hud.speedMenu'));
+    this.speedTrigger = trigger;
     const body = el('div', 'flyout-body panel', bar);
 
     const speedRow = el('div', 'ctrl-row speed-row', body);
@@ -257,13 +334,16 @@ export class Hud {
       btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
       btn.onclick = () => this.cbs.onZoom(dir);
     }
+    // zoom taps repeat; keep the panel open for them
+    this.wireFlyout(bar, trigger, false);
   }
 
   private buildMenuBar(): void {
-    const bar = el('div', 'menubar flyout', this.root);
-    const trigger = el('div', 'flyout-trigger panel', bar);
+    const bar = el('div', 'menubar flyout');
+    this.hudRow.insertBefore(bar, this.hudRow.firstChild); // ☰ leads the row
+    const trigger = el('button', 'flyout-trigger panel', bar);
     trigger.textContent = '☰';
-    trigger.setAttribute('aria-hidden', 'true');
+    trigger.setAttribute('aria-label', t('menu.levels'));
     const body = el('div', 'flyout-body panel', bar);
     const menu = el('button', 'speed-btn', body);
     menu.textContent = t('menu.levels');
@@ -275,6 +355,8 @@ export class Hud {
     opts.textContent = '⚙';
     opts.title = t('opt.title');
     opts.onclick = () => this.cbs.onOptions();
+    // every action here navigates away — fold the menu behind it
+    this.wireFlyout(bar, trigger, true);
   }
 
   private showTooltip(tool: Tool, anchor: HTMLElement): void {
@@ -735,6 +817,63 @@ export class Hud {
     this.runCostSig = '';
   }
 
+  // The touch confirm bar: tool + costs on the left, ✕ and a big ✓ CTA on the
+  // right. Callers refresh it every frame; the DOM rebuilds only when the
+  // signature changes, so the buttons under a hovering thumb never churn.
+  showConfirmBar(opts: ConfirmBarOpts): void {
+    const sig = [
+      opts.tool,
+      opts.cta ?? '',
+      opts.hint ?? '',
+      opts.confirmDisabled ? 1 : 0,
+      opts.count ? `${opts.count.a}/${opts.count.b}` : '',
+      ...opts.rows.map((r) => `${r.item}:${r.have}/${r.need}:${r.short ? 1 : 0}`),
+    ].join('|');
+    if (!this.confirmBar) {
+      this.confirmBar = el('div', 'confirm-bar panel', this.root);
+      this.confirmSig = '';
+    }
+    if (sig === this.confirmSig) return;
+    this.confirmSig = sig;
+    const bar = this.confirmBar;
+    bar.innerHTML = '';
+
+    const info = el('div', 'cb-info', bar);
+    const head = el('div', 'cb-tool', info);
+    icon(TOOL_ICON[opts.tool] ?? 'icon_select', 22, head);
+    el('span', 'cb-name', head).textContent = t(`tool.${opts.tool}.label`);
+    if (opts.count) {
+      const cnt = el('span', 'cb-count' + (opts.count.a < opts.count.b ? ' short' : ''), head);
+      cnt.textContent = t('hud.tiles', { a: opts.count.a, b: opts.count.b });
+    }
+    if (opts.rows.length) {
+      const cost = el('div', 'cb-cost', head);
+      for (const r of opts.rows) {
+        const s = el('span', undefined, cost);
+        icon(ITEM_ICON[r.item], 16, s);
+        el('b', r.short ? 'insufficient' : '', s).textContent = r.short ? `${r.have}/${r.need}` : `${r.need}`;
+      }
+    }
+    if (opts.hint) el('div', 'cb-hint', info).textContent = opts.hint;
+
+    const cancel = el('button', 'cb-btn cb-cancel', bar);
+    cancel.textContent = '✕';
+    cancel.setAttribute('aria-label', t('btn.cancel'));
+    cancel.onclick = opts.onCancel;
+    if (opts.cta) {
+      const ok = el('button', 'cb-btn cb-confirm', bar);
+      ok.textContent = `✓ ${opts.cta}`;
+      ok.disabled = opts.confirmDisabled;
+      ok.onclick = opts.onConfirm;
+    }
+  }
+
+  hideConfirmBar(): void {
+    this.confirmBar?.remove();
+    this.confirmBar = null;
+    this.confirmSig = '';
+  }
+
   flashResource(item: ItemType): void {
     const chip = this.resChips.get(item);
     if (!chip) return;
@@ -784,12 +923,22 @@ export class Hud {
       r.cnt.textContent = `${o.delivered}/${o.amount}`;
       r.row.classList.toggle('done', o.delivered >= o.amount);
     }
+    // collapsed-pill summary: total delivered / total ordered at a glance
+    if (this.objSum) {
+      const tot = g.objectives.reduce(
+        (a, o) => ({ d: a.d + Math.min(o.delivered, o.amount), n: a.n + o.amount }),
+        { d: 0, n: 0 }
+      );
+      const s = `${tot.d}/${tot.n}`;
+      if (this.objSum.textContent !== s) this.objSum.textContent = s;
+    }
     // weather strip: current phase + countdown, then the next two phases
     if (this.wxNow && g.weatherSchedule) {
       const rem = Math.max(0, Math.ceil(g.weatherRemaining));
       const sig = `${g.weatherIdx}:${rem}`;
       if (sig !== this.wxSig) {
         this.wxSig = sig;
+        if (this.wxSum) this.wxSum.textContent = `${WX_ICON[g.weather]} ${rem}s`;
         this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${t(`weather.${g.weather}`)}</span><b>${rem}s</b>`;
         const sched = g.weatherSchedule;
         let html = `<span class="wx-then">${t('hud.then')}</span>`;

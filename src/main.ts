@@ -939,7 +939,7 @@ function startGame(def: LevelDef): void {
   cam.rightInset = 0;
   game = new Game(def);
   speed = 1;
-  cam.zoom = 2;
+  cam.zoom = defaultZoom();
   const c = def.camera ?? { x: 0, y: 0 };
   cam.x = c.x * TILE * cam.zoom - renderer.viewW / 3;
   cam.y = c.y * TILE * cam.zoom - renderer.viewH / 2;
@@ -951,6 +951,12 @@ function startGame(def: LevelDef): void {
 
   game.onEvent = handleEvent;
   running = true;
+
+  // one gentle, once-per-session nudge: the worlds are wide, landscape shows more
+  if (COARSE && window.innerHeight > window.innerWidth && !rotateHintShown) {
+    rotateHintShown = true;
+    hud!.toast(t('hud.rotateHint'), false, 7);
+  }
 
   // debug/testing hook
   (window as unknown as Record<string, unknown>).__smallhands = {
@@ -1123,6 +1129,15 @@ function setTool(tool: Tool): void {
   hover.tool = tool;
   hud.setActiveTool(tool);
   runAnchor = null;
+  // switching tools drops any parked touch aim + inspect tooltip, re-arms the hint
+  touchInspect = null;
+  hud.hideBuildingHint();
+  if (COARSE) {
+    clearTouchPlace(false);
+    showAimHint();
+  } else {
+    hud.hideConfirmBar();
+  }
   applyToolCursor();
   audio.click();
 }
@@ -1134,6 +1149,183 @@ function setSpeed(s: number): void {
   audio.click();
 }
 
+// ---- touch placement: tap to aim, one big ✓ to commit ------------------------------
+// On a phone the finger hides the very tile it touches, so on touch no tool ever
+// fires on the tap itself. A tap AIMS: the ghost parks on the tile, the confirm
+// bar spells out what will be built and what it costs, and the ✓ commits. Run
+// tools (ladder/ramp/bridge) grow tap by tap from the first aimed tile. A wrong
+// tap costs nothing — tap again to move the aim, or ✕ to drop it. One-finger
+// drags always pan; mouse and pen keep the desktop click/drag behavior.
+
+// Coarse-pointer detection guides defaults (initial zoom, aim hints); per-event
+// pointerType gates behavior, so a mouse on a touch laptop stays desktop-feeling.
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+let rotateHintShown = false;
+
+interface TouchPlaceState {
+  tool: Tool;
+  aim: { x: number; y: number }; // the aimed tile; run tools: the run's start
+  end: { x: number; y: number } | null; // run tools: the run's current end
+}
+let touchPlace: TouchPlaceState | null = null;
+// tap-to-inspect target, re-rendered each frame so progress/stock stay live
+let touchInspect: { kind: 'b' | 'n'; id: number; cx: number; cy: number } | null = null;
+
+function clearTouchPlace(hideBar = true): void {
+  touchPlace = null;
+  hover.visible = false;
+  if (hideBar) hud?.hideConfirmBar();
+}
+
+// the ✓ label names the action, not the mechanism: Build / Mark / Demolish
+function confirmCta(tool: Tool): string {
+  if (tool === 'harvest') {
+    const n = touchPlace ? game?.nodeAt(touchPlace.aim.x, touchPlace.aim.y) : null;
+    return n?.marked ? t('hud.ctaUnmark') : t('hud.ctaMark');
+  }
+  if (tool === 'demolish') return t('hud.ctaDemolish');
+  return t('hud.ctaBuild');
+}
+
+// Standing CTA while a touch user holds a placing tool but hasn't aimed yet.
+// ✕ here means "never mind" and hands back the Inspect tool.
+function showAimHint(): void {
+  if (!game || !hud || !running) return;
+  if (hover.tool === 'select') {
+    hud.hideConfirmBar();
+    return;
+  }
+  hud.showConfirmBar({
+    tool: hover.tool,
+    cta: null,
+    hint: t('hud.tapToAim'),
+    rows: [],
+    count: null,
+    confirmDisabled: true,
+    onConfirm: () => {},
+    onCancel: () => setTool('select'),
+  });
+}
+
+// Refreshed every frame while an aim is parked (stock changes under a still
+// finger); the HUD only touches the DOM when the signature changes.
+function refreshTouchUi(): void {
+  if (!touchPlace || !game || !hud || !running) return;
+  const tp = touchPlace;
+  if (tp.end) {
+    const plan = game.runPlan(tp.tool, tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+    hud.showConfirmBar({
+      tool: tp.tool,
+      cta: confirmCta(tp.tool),
+      hint: t('hud.tapExtend'),
+      rows: plan.rows,
+      count: { a: plan.affordable, b: plan.cells.length },
+      confirmDisabled: plan.affordable === 0,
+      onConfirm: commitTouchPlace,
+      onCancel: () => {
+        audio.click();
+        clearTouchPlace(false);
+        showAimHint();
+      },
+    });
+  } else {
+    hud.showConfirmBar({
+      tool: tp.tool,
+      cta: confirmCta(tp.tool),
+      hint: null,
+      rows: game.placementShortfall(tp.tool),
+      count: null,
+      confirmDisabled: false,
+      onConfirm: commitTouchPlace,
+      onCancel: () => {
+        audio.click();
+        clearTouchPlace(false);
+        showAimHint();
+      },
+    });
+  }
+}
+
+function commitTouchPlace(): void {
+  if (!touchPlace || !game || !running) return;
+  const tp = touchPlace;
+  if (tp.end) {
+    if (tp.tool === 'ramp') game.placeRampRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+    else if (tp.tool === 'ladder') game.placeLadderRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+    else game.placeBridgeRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+  } else {
+    applyTool(tp.aim.x, tp.aim.y);
+  }
+  clearTouchPlace(false);
+  showAimHint(); // the tool stays armed: tap → ✓ → tap → ✓ chains
+}
+
+// A confirmed-clean tap on the map (no drag, no pinch) from a touch pointer.
+function touchTap(tx: number, ty: number, clientX: number, clientY: number): void {
+  const g = game!;
+  if (hover.tool === 'select') {
+    // tap-to-inspect: everything hover gives mouse users, parked at the tap
+    const b = g.buildingAt(tx, ty);
+    if (b && b.kind === 'townhall') {
+      hud!.hideBuildingHint();
+      touchInspect = null;
+      hud!.showTownhall();
+      return;
+    }
+    if (b && b.kind === 'hoist' && b.state === 'ready') {
+      hud!.hideBuildingHint();
+      touchInspect = null;
+      hud!.showHoist(b.id);
+      return;
+    }
+    const n = b ? undefined : g.nodeAt(tx, ty);
+    if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
+    else if (n) touchInspect = { kind: 'n', id: n.id, cx: clientX, cy: clientY };
+    else {
+      touchInspect = null;
+      hud!.hideBuildingHint();
+    }
+    refreshTouchInspect();
+    return;
+  }
+  audio.click();
+  if (isRunTool(hover.tool)) {
+    if (touchPlace && touchPlace.tool === hover.tool) {
+      touchPlace.end = { x: tx, y: ty }; // grow or redirect the run
+    } else {
+      touchPlace = { tool: hover.tool, aim: { x: tx, y: ty }, end: { x: tx, y: ty } };
+    }
+  } else {
+    touchPlace = { tool: hover.tool, aim: { x: tx, y: ty }, end: null };
+  }
+  // park the ghost on the aimed tile
+  hover.tx = touchPlace.end?.x ?? tx;
+  hover.ty = touchPlace.end?.y ?? ty;
+  hover.visible = true;
+  refreshTouchUi();
+}
+
+// Keep the tap-to-inspect tooltip live (build %, lift status, goal counts); it
+// dismisses on the next empty tap or tool switch, or when its target vanishes.
+function refreshTouchInspect(): void {
+  if (!touchInspect || !game || !hud || !running) return;
+  if (touchInspect.kind === 'b') {
+    const b = game.buildings.find((bd) => bd.id === touchInspect!.id);
+    if (b) hud.showBuildingHint(b, touchInspect.cx, touchInspect.cy);
+    else {
+      touchInspect = null;
+      hud.hideBuildingHint();
+    }
+  } else {
+    const n = game.nodes.find((nd) => nd.id === touchInspect!.id);
+    if (n) hud.showNodeHint(n, touchInspect.cx, touchInspect.cy);
+    else {
+      touchInspect = null;
+      hud.hideBuildingHint();
+    }
+  }
+}
+
 // ---- input -----------------------------------------------------------------------
 
 let dragging = false;
@@ -1141,38 +1333,104 @@ let dragMoved = false;
 let painting = false; // editor drag-paint stroke in progress
 let lastMx = 0;
 let lastMy = 0;
+let downX = 0; // pointer-down position: taps are judged against total travel,
+let downY = 0; // with a wider tolerance for wobbly fingers than for mice
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
 const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder';
 
+function canvasDpr(): number {
+  return canvas.width / canvas.clientWidth || 1;
+}
+
+// ---- touch camera: two-finger pan + pinch zoom -------------------------------------
+// Touch pointers are tracked by id; the moment a second finger lands, whatever
+// gesture was forming becomes camera control — no accidental taps, paints or
+// build-runs from a pinch.
+const touchPts = new Map<number, { x: number; y: number }>();
+let pinch: { dist: number; x: number; y: number } | null = null;
+
+function pinchGeom(): { dist: number; x: number; y: number } {
+  const [a, b] = [...touchPts.values()];
+  return {
+    dist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
+  if (e.pointerType === 'touch') {
+    touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPts.size === 2) {
+      pinch = pinchGeom();
+      dragging = false;
+      dragMoved = true; // neither finger's release may read as a tap
+      if (painting) {
+        painting = false;
+        editor.endStroke();
+      }
+      runAnchor = null;
+      return;
+    }
+    if (touchPts.size > 2) return;
+  }
   dragging = true;
   dragMoved = false;
+  downX = e.clientX;
+  downY = e.clientY;
   lastMx = e.clientX;
   lastMy = e.clientY;
   if (editor.active && e.button === 0 && editor.toolDef().drag) {
-    const dpr = canvas.width / canvas.clientWidth;
+    const dpr = canvasDpr();
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     painting = true;
     editor.applyAt(t.x, t.y, false);
   }
-  if (!editor.active && e.button === 0 && game && running && isRunTool(hover.tool)) {
-    const dpr = canvas.width / canvas.clientWidth;
+  // desktop drag-runs only: on touch, runs grow tap by tap (see touchTap)
+  if (!editor.active && e.button === 0 && game && running && isRunTool(hover.tool) && e.pointerType !== 'touch') {
+    const dpr = canvasDpr();
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     runAnchor = { x: t.x, y: t.y, tool: hover.tool };
   }
 });
 
 canvas.addEventListener('pointermove', (e) => {
-  const dpr = canvas.width / canvas.clientWidth;
+  const dpr = canvasDpr();
+  if (e.pointerType === 'touch' && touchPts.has(e.pointerId)) {
+    touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+  // two fingers: pan with the midpoint, step the zoom on pinch thresholds
+  if (pinch && touchPts.size >= 2) {
+    if (e.pointerType !== 'touch') return;
+    const g = editor.active ? editor.game : running ? game : null;
+    const now = pinchGeom();
+    if (g) {
+      cam.x -= (now.x - pinch.x) * dpr;
+      cam.y -= (now.y - pinch.y) * dpr;
+      const ratio = now.dist / pinch.dist;
+      if (ratio > 1.3) {
+        zoomStep(1, now.x * dpr, now.y * dpr);
+        pinch.dist = now.dist;
+      } else if (ratio < 1 / 1.3) {
+        zoomStep(-1, now.x * dpr, now.y * dpr);
+        pinch.dist = now.dist;
+      }
+      cam.clamp(g, renderer.viewW, renderer.viewH);
+    }
+    pinch.x = now.x;
+    pinch.y = now.y;
+    return;
+  }
   const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
   if (painting) {
     editor.applyAt(t.x, t.y, true);
   } else if (dragging && !runAnchor) {
     const dx = e.clientX - lastMx;
     const dy = e.clientY - lastMy;
-    if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+    const slack = e.pointerType === 'touch' ? 9 : 3; // fingers wobble; mice don't
+    if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > slack) dragMoved = true;
     if (dragMoved) {
       // pan with any non-painting drag; taps still place
       canvas.style.cursor = 'grabbing';
@@ -1182,13 +1440,18 @@ canvas.addEventListener('pointermove', (e) => {
       if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
     }
   }
-  hover.tx = t.x;
-  hover.ty = t.y;
-  hover.visible = true;
   // last known cursor position — the pan delta above reads the previous value,
   // and the frame loop uses it to place the drag-run cost readout at the cursor.
   lastMx = e.clientX;
   lastMy = e.clientY;
+
+  // No hover on touch: the ghost stays parked where the last tap aimed, and the
+  // hover-driven tooltips/badges stay out of the way of the panning finger.
+  if (e.pointerType === 'touch') return;
+
+  hover.tx = t.x;
+  hover.ty = t.y;
+  hover.visible = true;
 
   // hover-to-inspect: a live tooltip for any building or resource node under
   // the cursor (Inspect tool only, and not while panning)
@@ -1216,6 +1479,7 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 canvas.addEventListener('pointerleave', () => {
+  if (touchPlace) return; // the parked aim ghost survives the finger lifting
   hover.visible = false;
   hud?.hideBuildingHint();
   hud?.hidePlacementNeeds();
@@ -1223,7 +1487,11 @@ canvas.addEventListener('pointerleave', () => {
   editor.setHover(0, 0, false);
 });
 
-canvas.addEventListener('pointercancel', () => {
+canvas.addEventListener('pointercancel', (e) => {
+  if (e.pointerType === 'touch') {
+    touchPts.delete(e.pointerId);
+    if (touchPts.size < 2) pinch = null;
+  }
   dragging = false;
   runAnchor = null;
   hud?.hideRunCost();
@@ -1231,6 +1499,10 @@ canvas.addEventListener('pointercancel', () => {
 });
 
 canvas.addEventListener('pointerup', (e) => {
+  if (e.pointerType === 'touch') {
+    touchPts.delete(e.pointerId);
+    if (touchPts.size < 2) pinch = null;
+  }
   dragging = false;
   hud?.hideRunCost();
   applyToolCursor(); // drop the grabbing hand back to the tool cursor
@@ -1242,7 +1514,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (runAnchor) {
     const a = runAnchor;
     runAnchor = null;
-    const dpr = canvas.width / canvas.clientWidth;
+    const dpr = canvasDpr();
     const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
     if (game && running) {
       if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
@@ -1252,13 +1524,17 @@ canvas.addEventListener('pointerup', (e) => {
     return;
   }
   if (dragMoved || e.button !== 0) return;
-  const dpr = canvas.width / canvas.clientWidth;
+  const dpr = canvasDpr();
   const t = cam.screenToTile(e.clientX * dpr, e.clientY * dpr);
   if (editor.active) {
     editor.applyAt(t.x, t.y, false);
     return;
   }
   if (!game || !running) return;
+  if (e.pointerType === 'touch') {
+    touchTap(t.x, t.y, e.clientX, e.clientY);
+    return;
+  }
   applyTool(t.x, t.y);
 });
 
@@ -1267,11 +1543,21 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 // Step the zoom one level toward an anchor point given in device pixels.
 // Defaults to the centre of the usable viewport, which is what the +/- keys
 // and the on-screen buttons want; the pinch handler passes the cursor instead.
+// Integer zoom steps stay pixel-perfect. A high-DPI screen draws each step at
+// half the CSS size, so it gets two extra steps on top — and starts play two
+// steps in — landing at the same apparent tile size a desktop sees at 2×.
+function maxZoom(): number {
+  return (window.devicePixelRatio || 1) >= 2 ? 6 : 4;
+}
+function defaultZoom(): number {
+  return COARSE && (window.devicePixelRatio || 1) >= 2 ? 4 : 2;
+}
+
 function zoomStep(dir: number, ax?: number, ay?: number): void {
   const g = editor.active ? editor.game : running ? game : null;
   if (!g) return;
   const oldZoom = cam.zoom;
-  const next = Math.max(1, Math.min(4, oldZoom + dir));
+  const next = Math.max(1, Math.min(maxZoom(), oldZoom + dir));
   if (next === oldZoom) return;
   const anchorX = ax ?? (renderer.viewW - cam.rightInset) / 2;
   const anchorY = ay ?? renderer.viewH / 2;
@@ -1475,10 +1761,27 @@ const RUN_SPRITE: Partial<Record<Tool, string>> = {
 };
 
 const runOverlay = (ctx: CanvasRenderingContext2D) => {
-  if (!runAnchor || !game) return;
-  const spriteName = RUN_SPRITE[runAnchor.tool];
+  if (!game) return;
+  // desktop: the live drag; touch: the tap-grown run parked by the confirm bar
+  let tool: Tool, ax: number, ay: number, ex: number, ey: number;
+  if (runAnchor) {
+    tool = runAnchor.tool;
+    ax = runAnchor.x;
+    ay = runAnchor.y;
+    ex = hover.tx;
+    ey = hover.ty;
+  } else if (touchPlace?.end) {
+    tool = touchPlace.tool;
+    ax = touchPlace.aim.x;
+    ay = touchPlace.aim.y;
+    ex = touchPlace.end.x;
+    ey = touchPlace.end.y;
+  } else {
+    return;
+  }
+  const spriteName = RUN_SPRITE[tool];
   if (!spriteName) return; // only the run tools have a ghost sprite
-  const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
+  const plan = game.runPlan(tool, ax, ay, ex, ey);
   const spr = sprite(spriteName).canvas;
   plan.cells.forEach((c, i) => {
     const affordable = i < plan.affordable;
@@ -1570,6 +1873,13 @@ function frame(now: number): void {
   if (running && game && runAnchor && hover.visible) {
     const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
     hud?.showRunCost(lastMx, lastMy, plan.rows, runAnchor.tool);
+  }
+
+  // Touch surfaces track live state the same way: the confirm bar's costs and
+  // the tap-to-inspect tooltip re-render only when their signatures change.
+  if (running && game) {
+    if (touchPlace) refreshTouchUi();
+    if (touchInspect) refreshTouchInspect();
   }
 
   hud?.update();
