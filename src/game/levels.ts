@@ -866,4 +866,59 @@ export const LEVELS: LevelDef[] = [
     ],
     camera: { x: 8, y: 16 },
   },
+  {
+    id: 13,
+    campaign: 4,
+    name: 'lvl13.name',
+    desc: 'lvl13.desc',
+    width: 50,
+    height: 22,
+    objectives: [{ item: 'iron', amount: 4 }],
+    medals: { gold: 480, silver: 660, bronze: 960 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'workshop', 'dig', 'demolish'],
+    startStock: { log: 6, plank: 12, stone: 6, iron: 3 },
+    startRoles: { hauler: 2, builder: 1, miner: 1, digger: 1 },
+    startWorkers: 5,
+    startThLevel: 2,
+    build: (g) => {
+      const { world } = g;
+      // One flat meadow — but the iron and the caravan are buried in a sealed
+      // gallery below it. The player crafts a shovel, sinks a VERTICAL SHAFT, then
+      // tunnels HORIZONTALLY across the gallery to the seam and the caravan.
+      // Everything the crew hauls stays flat or drops downhill, so no lift needed.
+      terrain(g, runs([[6, 50]])); // surface row 16; rock down to bedrock at 21
+      townhall(g, 4);
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      boulder(g, 16);
+      boulder(g, 18);
+      // --- the sealed gallery (row 19), carved only where the buildings/seam
+      // sit; the shaft down and the tunnel across are the player's to dig ---
+      // the caravan, walled into a room at the east end of the gallery
+      for (let x = 38; x <= 41; x++) for (let y = 17; y <= 19; y++) world.set(x, y, T.AIR);
+      g.addBuilding('goal', 38, 17);
+      // the buried iron seam: a vein embedded in the rock mid-gallery, revealed
+      // (and made mineable) only once a tunnel is dug through its cell
+      g.addNode('vein', 34, 19);
+    },
+    hints: [
+      {
+        id: 'seam',
+        text: 'lvl13.hint.seam',
+        when: () => true,
+      },
+      {
+        id: 'shaft',
+        text: 'lvl13.hint.shaft',
+        when: (g) => g.stock.shovel > 0 || g.equippedDiggers() > 0,
+      },
+      {
+        id: 'tunnel',
+        text: 'lvl13.hint.tunnel',
+        when: (g) => g.workers.some((w) => w.cy >= 18),
+      },
+    ],
+    camera: { x: 4, y: 8 },
+  },
 ];

@@ -204,6 +204,21 @@ export function buildingApproachCells(
   return cells;
 }
 
+// Cells a Digger can stand in to remove the tile (dx,dy): orthogonally beside it
+// (a tunnel dug ahead) or directly above it (a shaft dug down). Never below —
+// digging is sideways or downward, never up into a ceiling.
+export function digApproachCells(world: World, dx: number, dy: number): Set<number> {
+  const cells = new Set<number>();
+  for (const [ox, oy] of [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+  ]) {
+    if (world.isStandable(dx + ox, dy + oy)) cells.add(world.key(dx + ox, dy + oy));
+  }
+  return cells;
+}
+
 // Cells from which a worker can work on a resource node (beside or on it).
 export function nodeApproachCells(world: World, nx: number, ny: number): Set<number> {
   const cells = new Set<number>();

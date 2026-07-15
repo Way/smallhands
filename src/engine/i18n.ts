@@ -44,12 +44,14 @@ const D: Record<string, [string, string]> = {
   'item.stone': ['Stone', 'Stein'],
   'item.iron': ['Iron', 'Eisen'],
   'item.spear': ['Spear', 'Speer'],
+  'item.shovel': ['Shovel', 'Spaten'],
 
   // roles (plural, as shown in the crew panel)
   'role.hauler': ['Haulers', 'Träger'],
   'role.builder': ['Builders', 'Baumeister'],
   'role.woodcutter': ['Woodcutters', 'Holzfäller'],
   'role.miner': ['Miners', 'Bergleute'],
+  'role.digger': ['Diggers', 'Gräber'],
 
   // weather
   'weather.clear': ['Clear', 'Klar'],
@@ -65,6 +67,7 @@ const D: Record<string, [string, string]> = {
   'building.townhall': ['Town Hall', 'Rathaus'],
   'building.sawmill': ['Sawmill', 'Sägewerk'],
   'building.forge': ['Forge', 'Schmiede'],
+  'building.workshop': ['Workshop', 'Werkstatt'],
   'building.lift': ['Cargo Lift', 'Lastenaufzug'],
   'building.rope': ['Rope Anchor', 'Seilanker'],
   'building.lantern': ['Lantern', 'Laterne'],
@@ -125,6 +128,16 @@ const D: Record<string, [string, string]> = {
   'tool.forge.desc': [
     'Forges spears from planks and iron. Needs a builder to construct it.',
     'Schmiedet Speere aus Brettern und Eisen. Ein Baumeister muss sie errichten.',
+  ],
+  'tool.workshop.label': ['Workshop', 'Werkstatt'],
+  'tool.workshop.desc': [
+    'Crafts shovels from a plank and iron — a digger needs one to dig. Needs a builder to construct it.',
+    'Fertigt Spaten aus einem Brett und Eisen — ein Gräber braucht einen zum Graben. Ein Baumeister muss sie errichten.',
+  ],
+  'tool.dig.label': ['Dig', 'Graben'],
+  'tool.dig.desc': [
+    'Mark a tunnel or shaft to carve out — drag to paint a run. A digger with a shovel removes the ground over time. Bedrock and tiles under buildings stay put.',
+    'Markiere einen Tunnel oder Schacht zum Ausheben — ziehen für eine Strecke. Ein Gräber mit Spaten trägt den Boden nach und nach ab. Grundgestein und Felder unter Gebäuden bleiben.',
   ],
   'tool.demolish.label': ['Demolish', 'Abreißen'],
   'tool.demolish.desc': [
@@ -284,6 +297,9 @@ const D: Record<string, [string, string]> = {
   // ---- HUD -----------------------------------------------------------------------
   'hud.deliver': ['Deliver', 'Liefern'],
   'hud.crew': ['Crew', 'Trupp'],
+  'crew.idle': ['{n} idle', '{n} frei'],
+  'crew.needDigger': ['⚠ Assign a digger for the dig plan', '⚠ Weise einen Gräber für den Grabplan zu'],
+  'crew.needShovel': ['⚠ Craft a shovel in the Workshop', '⚠ Fertige einen Spaten in der Werkstatt'],
   'hud.weather': ['Weather', 'Wetter'],
   'hud.then': ['then', 'dann'],
   'wx.flood': ['🌊 rain lifts the tide', '🌊 Regen hebt die Flut'],
@@ -307,6 +323,7 @@ const D: Record<string, [string, string]> = {
   'hud.ctaMark': ['Mark', 'Markieren'],
   'hud.ctaUnmark': ['Unmark', 'Abwählen'],
   'hud.ctaDemolish': ['Demolish', 'Abreißen'],
+  'hud.ctaDig': ['Dig', 'Graben'],
   'hud.tapToAim': ['Tap the map to aim', 'Tippe zum Zielen auf die Karte'],
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
@@ -396,11 +413,29 @@ const D: Record<string, [string, string]> = {
     'The storm has seized the hoist’s brake! Watch the forecast — chop, mine and forge through the gusts, ship in the calm.',
     'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
   ],
+  'lvl13.name': ['The Buried Seam', 'Die vergrabene Ader'],
+  'lvl13.desc': [
+    'Iron and the caravan lie sealed in a gallery beneath the meadow. Craft a shovel, sink a shaft, and tunnel through to them.',
+    'Eisen und die Karawane liegen versiegelt in einem Stollen unter der Wiese. Fertige einen Spaten, teufe einen Schacht ab und grabe dich zu ihnen durch.',
+  ],
+  'lvl13.hint.seam': [
+    'The iron seam and the caravan are <b>buried</b> below. Build a <b>Workshop</b> (Town Hall 2) and it will craft a <b>shovel</b> from a plank and iron — a digger needs one.',
+    'Die Eisenader und die Karawane sind <b>vergraben</b>. Baue eine <b>Werkstatt</b> (Rathaus 2) — sie fertigt aus Brett und Eisen einen <b>Spaten</b>, den ein Gräber braucht.',
+  ],
+  'lvl13.hint.shaft': [
+    'A shovel is ready! Assign a <b>Digger</b> in the crew panel, then use the <b>Dig</b> tool to sink a <b>vertical shaft</b> straight down to the gallery.',
+    'Ein Spaten ist fertig! Weise im Trupp-Panel einen <b>Gräber</b> zu und teufe mit dem <b>Grab</b>-Werkzeug einen <b>senkrechten Schacht</b> hinab zum Stollen.',
+  ],
+  'lvl13.hint.tunnel': [
+    'Down in the gallery, drag the <b>Dig</b> tool sideways to carve a <b>tunnel</b> to the iron seam and the caravan. Miners work the vein; haulers carry the iron along the flat.',
+    'Im Stollen ziehst du das <b>Grab</b>-Werkzeug seitwärts für einen <b>Tunnel</b> zur Eisenader und zur Karawane. Bergleute bauen die Ader ab; Träger tragen das Eisen eben hinüber.',
+  ],
 
   // world map (level select)
   'map.terr1': ['Home Meadows', 'Heimatwiesen'],
   'map.terr2': ['Storm & Tide', 'Sturm & Flut'],
   'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
+  'map.terr4': ['Shaft & Seam', 'Schacht & Ader'],
   'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
   'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
   'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
@@ -496,6 +531,10 @@ const D: Record<string, [string, string]> = {
   'win.campaign2': [
     '<b>🌩 Campaign 2 unlocked — Storm & Tide!</b><br/>Rivers to bridge, tides that rise with every rainfall, storms that stop the lifts — and nights worked by lantern light.',
     '<b>🌩 Kampagne 2 freigeschaltet — Sturm & Flut!</b><br/>Flüsse zum Überbrücken, Fluten, die mit jedem Regen steigen, Stürme, die die Aufzüge stoppen — und Nächte im Laternenschein.',
+  ],
+  'win.campaign4': [
+    '<b>⛏ Campaign 4 unlocked — Shaft &amp; Seam!</b><br/>Craft shovels in the Workshop, assign Diggers, and carve tunnels and shafts to buried iron and sealed caravans.',
+    '<b>⛏ Kampagne 4 freigeschaltet — Schacht &amp; Ader!</b><br/>Fertige Spaten in der Werkstatt, weise Gräber zu und schlage Tunnel und Schächte zu vergrabenem Eisen und versiegelten Karawanen.',
   ],
   'win.allDone': [
     '<b>You have finished every campaign!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.',
@@ -671,12 +710,12 @@ const D: Record<string, [string, string]> = {
     'Nicht genug Stein im Level: Der Auftrag braucht {need}, nur {have} sind erreichbar.',
   ],
   'verify.iron': [
-    'Not enough iron in the level: spears need {need}, only {have} obtainable.',
-    'Nicht genug Eisen im Level: Speere brauchen {need}, nur {have} sind erreichbar.',
+    'Not enough iron in the level: crafted tools (spears/shovels) need {need}, only {have} obtainable.',
+    'Nicht genug Eisen im Level: gefertigte Werkzeuge (Speere/Schaufeln) brauchen {need}, nur {have} sind erreichbar.',
   ],
   'verify.spearStone': [
-    'Spears need a forge (Town Hall 2) — stone for the upgrade and forge may run short.',
-    'Speere brauchen eine Schmiede (Rathaus 2) — der Stein für Ausbau und Schmiede könnte knapp werden.',
+    'Crafted tools need a forge or workshop (Town Hall 2) — stone for the upgrade and building may run short.',
+    'Gefertigte Werkzeuge brauchen eine Schmiede oder Werkstatt (Rathaus 2) — der Stein für Ausbau und Gebäude könnte knapp werden.',
   ],
   'verify.waterFloat': [
     '{n} water tile(s) without ground below or banks beside (first at ({x}, {y})) — the pool would float in mid-air.',

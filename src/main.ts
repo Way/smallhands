@@ -842,7 +842,8 @@ function showWin(): void {
       if ((next.campaign ?? 1) !== (cur.campaign ?? 1)) {
         const unlock = document.createElement('div');
         unlock.className = 'win-stats camp-unlock';
-        unlock.innerHTML = t((next.campaign ?? 1) === 3 ? 'win.campaign3' : 'win.campaign2');
+        const campKey = { 2: 'win.campaign2', 3: 'win.campaign3', 4: 'win.campaign4' }[next.campaign ?? 1] ?? 'win.campaign2';
+        unlock.innerHTML = t(campKey);
         ov.appendChild(unlock);
       }
       const nb = document.createElement('button');
@@ -1034,6 +1035,9 @@ function handleEvent(e: GameEvent): void {
     case 'demolish':
       audio.demolish();
       break;
+    case 'dug':
+      audio.dig();
+      break;
     case 'hint':
       audio.hint();
       h.toast(t(e.text));
@@ -1184,6 +1188,7 @@ function confirmCta(tool: Tool): string {
     return n?.marked ? t('hud.ctaUnmark') : t('hud.ctaMark');
   }
   if (tool === 'demolish') return t('hud.ctaDemolish');
+  if (tool === 'dig') return t('hud.ctaDig');
   return t('hud.ctaBuild');
 }
 
@@ -1252,6 +1257,7 @@ function commitTouchPlace(): void {
   if (tp.end) {
     if (tp.tool === 'ramp') game.placeRampRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
     else if (tp.tool === 'ladder') game.placeLadderRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+    else if (tp.tool === 'dig') game.paintDigRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
     else game.placeBridgeRun(tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
   } else {
     applyTool(tp.aim.x, tp.aim.y);
@@ -1337,7 +1343,7 @@ let downX = 0; // pointer-down position: taps are judged against total travel,
 let downY = 0; // with a wider tolerance for wobbly fingers than for mice
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
-const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder';
+const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder' || t === 'dig';
 
 function canvasDpr(): number {
   return canvas.width / canvas.clientWidth || 1;
@@ -1519,6 +1525,7 @@ canvas.addEventListener('pointerup', (e) => {
     if (game && running) {
       if (a.tool === 'ramp') game.placeRampRun(a.x, a.y, t.x, t.y);
       else if (a.tool === 'ladder') game.placeLadderRun(a.x, a.y, t.x, t.y);
+      else if (a.tool === 'dig') game.paintDigRun(a.x, a.y, t.x, t.y);
       else game.placeBridgeRun(a.x, a.y, t.x, t.y);
     }
     return;
@@ -1703,6 +1710,9 @@ function applyTool(tx: number, ty: number): void {
       }
       break;
     }
+    case 'dig':
+      g.paintDigRun(tx, ty, tx, ty);
+      break;
     case 'ladder':
       g.placeLadderRun(tx, ty, tx, ty);
       break;
@@ -1717,6 +1727,9 @@ function applyTool(tx: number, ty: number): void {
       break;
     case 'forge':
       g.placeBuilding('forge', tx, ty);
+      break;
+    case 'workshop':
+      g.placeBuilding('workshop', tx, ty);
       break;
     case 'lantern':
       g.placeBuilding('lantern', tx, ty);
@@ -1779,9 +1792,20 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
   } else {
     return;
   }
+  const plan = game.runPlan(tool, ax, ay, ex, ey);
+  // Dig has no tile sprite — preview each cell to be carved as an amber overlay.
+  if (tool === 'dig') {
+    ctx.fillStyle = 'rgba(230,150,60,0.32)';
+    ctx.strokeStyle = 'rgba(255,170,80,0.9)';
+    ctx.lineWidth = 1;
+    for (const c of plan.cells) {
+      ctx.fillRect(c.x * TILE, c.y * TILE, TILE, TILE);
+      ctx.strokeRect(c.x * TILE + 0.5, c.y * TILE + 0.5, TILE - 1, TILE - 1);
+    }
+    return;
+  }
   const spriteName = RUN_SPRITE[tool];
   if (!spriteName) return; // only the run tools have a ghost sprite
-  const plan = game.runPlan(tool, ax, ay, ex, ey);
   const spr = sprite(spriteName).canvas;
   plan.cells.forEach((c, i) => {
     const affordable = i < plan.affordable;

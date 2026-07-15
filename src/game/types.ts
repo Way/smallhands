@@ -15,8 +15,8 @@ export const enum T {
   WATER = 8, // deep water: impassable, unbuildable — goods dropped in are lost
 }
 
-export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear';
-export const ITEM_TYPES: ItemType[] = ['log', 'plank', 'stone', 'iron', 'spear'];
+export type ItemType = 'log' | 'plank' | 'stone' | 'iron' | 'spear' | 'shovel';
+export const ITEM_TYPES: ItemType[] = ['log', 'plank', 'stone', 'iron', 'spear', 'shovel'];
 // display names live in the i18n table: t(`item.${itemType}`)
 // sprite-atlas keys for each item, shared by the HUD and the map popover
 export const ITEM_ICON: Record<ItemType, string> = {
@@ -25,10 +25,11 @@ export const ITEM_ICON: Record<ItemType, string> = {
   stone: 'item_stone',
   iron: 'item_iron',
   spear: 'item_spear',
+  shovel: 'item_shovel',
 };
 
-export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner';
-export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner'];
+export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner' | 'digger';
+export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner', 'digger'];
 // display names live in the i18n table: t(`role.${role}`)
 
 export const ROLE_COLORS: Record<Role, string> = {
@@ -36,6 +37,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   builder: '#ffc94d',
   woodcutter: '#6fd66f',
   miner: '#f08a4b',
+  digger: '#b07de0',
 };
 
 export type NodeKind = 'tree' | 'boulder' | 'vein';
@@ -63,7 +65,7 @@ export const NODE_ROLE: Record<NodeKind, Role> = {
   vein: 'miner',
 };
 
-export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'lift' | 'rope' | 'hoist' | 'lantern' | 'goal';
+export type BuildingKind = 'townhall' | 'sawmill' | 'forge' | 'workshop' | 'lift' | 'rope' | 'hoist' | 'lantern' | 'goal';
 
 // ---- counterweight hoist ------------------------------------------------------
 
@@ -76,6 +78,7 @@ export const ITEM_WEIGHT: Record<ItemType, number> = {
   stone: 2,
   iron: 1,
   spear: 1,
+  shovel: 1,
 };
 
 export const HOIST_CYCLE = 2.5; // seconds the cars take to swap ends
@@ -106,6 +109,7 @@ export interface Recipe {
 export const RECIPES: Partial<Record<BuildingKind, Recipe>> = {
   sawmill: { inputs: { log: 1 }, outputs: { plank: 2 }, time: 3.5 },
   forge: { inputs: { plank: 1, iron: 1 }, outputs: { spear: 1 }, time: 5 },
+  workshop: { inputs: { plank: 1, iron: 1 }, outputs: { shovel: 1 }, time: 4 },
 };
 
 export interface Footprint {
@@ -117,6 +121,7 @@ export const FOOTPRINTS: Record<BuildingKind, Footprint> = {
   townhall: { w: 4, h: 3 },
   sawmill: { w: 3, h: 2 },
   forge: { w: 3, h: 2 },
+  workshop: { w: 3, h: 2 },
   lift: { w: 1, h: 1 }, // base cell; the mast extends upward separately
   rope: { w: 1, h: 1 }, // anchor cell; the rope hangs down beside it
   hoist: { w: 1, h: 1 }, // wheel post on the cliff edge; the cars hang beside it
@@ -160,6 +165,7 @@ export interface Building {
 export const BUILD_TIME: Partial<Record<BuildingKind, number>> = {
   sawmill: 6,
   forge: 8,
+  workshop: 7,
   lift: 7,
   rope: 4,
   hoist: 6,
@@ -174,6 +180,8 @@ export type Tool =
   | 'ramp'
   | 'sawmill'
   | 'forge'
+  | 'workshop'
+  | 'dig'
   | 'lift'
   | 'rope'
   | 'hoist'
@@ -200,6 +208,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'hoist', key: 'h', cost: { plank: 3, iron: 1 }, thLevel: 2 },
   { id: 'lantern', key: 'l', cost: { log: 1, stone: 1 } },
   { id: 'forge', key: '8', cost: { plank: 4, stone: 4 }, thLevel: 2 },
+  { id: 'workshop', key: 'k', cost: { plank: 4, stone: 2 }, thLevel: 2 },
+  { id: 'dig', key: 'g', thLevel: 2 },
   { id: 'demolish', key: '9' },
 ];
 
@@ -227,6 +237,15 @@ export const MAX_FALL_CARRY = 2; // tiles a smallhand may drop while carrying
 
 export const WORKER_SPAWN_INTERVAL = 2.5; // seconds between new smallhands
 export const BUILDER_SPEED = 1; // progress per second
+
+// Seconds a Digger takes to remove one tile, by terrain kind. Rock is the slog;
+// dirt and grass give way quickly. Balanced further in the polish pass.
+export const DIG_TIME: Partial<Record<T, number>> = {
+  [T.DIRT]: 1.6,
+  [T.GRASS]: 1.6,
+  [T.ROCK]: 2.8,
+};
+export const DIG_TIME_DEFAULT = 2;
 
 export interface GroundItem {
   id: number;

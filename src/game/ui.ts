@@ -36,6 +36,8 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   ramp: 'tile_ramp',
   sawmill: 'sawmill',
   forge: 'forge',
+  workshop: 'workshop',
+  dig: 'icon_dig',
   lift: 'lift_car',
   rope: 'rope_anchor',
   hoist: 'hoist_post',
@@ -100,6 +102,10 @@ export class Hud {
   private lastStock: Record<string, number> = {};
   private objRows = new Map<ItemType, { row: HTMLElement; cnt: HTMLElement }>();
   private roleCnts = new Map<Role, HTMLElement>();
+  private roleIdles = new Map<Role, HTMLElement>();
+  private roleRows = new Map<Role, HTMLElement>();
+  private crewWarn!: HTMLElement;
+  private crewWarnText = '';
   private workerPop!: HTMLElement;
   private upgradeBtn!: HTMLButtonElement;
   private toolBtns = new Map<Tool, HTMLButtonElement>();
@@ -212,19 +218,26 @@ export class Hud {
     this.collapsible(crew, ch);
     for (const r of ROLES) {
       const row = el('div', 'role-row', crew);
+      this.roleRows.set(r, row);
       const dot = el('span', 'role-dot', row);
       dot.style.background = ROLE_COLORS[r];
       const name = el('span', 'role-name', row);
       name.textContent = t(`role.${r}`);
+      // muted "n idle" readout so the player sees spare hands at a glance
+      const idle = el('span', 'role-idle', row);
+      this.roleIdles.set(r, idle);
       const minus = el('button', 'role-btn', row);
       minus.textContent = '−';
       minus.onclick = () => this.cbs.onRole(r, -1);
+      // actual / desired (e.g. 2/3), not just the target
       const cnt = el('span', 'role-cnt', row);
       this.roleCnts.set(r, cnt);
       const plus = el('button', 'role-btn', row);
       plus.textContent = '+';
       plus.onclick = () => this.cbs.onRole(r, +1);
     }
+    // staffing warning: no digger for a painted plan, or no shovel for a digger
+    this.crewWarn = el('div', 'crew-warn', crew);
     this.upgradeBtn = el('button', 'th-upgrade', crew);
     this.upgradeBtn.onclick = () => this.cbs.onUpgrade();
   }
@@ -944,7 +957,21 @@ export class Hud {
     }
     this.workerPop.textContent = `${g.workers.length}/${g.maxWorkers}`;
     for (const r of ROLES) {
-      this.roleCnts.get(r)!.textContent = String(g.desiredRoles[r]);
+      const actual = g.roleCount(r);
+      this.roleCnts.get(r)!.textContent = `${actual}/${g.desiredRoles[r]}`;
+      const idle = g.roleIdle(r);
+      this.roleIdles.get(r)!.textContent = idle > 0 ? t('crew.idle', { n: idle }) : '';
+      // the Digger row only exists once the Workshop does — Town Hall level 2
+      if (r === 'digger') this.roleRows.get(r)!.classList.toggle('gated', g.thLevel < 2);
+    }
+    // one staffing warning, most urgent first: a dig plan with nobody to dig it,
+    // then diggers wanted but no shovel in the store to equip them
+    let warn = '';
+    if (g.digOrders.size > 0 && g.roleCount('digger') === 0) warn = t('crew.needDigger');
+    else if (g.desiredRoles.digger > g.equippedDiggers() && g.stock.shovel <= 0) warn = t('crew.needShovel');
+    if (warn !== this.crewWarnText) {
+      this.crewWarnText = warn;
+      this.crewWarn.textContent = warn;
     }
     // upgrade button — only rebuild when the relevant state changes
     const lvl = TH_LEVELS[g.thLevel - 1];

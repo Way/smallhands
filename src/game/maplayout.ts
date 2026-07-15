@@ -70,6 +70,23 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
       { x: 1380, y: 720 },
     ],
   },
+  {
+    campaign: 4,
+    nameKey: 'map.terr4',
+    // a lower island, apart from the others — the underground frontier
+    outline:
+      'M 700 760 C 715 680 815 645 915 657 C 1015 669 1075 715 1060 792 C 1045 866 945 892 850 882 C 755 872 685 838 700 760 Z',
+    label: { x: 880, y: 618 },
+    badge: { x: 880, y: 762 },
+    nodes: [
+      { x: 760, y: 782 },
+      { x: 838, y: 720 },
+      { x: 918, y: 778 },
+      { x: 992, y: 720 },
+      { x: 965, y: 820 },
+      { x: 852, y: 828 },
+    ],
+  },
 ];
 
 // The daily-challenge lighthouse island: a fixed landmark, not a campaign.

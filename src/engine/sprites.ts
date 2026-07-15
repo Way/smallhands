@@ -575,6 +575,17 @@ export function buildAtlas(): void {
     'wk......',
     'k.......',
   ]);
+  // shovel: wooden haft up-right, a steel spade blade at the foot
+  makeSprite('item_shovel', { w: '#a8743c', k: '#5f3c1b', s: '#8f9aa8', S: '#cdd6e2' }, [
+    '.....wk.',
+    '.....wk.',
+    '....wk..',
+    '...wk...',
+    '..sssss.',
+    '.sSSSSSs',
+    '.sSSSSs.',
+    '..sss...',
+  ]);
 
   // ---- smallhands (10x12, two walk frames + climb + work) ----
   // 'H' = hat (recolored per role at draw time via separate hat sprites)
@@ -654,6 +665,7 @@ export function buildAtlas(): void {
     builder: '#ffc94d',
     woodcutter: '#6fd66f',
     miner: '#f08a4b',
+    digger: '#b07de0',
   };
   for (const role of Object.keys(HAT_COLORS)) hatShape(role, '#00000000');
 
@@ -727,6 +739,29 @@ export function buildAtlas(): void {
     '.WwffwwwwwddddwwwwwwW...',
     '.WkffwWwwwddddwwwwwkW...',
     '.WwffwwwwwddddwwWwwwW...',
+    '.WWWWWWWWWWWWWWWWWWWW...',
+    '.kkkkkkkkkkkkkkkkkkkk...',
+    '.kkkkkkkkkkkkkkkkkkkk...',
+    '........................',
+  ]);
+  // workshop: a carpenter's shed — mossy plank roof, a tool (shovel) mounted on
+  // the wall to read as "where shovels are made". 3x2 footprint like the sawmill.
+  const workshopPal = {
+    w: '#b98850', W: '#d3a86e', k: '#7c5830', r: '#7a8a5c', R: '#95a56e', d: '#5f3c1b', s: '#cfe3f5', i: '#9aa5b5', I: '#cdd6e2',
+  };
+  makeSprite('workshop', workshopPal, [
+    '......RRRRRRRRRR........',
+    '....RRrrrrrrrrrrRR......',
+    '..RRrrrrrrrrrrrrrrRR....',
+    '.RRrrrrrrrrrrrrrrrrRR...',
+    '.WWWWWWWWWWWWWWWWWWWW...',
+    '.WwkwwwkwwwWwwwkwwkwW...',
+    '.WwwwwwwwwwwwwwwwkwwW...',
+    '.WwsswwwwwddddwwiIwwW...',
+    '.WwsswwwwwddddwwiIwwW...',
+    '.WwwwwwwwwddddwwwkwwW...',
+    '.WkwwwWwwwddddwwwkwwW...',
+    '.WwwwwwwwwddddwwWwwwW...',
     '.WWWWWWWWWWWWWWWWWWWW...',
     '.kkkkkkkkkkkkkkkkkkkk...',
     '.kkkkkkkkkkkkkkkkkkkk...',
@@ -991,6 +1026,23 @@ export function buildAtlas(): void {
     '..pp..........',
     '..pp..........',
     '..pp..........',
+  ]);
+  // dig tool: a pickaxe — curved steel head over a wooden haft
+  makeSprite('icon_dig', { i: '#8f9aa8', I: '#cdd6e2', k: '#7c5830' }, [
+    '.i..........i.',
+    '.iIi......iIi.',
+    '..iIIiiiiIIi..',
+    '...iIIIIIIi...',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '....kkkk......',
+    '..............',
   ]);
   makeSprite('icon_demolish', { r: '#ff7a6b', R: '#ffa79c', k: '#b34a3e' }, [
     'RR..........RR',
