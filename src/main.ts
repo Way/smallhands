@@ -1036,7 +1036,7 @@ function handleEvent(e: GameEvent): void {
       audio.demolish();
       break;
     case 'dug':
-      audio.chop(); // a earthy thunk as a tile gives way (dedicated SFX: polish pass)
+      audio.dig();
       break;
     case 'hint':
       audio.hint();

@@ -82,6 +82,12 @@ class AudioEngine {
     this.tone(160, 0.05, 'triangle', 0.5, -40);
   }
 
+  // a shovel biting into earth: a soft soil-crumble with a low, muffled thud
+  dig(): void {
+    this.noise(0.12, 0.5);
+    this.tone(104, 0.08, 'triangle', 0.4, -28);
+  }
+
   deposit(): void {
     this.tone(587, 0.06, 'triangle', 0.5);
     this.tone(784, 0.08, 'triangle', 0.45, 0, 0.05);

@@ -1596,6 +1596,11 @@ export class Renderer {
       if (squash !== 0) ctx.scale(1 + squash * 0.7, 1 - squash);
       ctx.drawImage(spr, -5, -12);
       ctx.drawImage(sprite(`hat_${w.role}`).canvas, -5, -14);
+      // a digger at work holds a shovel out front, bobbing with each bite
+      if (w.role === 'digger' && w.working) {
+        const swing = Math.sin(w.animT * 10) * 1.4;
+        ctx.drawImage(sprite('item_shovel').canvas, 2, -6 + swing);
+      }
       ctx.restore();
 
       // carried item above the head

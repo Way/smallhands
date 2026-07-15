@@ -1177,8 +1177,8 @@ export class Game {
     for (const idx of this.digOrders) {
       const x = idx % wgrid;
       const y = (idx / wgrid) | 0;
-      if (this.world.get(x, y) === T.AIR) {
-        this.digOrders.delete(idx); // already cleared — prune stale order
+      if (!this.world.isSolid(x, y)) {
+        this.digOrders.delete(idx); // already open, or flooded/replaced — prune it
         continue;
       }
       // don't double-book a cell another Digger is already headed to
@@ -1442,6 +1442,7 @@ export class Game {
         return;
       }
       const tile = this.world.get(task.tx, task.ty);
+      if (task.tx !== w.cx) w.facing = task.tx > w.cx ? 1 : -1; // face the tile being dug
       w.workT += dt;
       if (Math.random() < dt * 3) this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 2);
       if (w.workT >= (DIG_TIME[tile] ?? DIG_TIME_DEFAULT)) {
