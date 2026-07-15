@@ -85,7 +85,7 @@ const COPY = {
     weather: { h: 'Regen erschwert die Arbeit.', sub: 'Das Wetter beeinflusst die Arbeit der Smallhands' },
     night: { h: 'Gearbeitet wird nur bei Licht.', sub: 'Laternen bringen Licht ins Dunkel' },
     biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
-    deliver: { h: 'Auf die Geschwindigkeit und das Geschick kommt es an.', sub: 'Prestige und Highscores warten auf dich' },
+    deliver: { h: 'Geschwindigkeit und Geschick sind entscheidend.', sub: 'Prestige und Highscores warten auf dich' },
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
   },
   en: {
@@ -95,7 +95,7 @@ const COPY = {
     weather: { h: 'Rain slows the work.', sub: 'Weather shapes what the smallhands can do' },
     night: { h: 'Work only happens in the light.', sub: 'Lanterns bring light into the dark' },
     biomes: { h: 'Every seed generates a unique world.', sub: '5 biomes · Daily challenge · Level editor' },
-    deliver: { h: 'Speed and skill are what counts.', sub: 'Prestige and highscores await' },
+    deliver: { h: 'Speed and skill decide.', sub: 'Prestige and highscores await' },
     end: { h: '', sub: '' },
   },
 };
