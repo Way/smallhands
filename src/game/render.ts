@@ -970,7 +970,7 @@ export class Renderer {
         }
       }
       // input/output pips on production buildings
-      if (b.state === 'ready' && (b.kind === 'sawmill' || b.kind === 'forge')) {
+      if (b.state === 'ready' && (b.kind === 'sawmill' || b.kind === 'forge' || b.kind === 'workshop')) {
         let ix = px + 2;
         for (const [k, v] of Object.entries(b.inputs)) {
           for (let i = 0; i < Math.min(v ?? 0, 4); i++) {
@@ -1702,6 +1702,7 @@ export class Renderer {
       }
       case 'sawmill':
       case 'forge':
+      case 'workshop':
       case 'lantern': {
         const fp = FOOTPRINTS[tool];
         const cost = TOOL_DEFS.find((d) => d.id === tool)?.cost ?? {};

@@ -326,7 +326,7 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
     plank: data.startStock.plank ?? 0,
     spear: data.startStock.spear ?? 0,
   };
-  const need = { plank: 0, stone: 0, iron: 0, spear: 0, log: 0 };
+  const need = { plank: 0, stone: 0, iron: 0, spear: 0, log: 0, shovel: 0 };
   for (const o of objectives) need[o.item] += o.amount;
   const spearsToMake = Math.max(0, need.spear - have.spear);
   const planksNeeded = need.plank + spearsToMake; // forge uses 1 plank per spear

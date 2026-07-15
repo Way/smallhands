@@ -526,6 +526,17 @@ export function buildAtlas(): void {
     'wk......',
     'k.......',
   ]);
+  // shovel: wooden haft up-right, a steel spade blade at the foot
+  makeSprite('item_shovel', { w: '#a8743c', k: '#5f3c1b', s: '#8f9aa8', S: '#cdd6e2' }, [
+    '.....wk.',
+    '.....wk.',
+    '....wk..',
+    '...wk...',
+    '..sssss.',
+    '.sSSSSSs',
+    '.sSSSSs.',
+    '..sss...',
+  ]);
 
   // ---- smallhands (10x12, two walk frames + climb + work) ----
   // 'H' = hat (recolored per role at draw time via separate hat sprites)
@@ -678,6 +689,29 @@ export function buildAtlas(): void {
     '.WwffwwwwwddddwwwwwwW...',
     '.WkffwWwwwddddwwwwwkW...',
     '.WwffwwwwwddddwwWwwwW...',
+    '.WWWWWWWWWWWWWWWWWWWW...',
+    '.kkkkkkkkkkkkkkkkkkkk...',
+    '.kkkkkkkkkkkkkkkkkkkk...',
+    '........................',
+  ]);
+  // workshop: a carpenter's shed — mossy plank roof, a tool (shovel) mounted on
+  // the wall to read as "where shovels are made". 3x2 footprint like the sawmill.
+  const workshopPal = {
+    w: '#b98850', W: '#d3a86e', k: '#7c5830', r: '#7a8a5c', R: '#95a56e', d: '#5f3c1b', s: '#cfe3f5', i: '#9aa5b5', I: '#cdd6e2',
+  };
+  makeSprite('workshop', workshopPal, [
+    '......RRRRRRRRRR........',
+    '....RRrrrrrrrrrrRR......',
+    '..RRrrrrrrrrrrrrrrRR....',
+    '.RRrrrrrrrrrrrrrrrrRR...',
+    '.WWWWWWWWWWWWWWWWWWWW...',
+    '.WwkwwwkwwwWwwwkwwkwW...',
+    '.WwwwwwwwwwwwwwwwkwwW...',
+    '.WwsswwwwwddddwwiIwwW...',
+    '.WwsswwwwwddddwwiIwwW...',
+    '.WwwwwwwwwddddwwwkwwW...',
+    '.WkwwwWwwwddddwwwkwwW...',
+    '.WwwwwwwwwddddwwWwwwW...',
     '.WWWWWWWWWWWWWWWWWWWW...',
     '.kkkkkkkkkkkkkkkkkkkk...',
     '.kkkkkkkkkkkkkkkkkkkk...',

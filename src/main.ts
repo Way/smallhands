@@ -1718,6 +1718,9 @@ function applyTool(tx: number, ty: number): void {
     case 'forge':
       g.placeBuilding('forge', tx, ty);
       break;
+    case 'workshop':
+      g.placeBuilding('workshop', tx, ty);
+      break;
     case 'lantern':
       g.placeBuilding('lantern', tx, ty);
       break;

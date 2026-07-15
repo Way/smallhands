@@ -44,6 +44,7 @@ const D: Record<string, [string, string]> = {
   'item.stone': ['Stone', 'Stein'],
   'item.iron': ['Iron', 'Eisen'],
   'item.spear': ['Spear', 'Speer'],
+  'item.shovel': ['Shovel', 'Spaten'],
 
   // roles (plural, as shown in the crew panel)
   'role.hauler': ['Haulers', 'Träger'],
@@ -65,6 +66,7 @@ const D: Record<string, [string, string]> = {
   'building.townhall': ['Town Hall', 'Rathaus'],
   'building.sawmill': ['Sawmill', 'Sägewerk'],
   'building.forge': ['Forge', 'Schmiede'],
+  'building.workshop': ['Workshop', 'Werkstatt'],
   'building.lift': ['Cargo Lift', 'Lastenaufzug'],
   'building.rope': ['Rope Anchor', 'Seilanker'],
   'building.lantern': ['Lantern', 'Laterne'],
@@ -125,6 +127,11 @@ const D: Record<string, [string, string]> = {
   'tool.forge.desc': [
     'Forges spears from planks and iron. Needs a builder to construct it.',
     'Schmiedet Speere aus Brettern und Eisen. Ein Baumeister muss sie errichten.',
+  ],
+  'tool.workshop.label': ['Workshop', 'Werkstatt'],
+  'tool.workshop.desc': [
+    'Crafts shovels from a plank and iron — a digger needs one to dig. Needs a builder to construct it.',
+    'Fertigt Spaten aus einem Brett und Eisen — ein Gräber braucht einen zum Graben. Ein Baumeister muss sie errichten.',
   ],
   'tool.demolish.label': ['Demolish', 'Abreißen'],
   'tool.demolish.desc': [

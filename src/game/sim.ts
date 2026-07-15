@@ -132,12 +132,12 @@ export class Game {
   // append-only breadcrumbs, drained by the renderer, never read by game logic
   lookEvents: LookEvent[] = [];
 
-  stock: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
-  stockReserved: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
+  stock: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
+  stockReserved: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
 
   // Player-set floor per item: haulers deliver only stock ABOVE this to the
   // caravan, so resources can be banked for construction. 0 = ship everything.
-  keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0 };
+  keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
 
   desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0 };
 
@@ -463,7 +463,7 @@ export class Game {
     return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
   }
 
-  placeBuilding(kind: 'sawmill' | 'forge' | 'lantern', x: number, y: number): boolean {
+  placeBuilding(kind: 'sawmill' | 'forge' | 'workshop' | 'lantern', x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === kind)!;
     const fp = FOOTPRINTS[kind];
     if (!this.toolUnlocked(kind) || !this.canAfford(def.cost!) || !canPlaceBuilding(this.world, this.buildings, this.nodes, x, y, fp.w, fp.h)) {
