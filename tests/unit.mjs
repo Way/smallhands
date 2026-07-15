@@ -101,6 +101,33 @@ function findLadderCells(g, count) {
   check('stock never falls below the floor', g.stock.plank >= 1);
 }
 
+// ---- Reserve holds back loose & produced goods, not only stock --------------
+// The floor must gate EVERY route to the caravan. Loose items on the ground and
+// fresh workshop outputs can reach the goal WITHOUT passing through the
+// stockpile; if those direct routes skip the floor, keep is silently ignored
+// and everything ships (the reported bug: set a plank floor, yet every plank
+// still gets delivered to target). Probe with loose planks on level 1.
+{
+  const g = new Game(LEVELS[0]); // objective: plank 8, caravan goal
+  const plankObj = () => g.objectives.find((o) => o.item === 'plank');
+
+  // empty store, floor of 3, and 5 loose planks dropped on a worker's own cell
+  // (guaranteed standable + reachable). Without the fix these sail straight to
+  // the caravan; with it three bank in store and only the surplus (2) ships.
+  g.stock.plank = 0;
+  g.setKeep('plank', 3);
+  const spot = g.workers[0];
+  for (let i = 0; i < 5; i++) {
+    g.groundItems.push({ id: 70000 + i, item: 'plank', x: spot.cx, y: spot.cy, reserved: false, bounce: 0 });
+  }
+  for (let i = 0; i < 60 * 60; i++) g.tick(1 / 60); // 60s to settle
+
+  check('loose planks bank to the floor, not the caravan', g.stock.plank === 3);
+  check('only the surplus above the floor reaches the target',
+    plankObj().inbound + plankObj().delivered === 2);
+  check('no loose planks are left stranded', !g.groundItems.some((i) => i.item === 'plank'));
+}
+
 // ---- Level 3 shape: stone is both the order and the build material ---------
 {
   const g = new Game(LEVELS[2]); // objectives include stone 8; goal at west edge
