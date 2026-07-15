@@ -1590,11 +1590,31 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     flex-wrap: wrap;
   }
   .spacer { display: none; }
-  /* row 1: ☰ menu · resource strip · speed pill — system chrome rides along
+  /* row 1: ☰ menu · resource chips · speed pill — system chrome rides along
      the top, small and quiet; the bottom belongs to the builder tools */
   .hud-row { display: flex; width: 100%; gap: 6px; align-items: stretch; }
-  .res-bar { flex: 1; min-width: 0; justify-content: space-around; gap: 2px; padding: 4px 6px; }
-  .res-chip { min-width: 0; flex: 0 1 auto; }
+  /* no bar behind the resources: the strip goes transparent and every chip
+     floats as its own pill, letting the sky show through between them */
+  .res-bar {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .res-chip {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: 5px 9px 5px 6px;
+    border-radius: 9px;
+    background: var(--panel-bg);
+    border-color: var(--panel-border);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
 
   /* the three info panels collapse to their header pill; tap to fold out */
   .topbar .collapsible { min-width: 0; max-width: none; padding: 0 10px; }
@@ -1635,7 +1655,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .menubar .flyout-body { left: 0; right: auto; }
   .ctrlbar .flyout-body { right: 0; left: auto; }
 
-  /* bottom: the full-width, swipeable tool dock — builder actions only */
+  /* bottom: the full-width, swipeable tool row — builder actions only, no
+     bar behind them: each tool floats as its own pill over the world */
   .toolbar {
     bottom: max(8px, env(safe-area-inset-bottom));
     left: max(8px, env(safe-area-inset-left));
@@ -1645,8 +1666,12 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding: 6px;
-    gap: 5px;
+    padding: 4px 2px;
+    gap: 6px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
     /* soft edge fade says "there's more — swipe" */
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
     mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
@@ -1656,7 +1681,13 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
      the leading buttons reachable once the dock overflows into a scroll */
   .toolbar .tool-btn:first-child { margin-left: auto; }
   .toolbar .tool-btn:last-child { margin-right: auto; }
-  .tool-btn { flex: 0 0 auto; width: 54px; height: 56px; }
+  .tool-btn {
+    flex: 0 0 auto;
+    width: 54px;
+    height: 56px;
+    background: var(--panel-bg);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
   .tool-btn canvas { width: 26px; height: 26px; }
   .tool-btn .tool-label { font-size: 10px; }
 
