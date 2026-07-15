@@ -197,6 +197,62 @@ export function ladderRunCells(
   return cells;
 }
 
+// ---- digging --------------------------------------------------------------
+// A tile is diggable terrain if it is natural solid ground (dirt/grass/rock —
+// never BEDROCK), sits off the world's outer ring, and is not the support tile
+// directly under a building footprint (no support cascade exists, so removing
+// it would leave the building floating). This is the geometry-only test used
+// for the interior of a dig run; the anchor also needs a reachable face below.
+function isDiggableTerrain(world: World, buildings: Building[], x: number, y: number): boolean {
+  if (x <= 0 || y <= 0 || x >= world.w - 1 || y >= world.h - 1) return false; // world edge
+  const t = world.get(x, y);
+  if (t === T.BEDROCK) return false;
+  if (!world.isSolid(x, y)) return false; // only natural solid ground digs (not AIR/built tiles)
+  for (const b of buildings) {
+    const fp = FOOTPRINTS[b.kind];
+    if (x >= b.x && x < b.x + fp.w && y === b.y + fp.h) return false; // its support row
+  }
+  return true;
+}
+
+// Can the player mark this single cell to dig? Beyond being diggable terrain it
+// needs an existing standable cell orthogonally beside it (left/right for a
+// tunnel, above for a shaft) so a digger has somewhere to stand and reach it.
+export function canDig(world: World, buildings: Building[], x: number, y: number): boolean {
+  if (!isDiggableTerrain(world, buildings, x, y)) return false;
+  return world.isStandable(x - 1, y) || world.isStandable(x + 1, y) || world.isStandable(x, y - 1);
+}
+
+// The cells a dig drag would mark, from anchor (ax,ay) toward (tx,ty), snapped to
+// the dominant axis so one drag carves either a horizontal tunnel or a vertical
+// shaft. Like a bridge/ladder run, only the ANCHOR needs a reachable face now —
+// the interior opens progressively as the run is dug, so later cells only need
+// to be diggable terrain. Stops at the first cell that isn't.
+export function digRunCells(
+  world: World,
+  buildings: Building[],
+  ax: number,
+  ay: number,
+  tx: number,
+  ty: number
+): { x: number; y: number }[] {
+  if (!canDig(world, buildings, ax, ay)) return [];
+  const cells = [{ x: ax, y: ay }];
+  const adx = Math.abs(tx - ax);
+  const ady = Math.abs(ty - ay);
+  if (adx === 0 && ady === 0) return cells;
+  const dx = adx >= ady ? Math.sign(tx - ax) : 0;
+  const dy = adx >= ady ? 0 : Math.sign(ty - ay);
+  const n = Math.max(adx, ady);
+  for (let i = 1; i <= n; i++) {
+    const cx = ax + i * dx;
+    const cy = ay + i * dy;
+    if (!isDiggableTerrain(world, buildings, cx, cy)) break;
+    cells.push({ x: cx, y: cy });
+  }
+  return cells;
+}
+
 export function canPlaceBuilding(
   world: World,
   buildings: Building[],

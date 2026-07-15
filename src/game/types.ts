@@ -180,6 +180,7 @@ export type Tool =
   | 'sawmill'
   | 'forge'
   | 'workshop'
+  | 'dig'
   | 'lift'
   | 'rope'
   | 'hoist'
@@ -206,7 +207,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { id: 'hoist', key: 'h', cost: { plank: 3, iron: 1 }, thLevel: 2 },
   { id: 'lantern', key: 'l', cost: { log: 1, stone: 1 } },
   { id: 'forge', key: '8', cost: { plank: 4, stone: 4 }, thLevel: 2 },
-  { id: 'workshop', key: 'w', cost: { plank: 4, stone: 2 }, thLevel: 2 },
+  { id: 'workshop', key: 'k', cost: { plank: 4, stone: 2 }, thLevel: 2 },
+  { id: 'dig', key: 'g', thLevel: 2 },
   { id: 'demolish', key: '9' },
 ];
 

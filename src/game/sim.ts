@@ -43,7 +43,7 @@ import type {
   WeatherKind,
   WeatherPhase,
 } from './types';
-import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, ladderRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
+import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, ladderRunCells, canDig, digRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
 import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
@@ -140,6 +140,11 @@ export class Game {
   keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
 
   desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0 };
+
+  // Cells the player has marked to dig, stored as world tile indices. An
+  // assigned Digger removes them over time (see the dig task); until then they
+  // render as a pending overlay. Kept as indices for O(1) add/has/delete.
+  digOrders: Set<number> = new Set();
 
   thLevel = 1;
   thUpgrade: { progress: number; time: number; builderId: number | null } | null = null;
@@ -409,6 +414,7 @@ export class Game {
   private runCells(tool: Tool, ax: number, ay: number, tx: number, ty: number): { x: number; y: number }[] {
     if (tool === 'ladder') return ladderRunCells(this.world, ax, ay, tx, ty);
     if (tool === 'ramp') return rampRunCells(this.world, ax, ay, tx, ty);
+    if (tool === 'dig') return digRunCells(this.world, this.buildings, ax, ay, tx, ty);
     return bridgeRunCells(this.world, ax, ay, tx, ty); // platform (Bridge)
   }
 
@@ -419,6 +425,11 @@ export class Game {
   runPlan(tool: Tool, ax: number, ay: number, tx: number, ty: number): RunPlan {
     const cells = this.runCells(tool, ax, ay, tx, ty);
     const n = cells.length;
+    if (tool === 'dig') {
+      // Digging spends no resources — every marked cell is "affordable". The
+      // readout shows a plain tile count via a zero-need row.
+      return { cells, affordable: n, cost: {}, rows: [] };
+    }
     if (tool === 'ladder') {
       // 1 wood per rung: spend logs first, then planks (mirrors ladderWood).
       const logsUsed = Math.min(n, this.stock.log);
@@ -461,6 +472,40 @@ export class Game {
 
   placeLadderRun(ax: number, ay: number, tx: number, ty: number): number {
     return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
+  }
+
+  // Can this single cell be marked to dig? Thin wrapper over the world test so
+  // the renderer's ghost and callers don't need the buildings list.
+  canDig(x: number, y: number): boolean {
+    return canDig(this.world, this.buildings, x, y);
+  }
+
+  // Paint (or, on a single tap over an existing order, erase) a dig plan. A drag
+  // always adds its whole valid run; a lone tap on a cell that already carries an
+  // order clears it — the demolish-style cancel. Returns cells changed.
+  paintDigRun(ax: number, ay: number, tx: number, ty: number): number {
+    const anchorIdx = this.world.idx(ax, ay);
+    if (ax === tx && ay === ty && this.digOrders.has(anchorIdx)) {
+      this.digOrders.delete(anchorIdx);
+      this.onEvent({ type: 'demolish' });
+      return 1;
+    }
+    const cells = digRunCells(this.world, this.buildings, ax, ay, tx, ty);
+    let added = 0;
+    for (const c of cells) {
+      const i = this.world.idx(c.x, c.y);
+      if (!this.digOrders.has(i)) {
+        this.digOrders.add(i);
+        added++;
+      }
+    }
+    this.onEvent({ type: added > 0 ? 'place' : 'invalid' });
+    return added;
+  }
+
+  // Remove a pending dig order at this cell, if any (used by the demolish tool).
+  clearDigOrder(x: number, y: number): boolean {
+    return this.digOrders.delete(this.world.idx(x, y));
   }
 
   placeBuilding(kind: 'sawmill' | 'forge' | 'workshop' | 'lantern', x: number, y: number): boolean {
@@ -557,6 +602,11 @@ export class Game {
   }
 
   demolish(x: number, y: number): boolean {
+    // Cancelling a pending dig order is the cheapest thing demolish can do here.
+    if (this.clearDigOrder(x, y)) {
+      this.onEvent({ type: 'demolish' });
+      return true;
+    }
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
       this.world.set(x, y, T.AIR);

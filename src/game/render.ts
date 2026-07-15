@@ -140,6 +140,7 @@ export class Renderer {
     this.drawSetPiece(game);
     this.drawNodes(game, timeSec, harvNode?.id ?? -1, this.harvestFocus, look);
     this.drawBuildings(game, timeSec);
+    this.drawDigOrders(game, timeSec);
     this.drawStockpile(game);
     this.drawGroundItems(game, timeSec);
     this.drawWater(game, cam, timeSec);
@@ -898,6 +899,41 @@ export class Renderer {
         ctx.drawImage(sprite('mark').canvas, n.x * TILE + 5, topY - 4 + bounce);
       }
     }
+  }
+
+  // Pending dig plan: an amber hatch + pulsing dashed outline over each marked
+  // cell, so a tunnel/shaft the player painted reads as "queued to be removed".
+  private drawDigOrders(game: Game, t: number): void {
+    if (game.digOrders.size === 0) return;
+    const { ctx } = this;
+    const w = game.world.w;
+    const pulse = this.reduceMotion ? 0.5 : 0.5 + Math.sin(t * 4) * 0.25;
+    ctx.save();
+    for (const idx of game.digOrders) {
+      const x = idx % w;
+      const y = (idx / w) | 0;
+      const px = x * TILE;
+      const py = y * TILE;
+      ctx.fillStyle = `rgba(230,150,60,${0.16 + pulse * 0.12})`;
+      ctx.fillRect(px, py, TILE, TILE);
+      // diagonal hatch marks the cell as "to be carved out" (clipped to the tile)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(px, py, TILE, TILE);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(255,196,120,0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let o = -TILE; o < TILE; o += 5) {
+        ctx.moveTo(px + o, py);
+        ctx.lineTo(px + o + TILE, py + TILE);
+      }
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = `rgba(255,170,80,${0.55 + pulse * 0.35})`;
+      ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+    }
+    ctx.restore();
   }
 
   private drawBuildings(game: Game, t: number): void {
@@ -1698,6 +1734,12 @@ export class Renderer {
         ctx.drawImage(sprite('tile_ramp').canvas, px, py);
         ctx.globalAlpha = 1;
         outline(ok);
+        break;
+      }
+      case 'dig': {
+        // green when this cell can be marked to dig, red when it can't
+        // (bedrock, world edge, under a building, or no reachable face)
+        outline(game.canDig(tx, ty));
         break;
       }
       case 'sawmill':

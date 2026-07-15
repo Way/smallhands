@@ -37,6 +37,7 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   sawmill: 'sawmill',
   forge: 'forge',
   workshop: 'workshop',
+  dig: 'icon_dig',
   lift: 'lift_car',
   rope: 'rope_anchor',
   hoist: 'hoist_post',

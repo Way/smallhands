@@ -977,6 +977,23 @@ export function buildAtlas(): void {
     '..pp..........',
     '..pp..........',
   ]);
+  // dig tool: a pickaxe — curved steel head over a wooden haft
+  makeSprite('icon_dig', { i: '#8f9aa8', I: '#cdd6e2', k: '#7c5830' }, [
+    '.i..........i.',
+    '.iIi......iIi.',
+    '..iIIiiiiIIi..',
+    '...iIIIIIIi...',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '.....kk.......',
+    '....kkkk......',
+    '..............',
+  ]);
   makeSprite('icon_demolish', { r: '#ff7a6b', R: '#ffa79c', k: '#b34a3e' }, [
     'RR..........RR',
     'RRR........RRR',

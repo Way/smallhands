@@ -133,6 +133,11 @@ const D: Record<string, [string, string]> = {
     'Crafts shovels from a plank and iron — a digger needs one to dig. Needs a builder to construct it.',
     'Fertigt Spaten aus einem Brett und Eisen — ein Gräber braucht einen zum Graben. Ein Baumeister muss sie errichten.',
   ],
+  'tool.dig.label': ['Dig', 'Graben'],
+  'tool.dig.desc': [
+    'Mark a tunnel or shaft to carve out — drag to paint a run. A digger with a shovel removes the ground over time. Bedrock and tiles under buildings stay put.',
+    'Markiere einen Tunnel oder Schacht zum Ausheben — ziehen für eine Strecke. Ein Gräber mit Spaten trägt den Boden nach und nach ab. Grundgestein und Felder unter Gebäuden bleiben.',
+  ],
   'tool.demolish.label': ['Demolish', 'Abreißen'],
   'tool.demolish.desc': [
     'Remove a ladder, bridge, ramp or building. Refunds half the cost.',
@@ -314,6 +319,7 @@ const D: Record<string, [string, string]> = {
   'hud.ctaMark': ['Mark', 'Markieren'],
   'hud.ctaUnmark': ['Unmark', 'Abwählen'],
   'hud.ctaDemolish': ['Demolish', 'Abreißen'],
+  'hud.ctaDig': ['Dig', 'Graben'],
   'hud.tapToAim': ['Tap the map to aim', 'Tippe zum Zielen auf die Karte'],
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
