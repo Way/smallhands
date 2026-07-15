@@ -1,6 +1,8 @@
 import {
   BUILD_TIME,
   BUILDER_SPEED,
+  DIG_TIME,
+  DIG_TIME_DEFAULT,
   CLIMB_SPEED,
   carCount,
   carWeight,
@@ -44,7 +46,7 @@ import type {
   WeatherPhase,
 } from './types';
 import { World, canPlaceBuilding, canPlaceLadder, rampRunCells, bridgeRunCells, ladderRunCells, canDig, digRunCells, footprintH, footprintW, liftTopFor, ropeDropFor } from './world';
-import { buildingApproachCells, findPath, nodeApproachCells, settle } from './nav';
+import { buildingApproachCells, digApproachCells, findPath, nodeApproachCells, settle } from './nav';
 import type { LevelDef } from './levels';
 
 // ---- tasks ----------------------------------------------------------------
@@ -61,6 +63,7 @@ type Task =
   | { kind: 'haul'; phase: 'toSource' | 'toSink'; item: ItemType; source: Source; sink: Sink }
   | { kind: 'construct'; buildingId: number }
   | { kind: 'upgrade' }
+  | { kind: 'dig'; tx: number; ty: number }
   | { kind: 'wander' };
 
 export interface Worker {
@@ -76,6 +79,7 @@ export interface Worker {
   stepIdx: number;
   task: Task | null;
   carrying: ItemType | null;
+  hasShovel: boolean; // a Digger holds one shovel as permanent equipment
   workT: number;
   facing: number; // 1 or -1
   animT: number;
@@ -98,6 +102,7 @@ export type GameEvent =
   | { type: 'built'; building: Building }
   | { type: 'upgraded'; level: number }
   | { type: 'demolish' }
+  | { type: 'dug'; x: number; y: number }
   | { type: 'spawn' }
   | { type: 'produce'; building: Building; item: ItemType }
   | { type: 'hoistCycle' }
@@ -139,7 +144,7 @@ export class Game {
   // caravan, so resources can be banked for construction. 0 = ship everything.
   keep: Record<ItemType, number> = { log: 0, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
 
-  desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0 };
+  desiredRoles: Record<Role, number> = { hauler: 0, builder: 0, woodcutter: 0, miner: 0, digger: 0 };
 
   // Cells the player has marked to dig, stored as world tile indices. An
   // assigned Digger removes them over time (see the dig task); until then they
@@ -183,7 +188,7 @@ export class Game {
     for (const [k, v] of Object.entries(level.startStock ?? {})) {
       this.stock[k as ItemType] = v as number;
     }
-    this.desiredRoles = { hauler: 0, builder: 0, woodcutter: 0, miner: 0, ...level.startRoles };
+    this.desiredRoles = { hauler: 0, builder: 0, woodcutter: 0, miner: 0, digger: 0, ...level.startRoles };
     this.objectives = level.objectives.map((o) => ({ ...o, delivered: 0, inbound: 0 }));
     const startWorkers = level.startWorkers ?? 4;
     for (let i = 0; i < startWorkers; i++) this.spawnWorker(true);
@@ -796,6 +801,7 @@ export class Game {
       stepIdx: 0,
       task: null,
       carrying: null,
+      hasShovel: false,
       workT: 0,
       facing: Math.random() < 0.5 ? -1 : 1,
       animT: Math.random() * 10,
@@ -1147,6 +1153,40 @@ export class Game {
     return true;
   }
 
+  // Assign an idle Digger the nearest reachable dig order. Reach = stand beside
+  // it (tunnel) or above it (shaft). A shovel is claimed from stock only once a
+  // reachable order exists, so a Digger never hoards a shovel with nothing to dig.
+  private tryAssignDig(w: Worker): boolean {
+    if (this.digOrders.size === 0) return false;
+    const wgrid = this.world.w;
+    let best: { tx: number; ty: number; steps: PathStep[]; cost: number } | null = null;
+    for (const idx of this.digOrders) {
+      const x = idx % wgrid;
+      const y = (idx / wgrid) | 0;
+      if (this.world.get(x, y) === T.AIR) {
+        this.digOrders.delete(idx); // already cleared — prune stale order
+        continue;
+      }
+      // don't double-book a cell another Digger is already headed to
+      if (this.workers.some((o) => o !== w && o.task?.kind === 'dig' && o.task.tx === x && o.task.ty === y)) continue;
+      const cells = digApproachCells(this.world, x, y);
+      if (cells.size === 0) continue;
+      const path = findPath(this.world, this.transits, w.cx, w.cy, cells, false);
+      if (!path) continue;
+      if (!best || path.cost < best.cost) best = { tx: x, ty: y, steps: path.steps, cost: path.cost };
+    }
+    if (!best) return false;
+    if (!w.hasShovel) {
+      if (this.available('shovel') <= 0) return false; // no shovel to dig with
+      this.stock.shovel--; // claim one as permanent equipment
+      w.hasShovel = true;
+    }
+    w.task = { kind: 'dig', tx: best.tx, ty: best.ty };
+    w.path = best.steps;
+    w.stepIdx = 0;
+    return true;
+  }
+
   private tryAssignConstruct(w: Worker): boolean {
     // town hall upgrade takes priority
     if (this.thUpgrade && this.thUpgrade.builderId === null) {
@@ -1200,6 +1240,11 @@ export class Game {
         if (w.task && w.task.kind !== 'wander') continue;
         if (this.roleCount(w.role) <= this.desiredRoles[w.role]) continue;
         if (w.task) this.abortTask(w);
+        // a Digger leaving the role hands its shovel back to the stockpile
+        if (w.hasShovel && role !== 'digger') {
+          this.stock.shovel++;
+          w.hasShovel = false;
+        }
         w.role = role;
         deficit--;
       }
@@ -1221,6 +1266,7 @@ export class Game {
       let assigned = false;
       if (w.role === 'hauler') assigned = this.tryAssignHaul(w);
       else if (w.role === 'builder') assigned = this.tryAssignConstruct(w);
+      else if (w.role === 'digger') assigned = this.tryAssignDig(w);
       else assigned = this.tryAssignHarvest(w);
       if (!assigned) this.tryAssignWander(w);
     }
@@ -1236,6 +1282,11 @@ export class Game {
         w.task = null;
         break;
       case 'harvest': {
+        w.working = true;
+        w.workT = 0;
+        break;
+      }
+      case 'dig': {
         w.working = true;
         w.workT = 0;
         break;
@@ -1364,6 +1415,31 @@ export class Game {
           w.task = null;
           w.working = false;
         }
+      }
+    } else if (task.kind === 'dig') {
+      const idx = this.world.idx(task.tx, task.ty);
+      // abandon if the order was cancelled, the tile is already open, or the
+      // digger got bumped off its reach cell (e.g. it fell) — reschedule instead
+      const adjacent =
+        (w.cx === task.tx && w.cy === task.ty - 1) || (w.cy === task.ty && Math.abs(w.cx - task.tx) === 1);
+      if (!this.digOrders.has(idx) || !this.world.isSolid(task.tx, task.ty) || !adjacent) {
+        if (this.world.get(task.tx, task.ty) === T.AIR) this.digOrders.delete(idx);
+        this.abortTask(w);
+        return;
+      }
+      const tile = this.world.get(task.tx, task.ty);
+      w.workT += dt;
+      if (Math.random() < dt * 3) this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 2);
+      if (w.workT >= (DIG_TIME[tile] ?? DIG_TIME_DEFAULT)) {
+        w.workT = 0;
+        this.world.set(task.tx, task.ty, T.AIR);
+        this.digOrders.delete(idx);
+        this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 8);
+        this.onEvent({ type: 'dug', x: task.tx, y: task.ty });
+        w.task = null;
+        w.working = false;
+        // opened terrain frees new routes; the next schedule (0.3s) repaths, and
+        // tickGravity settles anyone standing where the ground just vanished.
       }
     } else if (task.kind === 'construct') {
       const b = this.buildings.find((bd) => bd.id === task.buildingId);

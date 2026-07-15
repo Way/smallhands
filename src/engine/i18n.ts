@@ -51,6 +51,7 @@ const D: Record<string, [string, string]> = {
   'role.builder': ['Builders', 'Baumeister'],
   'role.woodcutter': ['Woodcutters', 'Holzfäller'],
   'role.miner': ['Miners', 'Bergleute'],
+  'role.digger': ['Diggers', 'Gräber'],
 
   // weather
   'weather.clear': ['Clear', 'Klar'],

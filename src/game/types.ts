@@ -28,8 +28,8 @@ export const ITEM_ICON: Record<ItemType, string> = {
   shovel: 'item_shovel',
 };
 
-export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner';
-export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner'];
+export type Role = 'hauler' | 'builder' | 'woodcutter' | 'miner' | 'digger';
+export const ROLES: Role[] = ['hauler', 'builder', 'woodcutter', 'miner', 'digger'];
 // display names live in the i18n table: t(`role.${role}`)
 
 export const ROLE_COLORS: Record<Role, string> = {
@@ -37,6 +37,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   builder: '#ffc94d',
   woodcutter: '#6fd66f',
   miner: '#f08a4b',
+  digger: '#b07de0',
 };
 
 export type NodeKind = 'tree' | 'boulder' | 'vein';
@@ -236,6 +237,15 @@ export const MAX_FALL_CARRY = 2; // tiles a smallhand may drop while carrying
 
 export const WORKER_SPAWN_INTERVAL = 2.5; // seconds between new smallhands
 export const BUILDER_SPEED = 1; // progress per second
+
+// Seconds a Digger takes to remove one tile, by terrain kind. Rock is the slog;
+// dirt and grass give way quickly. Balanced further in the polish pass.
+export const DIG_TIME: Partial<Record<T, number>> = {
+  [T.DIRT]: 1.6,
+  [T.GRASS]: 1.6,
+  [T.ROCK]: 2.8,
+};
+export const DIG_TIME_DEFAULT = 2;
 
 export interface GroundItem {
   id: number;

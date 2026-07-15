@@ -616,6 +616,7 @@ export function buildAtlas(): void {
     builder: '#ffc94d',
     woodcutter: '#6fd66f',
     miner: '#f08a4b',
+    digger: '#b07de0',
   };
   for (const role of Object.keys(HAT_COLORS)) hatShape(role, '#00000000');
 
