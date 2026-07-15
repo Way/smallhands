@@ -106,6 +106,17 @@ skill tree, challenge modes — lives in [`docs/DESIGN.md`](docs/DESIGN.md).
 | `Space` | Pause / resume |
 | `Esc` | Back to inspect tool |
 
+On touch screens the game switches to a tap-to-aim scheme — a finger hides
+the tile it touches, so nothing ever fires on the tap itself:
+
+| Touch input | Action |
+| --- | --- |
+| Tap (tool armed) | Aim — the ghost parks on the tile, a confirm bar shows cost; ✓ commits, ✕ discards |
+| Tap again (ladder/ramp/bridge) | Extend the run tap by tap before confirming |
+| Tap (Inspect) | Live tooltip for the building/node; Town Hall & hoist open their panels |
+| One-finger drag | Pan camera (never places) |
+| Pinch / two-finger drag | Zoom (pixel-perfect steps) / pan |
+
 ## Site layout
 
 The site is a single-page static build with one front door:

@@ -239,13 +239,16 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
 
   // JS contain-fit: the wrap must have EXACTLY the viewBox aspect so that
   // percent-positioned HTML (nodes, badges, popover) lines up with SVG paths.
-  // Below 900px of rendered width the wrap stops shrinking and the viewport
-  // pans horizontally instead (nodes stay tappable).
+  // Below a minimum rendered width the wrap stops shrinking and the viewport
+  // pans instead (nodes stay tappable). Touch screens keep a larger minimum:
+  // thumb-sized medallions need the extra spacing between them.
+  const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+  const minMapW = coarse ? 1080 : 900;
   const fit = () => {
     const r = viewport.getBoundingClientRect();
     if (!r.width || !r.height) return;
     let s = Math.min(r.width / VIEW_W, r.height / VIEW_H);
-    s = Math.max(s, 900 / VIEW_W);
+    s = Math.max(s, minMapW / VIEW_W);
     wrap.style.width = `${VIEW_W * s}px`;
     wrap.style.height = `${VIEW_H * s}px`;
   };
@@ -700,6 +703,23 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     mine.appendChild(n);
   }
   ov.appendChild(legend);
+
+  // When the map is larger than the viewport (phones pan it), open on the
+  // current objective — the pulsing next level, or the fresh daily as a
+  // fallback — centred, instead of the map's top-left corner.
+  requestAnimationFrame(() => {
+    if (!viewport.isConnected) return;
+    fit();
+    const target =
+      (wrap.querySelector('.map-node.next') as HTMLElement | null) ??
+      (wrap.querySelector('.map-daily.fresh') as HTMLElement | null);
+    if (!target) return;
+    const vr = viewport.getBoundingClientRect();
+    if (viewport.scrollWidth <= vr.width + 1 && viewport.scrollHeight <= vr.height + 1) return;
+    const tr = target.getBoundingClientRect();
+    viewport.scrollLeft += tr.left + tr.width / 2 - (vr.left + vr.width / 2);
+    viewport.scrollTop += tr.top + tr.height / 2 - (vr.top + vr.height / 2);
+  });
 
   return ov;
 }

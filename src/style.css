@@ -232,6 +232,7 @@ body.in-game #frontdoor { display: none; }
   margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
+  gap: 8px;
 }
 .crew h3 .pop { color: var(--text); }
 .role-row {
@@ -1480,13 +1481,14 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  max-width: min(560px, calc(100vw - 12px));
+  width: min(560px, calc(100vw - 12px));
   z-index: 15;
   border-color: var(--panel-border-light);
   animation: toastin 0.18s ease-out;
 }
-.cb-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cb-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .cb-tool { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; flex-wrap: wrap; }
+.cb-name, .cb-count { white-space: nowrap; }
 .cb-tool canvas { width: 22px; height: 22px; image-rendering: pixelated; }
 .cb-count { color: var(--accent2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .cb-count.short { color: var(--accent); }
@@ -1565,9 +1567,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .lv-action-btn { width: 36px; height: 36px; font-size: 14px; }
   .level-card.custom .lv-num,
   .level-card.custom .lv-name { padding-right: 124px; }
-  .map-node { width: 48px; height: 48px; font-size: 18px; }
-  .map-daily { width: 48px; height: 50px; }
-  .map-daily .cal-day { font-size: 23px; }
+  .map-node { width: 44px; height: 44px; font-size: 17px; }
+  .map-daily { width: 46px; height: 48px; }
+  .map-daily .cal-day { font-size: 22px; }
   .legend-btn { padding: 12px 16px; }
   .ed-btn { padding: 9px 12px; }
   .tooltip { max-width: min(260px, calc(100vw - 16px)); }
@@ -1626,13 +1628,23 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
   }
   .toolbar::-webkit-scrollbar { display: none; }
+  /* centre the tools when they fit; auto-margins (not justify-content) keep
+     the leading buttons reachable once the dock overflows into a scroll */
+  .toolbar .tool-btn:first-child { margin-left: auto; }
+  .toolbar .tool-btn:last-child { margin-right: auto; }
   .tool-btn { flex: 0 0 auto; width: 54px; height: 56px; }
   .tool-btn canvas { width: 26px; height: 26px; }
   .tool-btn .tool-label { font-size: 10px; }
 
   /* floating readouts clear the dock and the notch */
   .confirm-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
-  .toast-wrap { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 146px); max-width: calc(100vw - 16px); }
+  /* toasts move to the top, under the HUD pills: bottom-centre floaters sit in
+     the middle of a phone screen and swallow the very taps that aim tools */
+  .toast-wrap {
+    top: calc(max(6px, env(safe-area-inset-top)) + 92px);
+    bottom: auto;
+    max-width: calc(100vw - 16px);
+  }
   .pause-note { top: auto; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
   .resume-overlay .confirm-box, .confirm-box { max-width: min(440px, calc(100vw - 24px)); padding: 22px 18px; }
 

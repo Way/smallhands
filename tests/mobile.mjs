@@ -102,6 +102,15 @@ await page.tap('.map-popover .pop-play');
 await page.waitForTimeout(500);
 check('level started', await page.evaluate(() => !!window.__smallhands?.game));
 
+// mobile toasts live at the top, under the HUD pills — they must never float
+// mid-screen where they'd swallow the taps and pinches aimed at the map
+check('toasts sit in the top half of the screen', await page.evaluate(() => {
+  const wrap = document.querySelector('.toast-wrap');
+  return wrap && wrap.getBoundingClientRect().top < window.innerHeight / 2;
+}));
+// dismiss the tutorial/rotate toasts the way a player would before playing on
+await page.evaluate(() => document.querySelectorAll('.toast').forEach((tst) => tst.remove()));
+
 // ---- DPR-aware zoom default + pinch ----------------------------------------
 check('phone starts at zoom 4 (DPR≥2 default)', await page.evaluate(() => window.__smallhands.cam.zoom === 4));
 await pinch({ x: 195, y: 420 }, 90, 260);
