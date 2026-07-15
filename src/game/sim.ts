@@ -926,17 +926,31 @@ export class Game {
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
-        if (this.available(o.item) - this.keep[o.item] > 0) {
+        // The keep floor banks `keep` units in the stockpile before any surplus
+        // ships to the caravan. It must gate EVERY route to the goal, not only
+        // the stock route: loose items and workshop outputs can reach the goal
+        // WITHOUT passing through the stockpile, so unless they honour the floor
+        // too, freshly produced/dropped goods sail straight past it and keep is
+        // silently ignored ("all planks keep get delivered to target").
+        const surplus = this.available(o.item) - this.keep[o.item];
+        if (surplus > 0) {
           cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
         }
-        for (const gi of this.groundItems) {
-          if (gi.reserved || gi.item !== o.item) continue;
-          cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
-        }
-        for (const b of this.buildings) {
-          if (b.state !== 'ready') continue;
-          if (this.outAvailable(b, o.item) > 0) {
-            cands.push({ source: { t: 'output', id: b.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+        // Direct-to-goal routes fire only once the store already holds the
+        // floor; below it these units belong in the stockpile, building the
+        // reserve up (routes 3 & 4 sink loose items and outputs into stock).
+        // keep 0 (the default) keeps surplus >= 0 always true — behaviour there
+        // is unchanged.
+        if (surplus >= 0) {
+          for (const gi of this.groundItems) {
+            if (gi.reserved || gi.item !== o.item) continue;
+            cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+          }
+          for (const b of this.buildings) {
+            if (b.state !== 'ready') continue;
+            if (this.outAvailable(b, o.item) > 0) {
+              cands.push({ source: { t: 'output', id: b.id }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
+            }
           }
         }
       }
