@@ -92,3 +92,19 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
 export function biomeSuffix(b: Biome): string {
   return b === 'meadow' ? '' : `@${b}`;
 }
+
+// Which tree silhouette grows in a biome. Most keep the classic broadleaf;
+// the arid biomes (chalk dunes, redrock desert) grow palms, and the
+// snow-capped slate highlands grow snow-dusted pines. The sprite names here
+// must be registered in sprites.ts. Biomes absent from this map fall back to
+// the plain 'tree' via treeSprite().
+export const BIOME_TREE: Partial<Record<Biome, string>> = {
+  chalk: 'tree_palm',
+  redrock: 'tree_palm',
+  slate: 'tree_pine',
+};
+
+// Sprite name for the tree a biome grows (defaults to the classic broadleaf).
+export function treeSprite(b: Biome): string {
+  return BIOME_TREE[b] ?? 'tree';
+}

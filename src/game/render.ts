@@ -1,7 +1,7 @@
 import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
-import { BIOME_LOOK, biomeSuffix } from '../engine/biomes';
+import { BIOME_LOOK, biomeSuffix, treeSprite } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
 import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
@@ -852,6 +852,8 @@ export class Renderer {
     // the wind leans on the treetops: gentle by default, hard in a storm
     const wind = look.wind;
     const windHz = look.windHz;
+    // the tree silhouette follows the biome (palm on sand, pine on snow, …)
+    const treeImg = sprite(treeSprite((game.level.biome ?? 'meadow') as Biome)).canvas;
     for (const n of game.nodes) {
       const anticip = n.id === hoveredId ? focus : 0;
       const wob = n.wobble > 0 ? Math.sin(t * 40) * 1.2 : 0;
@@ -871,7 +873,7 @@ export class Renderer {
           ctx.translate(pivotX, baseY);
           ctx.transform(1, 0, -sway / 32, 1, 0, 0); // shear grows toward the crown
           ctx.translate(-pivotX, -baseY);
-          ctx.drawImage(sprite('tree').canvas, px, top, TILE, 32);
+          ctx.drawImage(treeImg, px, top, TILE, 32);
           ctx.restore();
         } else {
           ctx.drawImage(sprite('stump').canvas, n.x * TILE, n.y * TILE);
@@ -883,7 +885,7 @@ export class Renderer {
             ctx.save();
             ctx.translate(pivotX, baseY);
             ctx.rotate(fall);
-            ctx.drawImage(sprite('tree').canvas, -TILE / 2, -32, TILE, 32);
+            ctx.drawImage(treeImg, -TILE / 2, -32, TILE, 32);
             ctx.restore();
           }
         }
