@@ -842,7 +842,8 @@ function showWin(): void {
       if ((next.campaign ?? 1) !== (cur.campaign ?? 1)) {
         const unlock = document.createElement('div');
         unlock.className = 'win-stats camp-unlock';
-        unlock.innerHTML = t((next.campaign ?? 1) === 3 ? 'win.campaign3' : 'win.campaign2');
+        const campKey = { 2: 'win.campaign2', 3: 'win.campaign3', 4: 'win.campaign4' }[next.campaign ?? 1] ?? 'win.campaign2';
+        unlock.innerHTML = t(campKey);
         ov.appendChild(unlock);
       }
       const nb = document.createElement('button');

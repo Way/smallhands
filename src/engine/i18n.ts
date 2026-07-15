@@ -413,11 +413,29 @@ const D: Record<string, [string, string]> = {
     'The storm has seized the hoist’s brake! Watch the forecast — chop, mine and forge through the gusts, ship in the calm.',
     'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
   ],
+  'lvl13.name': ['The Buried Seam', 'Die vergrabene Ader'],
+  'lvl13.desc': [
+    'Iron and the caravan lie sealed in a gallery beneath the meadow. Craft a shovel, sink a shaft, and tunnel through to them.',
+    'Eisen und die Karawane liegen versiegelt in einem Stollen unter der Wiese. Fertige einen Spaten, teufe einen Schacht ab und grabe dich zu ihnen durch.',
+  ],
+  'lvl13.hint.seam': [
+    'The iron seam and the caravan are <b>buried</b> below. Build a <b>Workshop</b> (Town Hall 2) and it will craft a <b>shovel</b> from a plank and iron — a digger needs one.',
+    'Die Eisenader und die Karawane sind <b>vergraben</b>. Baue eine <b>Werkstatt</b> (Rathaus 2) — sie fertigt aus Brett und Eisen einen <b>Spaten</b>, den ein Gräber braucht.',
+  ],
+  'lvl13.hint.shaft': [
+    'A shovel is ready! Assign a <b>Digger</b> in the crew panel, then use the <b>Dig</b> tool to sink a <b>vertical shaft</b> straight down to the gallery.',
+    'Ein Spaten ist fertig! Weise im Trupp-Panel einen <b>Gräber</b> zu und teufe mit dem <b>Grab</b>-Werkzeug einen <b>senkrechten Schacht</b> hinab zum Stollen.',
+  ],
+  'lvl13.hint.tunnel': [
+    'Down in the gallery, drag the <b>Dig</b> tool sideways to carve a <b>tunnel</b> to the iron seam and the caravan. Miners work the vein; haulers carry the iron along the flat.',
+    'Im Stollen ziehst du das <b>Grab</b>-Werkzeug seitwärts für einen <b>Tunnel</b> zur Eisenader und zur Karawane. Bergleute bauen die Ader ab; Träger tragen das Eisen eben hinüber.',
+  ],
 
   // world map (level select)
   'map.terr1': ['Home Meadows', 'Heimatwiesen'],
   'map.terr2': ['Storm & Tide', 'Sturm & Flut'],
   'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
+  'map.terr4': ['Shaft & Seam', 'Schacht & Ader'],
   'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
   'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
   'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
@@ -513,6 +531,10 @@ const D: Record<string, [string, string]> = {
   'win.campaign2': [
     '<b>🌩 Campaign 2 unlocked — Storm & Tide!</b><br/>Rivers to bridge, tides that rise with every rainfall, storms that stop the lifts — and nights worked by lantern light.',
     '<b>🌩 Kampagne 2 freigeschaltet — Sturm & Flut!</b><br/>Flüsse zum Überbrücken, Fluten, die mit jedem Regen steigen, Stürme, die die Aufzüge stoppen — und Nächte im Laternenschein.',
+  ],
+  'win.campaign4': [
+    '<b>⛏ Campaign 4 unlocked — Shaft &amp; Seam!</b><br/>Craft shovels in the Workshop, assign Diggers, and carve tunnels and shafts to buried iron and sealed caravans.',
+    '<b>⛏ Kampagne 4 freigeschaltet — Schacht &amp; Ader!</b><br/>Fertige Spaten in der Werkstatt, weise Gräber zu und schlage Tunnel und Schächte zu vergrabenem Eisen und versiegelten Karawanen.',
   ],
   'win.allDone': [
     '<b>You have finished every campaign!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.',
