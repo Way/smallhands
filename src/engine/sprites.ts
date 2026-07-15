@@ -436,6 +436,55 @@ export function buildAtlas(): void {
     '......Ttt.......',
     '.....TTttt......',
   ]);
+  // Arid biomes (chalk dunes, redrock desert) grow palms: a slim curved trunk
+  // topped with a crown of drooping fronds and a pair of coconuts. Authored on
+  // the same 16x16 grid as the broadleaf and stretched to 16x32 at draw time.
+  const palmPal = {
+    t: '#7a4a26', T: '#935c31', g: '#3e8c3e', G: '#54ad4f', L: '#6fc763',
+    k: '#2c6b2f', c: '#8a5a2b',
+  };
+  makeSprite('tree_palm', palmPal, [
+    '.......L........',
+    '...L..LGL..L....',
+    '..LGLLGGGLLGL...',
+    '.LGGGGGkGGGGGL..',
+    'LGGkGGGGGGGkGGL.',
+    '..LGGGGkGGGGL...',
+    '.....GcTcG......',
+    '......Tt........',
+    '......tT........',
+    '......Tt........',
+    '......tT........',
+    '......Tt........',
+    '......tT........',
+    '......Tt........',
+    '.....TtTt.......',
+    '....TTttttt.....',
+  ]);
+  // Snow-capped slate highlands grow evergreen pines with snow settled on the
+  // upper edge of each tier.
+  const pinePal = {
+    t: '#6a4a2e', T: '#835a38', g: '#2f6d43', G: '#3d8757', L: '#5aa877',
+    k: '#204b30', S: '#eaf2ff',
+  };
+  makeSprite('tree_pine', pinePal, [
+    '.......S........',
+    '.......G........',
+    '......SGk.......',
+    '......GGG.......',
+    '.....SGgGk......',
+    '.....GGgGG......',
+    '....SGgggGk.....',
+    '....GGgggGG.....',
+    '...SGgggggGk....',
+    '...GGgggggGG....',
+    '..SGgggggggGk...',
+    '..GLgggggggGG...',
+    '.SGgggggggggGk..',
+    '....GGGtGGG.....',
+    '......TtT.......',
+    '.....TTttt......',
+  ]);
   const boulderPal = { r: '#8d97a8', R: '#aab4c4', k: '#69707d', K: '#525862' };
   makeSprite('boulder', boulderPal, [
     '................',
