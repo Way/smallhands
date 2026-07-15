@@ -325,18 +325,20 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
     iron: (data.startStock.iron ?? 0) + yieldOf('vein'),
     plank: data.startStock.plank ?? 0,
     spear: data.startStock.spear ?? 0,
+    shovel: data.startStock.shovel ?? 0,
   };
   const need = { plank: 0, stone: 0, iron: 0, spear: 0, log: 0, shovel: 0 };
   for (const o of objectives) need[o.item] += o.amount;
-  const spearsToMake = Math.max(0, need.spear - have.spear);
-  const planksNeeded = need.plank + spearsToMake; // forge uses 1 plank per spear
+  // forge (spear) and workshop (shovel) each craft one tool from 1 plank + 1 iron
+  const toolsToMake = Math.max(0, need.spear - have.spear) + Math.max(0, need.shovel - have.shovel);
+  const planksNeeded = need.plank + toolsToMake;
   const planksToSaw = Math.max(0, planksNeeded - have.plank);
   // sawmill yields 2 planks per log; the mill itself costs 6 logs
   const logsNeeded = need.log + (planksToSaw > 0 ? Math.ceil(planksToSaw / 2) + 6 : 0);
   if (have.log < logsNeeded) warnings.push(t('verify.wood', { need: logsNeeded, have: have.log }));
   if (have.stone < need.stone) problems.push(t('verify.stone', { need: need.stone, have: have.stone }));
-  if (have.iron < spearsToMake) problems.push(t('verify.iron', { need: spearsToMake, have: have.iron }));
-  if (spearsToMake > 0 && data.startThLevel < 2) {
+  if (have.iron < toolsToMake) problems.push(t('verify.iron', { need: toolsToMake, have: have.iron }));
+  if (toolsToMake > 0 && data.startThLevel < 2) {
     const thStone = 6; // TH1→2 upgrade stone cost
     if (have.stone < need.stone + thStone + 4) warnings.push(t('verify.spearStone'));
   }

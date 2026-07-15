@@ -710,12 +710,12 @@ const D: Record<string, [string, string]> = {
     'Nicht genug Stein im Level: Der Auftrag braucht {need}, nur {have} sind erreichbar.',
   ],
   'verify.iron': [
-    'Not enough iron in the level: spears need {need}, only {have} obtainable.',
-    'Nicht genug Eisen im Level: Speere brauchen {need}, nur {have} sind erreichbar.',
+    'Not enough iron in the level: crafted tools (spears/shovels) need {need}, only {have} obtainable.',
+    'Nicht genug Eisen im Level: gefertigte Werkzeuge (Speere/Schaufeln) brauchen {need}, nur {have} sind erreichbar.',
   ],
   'verify.spearStone': [
-    'Spears need a forge (Town Hall 2) — stone for the upgrade and forge may run short.',
-    'Speere brauchen eine Schmiede (Rathaus 2) — der Stein für Ausbau und Schmiede könnte knapp werden.',
+    'Crafted tools need a forge or workshop (Town Hall 2) — stone for the upgrade and building may run short.',
+    'Gefertigte Werkzeuge brauchen eine Schmiede oder Werkstatt (Rathaus 2) — der Stein für Ausbau und Gebäude könnte knapp werden.',
   ],
   'verify.waterFloat': [
     '{n} water tile(s) without ground below or banks beside (first at ({x}, {y})) — the pool would float in mid-air.',
