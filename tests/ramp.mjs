@@ -82,6 +82,26 @@ function stepWorld() {
   check('bridgeRunCells is horizontal', br.length >= 1 && br.every((c) => c.y === surfaceY - 3));
 }
 
+// --- Gap fill: a lone ramp dropped into a gap between two diagonal ramp tiles
+// must anchor off them. Ramps chain diagonally, so the gap tile is diagonally
+// (not horizontally) adjacent to its neighbours. ---
+{
+  const { w, surfaceY } = stepWorld();
+  // ascending 45° chain on the flat-left ground: (5,13) anchor, (6,12), (7,11).
+  // Place only the two ends, leaving (6,12) as an open gap.
+  w.set(5, surfaceY - 1, T.RAMP); // (5,13) sits on the grass at (5,14)
+  w.set(7, surfaceY - 3, T.RAMP); // (7,11)
+  // the gap tile is diagonally adjacent to a ramp both down-left and up-right
+  check('gap between diagonal ramps is a valid anchor',
+    canPlaceRamp(w, 6, surfaceY - 2, null) === true);
+  // a single tap places it (rampRunCells with ax===tx uses the anchor rule)
+  check('rampRunCells fills the diagonal gap',
+    rampRunCells(w, 6, surfaceY - 2, 6, surfaceY - 2).length === 1);
+  // still floating: a ramp diagonally adjacent to nothing solid or ramp stays invalid
+  check('lone floating diagonal is still invalid',
+    canPlaceRamp(w, 15, surfaceY - 6, null) === false);
+}
+
 // --- Bridge spans an open gap: the run must chain deck-to-deck, not re-check
 // each tile against the untouched world (which stops after the anchor). ---
 {
