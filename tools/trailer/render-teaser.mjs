@@ -79,23 +79,23 @@ function findFfmpeg() {
 // One line per mechanic, headline states the rule, sub lands the consequence.
 const COPY = {
   de: {
-    hook: { h: 'Du gibst keine Befehle.', sub: 'Du baust die Welt — dein Trupp macht den Rest' },
-    build: { h: 'Leere Hände klettern überall.', sub: 'Fracht braucht einen anderen Weg nach oben' },
-    hoist: { h: 'Die schwerere Seite sinkt.', sub: 'Ballast runter, Fracht rauf' },
-    weather: { h: 'Der Regen steht im Kalender.', sub: 'Er bremst die Arbeit — der Sturm blockiert die Winde' },
-    night: { h: 'Gearbeitet wird nur im Licht.', sub: 'Jede Laterne erobert ein Stück Nacht' },
-    biomes: { h: 'Jeder Seed eine neue Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
-    deliver: { h: 'Liefere. Dann liefere schneller.', sub: 'Gold wartet' },
+    hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallhands benutzen sie' },
+    build: { h: 'Nur leere Hände können klettern.', sub: 'Fracht braucht einen anderen Weg nach oben' },
+    hoist: { h: 'Schwerkraft als Spielelement.', sub: 'Ballast runter, Fracht rauf' },
+    weather: { h: 'Regen erschwert die Arbeit.', sub: 'Das Wetter beeinflusst die Arbeit der Smallhands' },
+    night: { h: 'Gearbeitet wird nur bei Licht.', sub: 'Laternen bringen Licht ins Dunkel' },
+    biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
+    deliver: { h: 'Auf die Geschwindigkeit und das Geschick kommt es an.', sub: 'Prestige und Highscores warten auf dich' },
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
   },
   en: {
-    hook: { h: 'You give no orders.', sub: 'You shape the world — your crew does the rest' },
-    build: { h: 'Empty hands climb anywhere.', sub: 'Cargo needs another way up' },
-    hoist: { h: 'The heavier side sinks.', sub: 'Ballast down, cargo up' },
-    weather: { h: 'The rain is on the schedule.', sub: 'It slows the work — storms lock the winch' },
-    night: { h: 'Work happens in the light.', sub: 'Every lantern claims a piece of the night' },
-    biomes: { h: 'Every seed builds a new world.', sub: '5 biomes · Daily challenge · Level editor' },
-    deliver: { h: 'Deliver. Then deliver faster.', sub: 'Gold is waiting' },
+    hook: { h: 'No direct control.', sub: 'You build the world — the smallhands use it' },
+    build: { h: 'Only empty hands can climb.', sub: 'Cargo needs another way up' },
+    hoist: { h: 'Gravity as a game mechanic.', sub: 'Ballast down, cargo up' },
+    weather: { h: 'Rain slows the work.', sub: 'Weather shapes what the smallhands can do' },
+    night: { h: 'Work only happens in the light.', sub: 'Lanterns bring light into the dark' },
+    biomes: { h: 'Every seed generates a unique world.', sub: '5 biomes · Daily challenge · Level editor' },
+    deliver: { h: 'Speed and skill are what counts.', sub: 'Prestige and highscores await' },
     end: { h: '', sub: '' },
   },
 };
@@ -169,8 +169,8 @@ const pageLib = () => {
       background: linear-gradient(180deg, rgba(10,13,20,0) 52%, rgba(10,13,20,0.72) 100%); }
     #tov .txt { position: absolute; left: 6%; right: 6%; bottom: 8.5%; text-align: center; opacity: 0; }
     /* display type matches the redesigned front door: bundled Pixelify Sans */
-    #tov .h { font-family: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif; font-size: 52px;
-      font-weight: 700; color: #e8eef7; letter-spacing: 0.5px; line-height: 1.1;
+    #tov .h { font-family: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif; font-size: 48px;
+      font-weight: 700; color: #e8eef7; letter-spacing: 0.5px; line-height: 1.14;
       text-shadow: 0 3px 0 rgba(0,0,0,0.55), 0 2px 14px rgba(0,0,0,0.9); }
     #tov .sub { margin-top: 10px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 21px;
       font-weight: 600; color: #ffc94d; letter-spacing: 1.2px;
@@ -425,7 +425,7 @@ function buildScenes(copy) {
     })),
     {
       id: 'deliver',
-      frames: 66,
+      frames: 100, // the longest caption of the deck — give it time to read
       text: copy.deliver,
       textEnv: [10, 12],
       fade: { in: 0, out: 8 },
