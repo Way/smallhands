@@ -1,6 +1,7 @@
 node_modules
 dist/
 *.log
+tools/trailer/out/
 .DS_Store
 
 # Local agent tooling (worktree scratch space, per-machine Harmony board linkage)

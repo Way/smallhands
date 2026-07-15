@@ -342,6 +342,79 @@
   font-size: 15.5px;
 }
 #frontdoor .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
+/* ---- teaser video: a poster button until clicked, then a live <video> ---- */
+#frontdoor .teaser-frame {
+  position: relative;
+  max-width: 840px;
+  margin: 26px auto 14px;
+  border: 1px solid var(--fd-border);
+  border-radius: 4px;
+  background: var(--fd-panel);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+/* the same corner-pixel frame the production chain wears */
+#frontdoor .teaser-frame::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--fd-gold) 0 0) left top,
+    linear-gradient(var(--fd-gold) 0 0) right top,
+    linear-gradient(var(--fd-gold) 0 0) left bottom,
+    linear-gradient(var(--fd-gold) 0 0) right bottom;
+  background-size: 7px 7px;
+  background-repeat: no-repeat;
+}
+#frontdoor .teaser-poster {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+#frontdoor .teaser-poster img,
+#frontdoor .teaser-frame video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 3px;
+}
+#frontdoor .teaser-poster img { filter: brightness(0.9); transition: filter 0.18s ease; }
+#frontdoor .teaser-poster:hover img { filter: brightness(1); }
+#frontdoor .teaser-playbtn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 84px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  color: #1c2333;
+  background: var(--fd-gold);
+  clip-path: var(--fd-notch);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition: transform 0.18s ease;
+}
+#frontdoor .teaser-poster:hover .teaser-playbtn { transform: translate(-50%, -50%) scale(1.08); }
+#frontdoor .teaser-poster:focus-visible { outline: 3px solid var(--fd-gold); outline-offset: 3px; }
+#frontdoor .teaser-dur {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  font-family: var(--fd-pixel);
+  font-size: 14px;
+  color: var(--fd-text);
+  background: rgba(16, 20, 29, 0.8);
+  clip-path: var(--fd-notch);
+}
+
 #frontdoor .card {
   position: relative;
   padding: 24px 24px 26px;
