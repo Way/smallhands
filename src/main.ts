@@ -1131,7 +1131,13 @@ function setTool(tool: Tool): void {
   runAnchor = null;
   // switching tools drops any parked touch aim and re-arms the aim hint
   touchInspect = null;
-  clearTouchPlace(false);
+  touchInspect = null;
+  if (COARSE) {
+    clearTouchPlace(false);
+    showAimHint();
+  } else {
+    hud.hideConfirmBar();
+  }
   if (COARSE) showAimHint();
   else hud.hideConfirmBar();
   applyToolCursor();
