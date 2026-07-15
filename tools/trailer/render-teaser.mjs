@@ -373,8 +373,13 @@ function buildScenes(copy) {
           ],
           40
         );
-        // stop ~1.2 s before the clear->rain flip: the take shows the full crossfade
-        window.__H.ffUntil((g) => g.weatherRemaining < 1.2, 120);
+        // land mid-crossfade: the flip already happened and the fade is visibly
+        // rolling when the scene opens, leaving most of the take to settled
+        // rain — streaks, wind sway and the darkened sky front and center.
+        // (Wait for the phase itself, not a narrow remaining-time window — the
+        // poll runs every 10 ticks and would skip past anything tighter.)
+        window.__H.ffUntil((g) => g.weather === 'rain', 120);
+        window.__H.ff(1.0);
       },
     },
     {
