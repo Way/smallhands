@@ -142,7 +142,15 @@ check('accordion: opening objectives closes crew', await page.evaluate(() => {
 }));
 await page.tap('.objectives > h3'); // fold everything away again
 
-// ---- corner flyouts: tap-toggled pills ---------------------------------------
+// ---- system chrome rides the top; the dock owns the bottom --------------------
+check('menu + speed pills sit in the top bar, dock at the bottom', await page.evaluate(() => {
+  const menu = document.querySelector('.menubar').getBoundingClientRect();
+  const speed = document.querySelector('.ctrlbar').getBoundingClientRect();
+  const dock = document.querySelector('.toolbar').getBoundingClientRect();
+  return menu.top < 120 && speed.top < 120 && dock.bottom > window.innerHeight - 120;
+}));
+
+// ---- flyouts: tap-toggled pills ------------------------------------------------
 check('speed flyout starts closed on touch', await page.evaluate(() => {
   const body = document.querySelector('.ctrlbar .flyout-body');
   return getComputedStyle(body).display === 'none';

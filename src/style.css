@@ -347,8 +347,12 @@ body.in-game #frontdoor { display: none; }
 .speed-btn:hover { color: var(--text); border-color: var(--accent); }
 .speed-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
 
-/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ---- */
-.flyout { position: absolute; }
+/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ----
+   The flyouts live inside the topbar's .hud-row (the mobile layout lines them
+   up beside the resource strip); on desktop the row is display:contents and
+   position:fixed puts the pills back in the viewport's bottom corners. */
+.hud-row { display: contents; }
+.flyout { position: fixed; }
 .menubar { bottom: 12px; left: 12px; }
 .ctrlbar { bottom: 12px; right: 12px; }
 
@@ -1586,7 +1590,10 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     flex-wrap: wrap;
   }
   .spacer { display: none; }
-  .res-bar { width: 100%; justify-content: space-around; gap: 2px; padding: 4px 6px; }
+  /* row 1: ☰ menu · resource strip · speed pill — system chrome rides along
+     the top, small and quiet; the bottom belongs to the builder tools */
+  .hud-row { display: flex; width: 100%; gap: 6px; align-items: stretch; }
+  .res-bar { flex: 1; min-width: 0; justify-content: space-around; gap: 2px; padding: 4px 6px; }
   .res-chip { min-width: 0; flex: 0 1 auto; }
 
   /* the three info panels collapse to their header pill; tap to fold out */
@@ -1609,13 +1616,30 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .topbar .crew.open { min-width: 196px; }
   .topbar .weather.open .wx-row { flex-wrap: wrap; gap: 4px 10px; }
 
-  /* bottom: corner pills + a full-width, swipeable tool dock between them */
-  .menubar { bottom: max(10px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
-  .ctrlbar { bottom: max(10px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); }
+  /* the menu/speed flyouts join row 1 as quiet pills; menus drop DOWN */
+  .flyout { position: relative; bottom: auto; left: auto; right: auto; }
+  .flyout-trigger {
+    min-width: 44px;
+    height: 100%;
+    padding: 0 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .flyout-trigger.non-default { color: var(--accent); }
+  .flyout.open .flyout-body {
+    top: calc(100% + 6px);
+    bottom: auto;
+    z-index: 30;
+  }
+  .menubar .flyout-body { left: 0; right: auto; }
+  .ctrlbar .flyout-body { right: 0; left: auto; }
+
+  /* bottom: the full-width, swipeable tool dock — builder actions only */
   .toolbar {
     bottom: max(8px, env(safe-area-inset-bottom));
-    left: max(62px, calc(env(safe-area-inset-left) + 58px));
-    right: max(62px, calc(env(safe-area-inset-right) + 58px));
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
     transform: none;
     justify-content: flex-start;
     overflow-x: auto;

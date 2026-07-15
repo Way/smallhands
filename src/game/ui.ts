@@ -128,6 +128,7 @@ export class Hud {
   private wxSig = '';
   private objSum: HTMLElement | null = null;
   private wxSum: HTMLElement | null = null;
+  private hudRow!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
   private confirmSig = '';
   // hover-driven niceties (toolbar tooltips, flyout-on-hover) only make sense
@@ -152,8 +153,14 @@ export class Hud {
   private buildTopBar(): void {
     const bar = el('div', 'topbar', this.root);
 
+    // First row on mobile: [☰ menu] [resource strip] [speed pill] — the menu
+    // and control flyouts are inserted around the resources by their builders.
+    // On desktop the row is display:contents and the flyouts position:fixed
+    // back to the bottom corners, so this wrapper changes nothing there.
+    this.hudRow = el('div', 'hud-row', bar);
+
     // resources
-    const res = el('div', 'panel res-bar', bar);
+    const res = el('div', 'panel res-bar', this.hudRow);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
       chip.title = t('hud.chipTitle', { name: t(`item.${it}`) });
@@ -294,7 +301,7 @@ export class Hud {
   }
 
   private buildControlBar(): void {
-    const bar = el('div', 'ctrlbar flyout', this.root);
+    const bar = el('div', 'ctrlbar flyout', this.hudRow);
     const trigger = el('button', 'flyout-trigger panel', bar);
     trigger.textContent = '1×';
     trigger.setAttribute('aria-label', t('hud.speedMenu'));
@@ -332,7 +339,8 @@ export class Hud {
   }
 
   private buildMenuBar(): void {
-    const bar = el('div', 'menubar flyout', this.root);
+    const bar = el('div', 'menubar flyout');
+    this.hudRow.insertBefore(bar, this.hudRow.firstChild); // ☰ leads the row
     const trigger = el('button', 'flyout-trigger panel', bar);
     trigger.textContent = '☰';
     trigger.setAttribute('aria-label', t('menu.levels'));
