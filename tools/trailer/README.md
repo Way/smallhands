@@ -47,3 +47,22 @@ Encoding prefers a full ffmpeg (`npm i --no-save @ffmpeg-installer/ffmpeg`) for
 H.264+AAC; with only Playwright's bundled ffmpeg it falls back to a silent VP8
 WebM. A full two-language render takes a few minutes; output lands in
 `tools/trailer/out/` (git-ignored).
+
+## Landing-page embed
+
+The front door's "See it in motion" section plays the teaser from
+`public/media/` — a lazy poster JPEG until clicked, then a `<video>` with a
+WebM (VP9/Opus) source first and an MP4 (H.264/AAC) fallback for Safari.
+After re-rendering the trailer, refresh those assets:
+
+```bash
+FF=node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+for l in de en; do
+  $FF -i tools/trailer/out/smallhands-teaser-$l.mp4 -c:v libx264 -preset slow -crf 23 \
+      -pix_fmt yuv420p -movflags +faststart -c:a copy -y public/media/teaser-$l.mp4
+  $FF -i tools/trailer/out/smallhands-teaser-$l.mp4 -c:v libvpx-vp9 -crf 33 -b:v 0 \
+      -row-mt 1 -c:a libopus -b:a 112k -y public/media/teaser-$l.webm
+  $FF -ss 2.6 -i tools/trailer/out/smallhands-teaser-$l.mp4 -frames:v 1 -q:v 3 \
+      -y public/media/teaser-poster-$l.jpg
+done
+```

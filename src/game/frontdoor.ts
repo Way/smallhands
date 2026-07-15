@@ -72,6 +72,31 @@ export class FrontDoor {
     this.root.querySelector<HTMLButtonElement>('.fd-options')?.addEventListener('click', () =>
       this.hooks.onOptions(),
     );
+    // Teaser video: nothing but the (lazy) poster image loads until the click,
+    // then the <video> element is created on the spot and starts playing.
+    this.root.querySelector<HTMLButtonElement>('.teaser-poster')?.addEventListener('click', (e) => {
+      const frame = (e.currentTarget as HTMLElement).closest('.teaser-frame');
+      if (!frame) return;
+      const video = document.createElement('video');
+      video.poster = `media/teaser-poster-${getLang()}.jpg`;
+      video.controls = true;
+      video.playsInline = true;
+      // WebM first (VP9/Opus, smaller, plays on codec-free Chromium builds),
+      // MP4 (H.264/AAC) as the Safari fallback.
+      for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']] as const) {
+        const s = document.createElement('source');
+        s.src = `media/teaser-${getLang()}.${ext}`;
+        s.type = type;
+        video.appendChild(s);
+      }
+      frame.replaceChildren(video);
+      // play() inside the click's call stack counts as the user gesture; if an
+      // autoplay policy still objects, retry muted rather than sit on a still.
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(() => undefined);
+      });
+    });
   }
 
   private paintIcons(): void {
@@ -121,7 +146,22 @@ export class FrontDoor {
         </div>
       </section>
 
-      <section class="band">
+      <section class="band teaser-band">
+        <div class="wrap">
+          <h2>${this.tr('teaserHead')}</h2>
+          <div class="teaser-frame">
+            <button class="teaser-poster" aria-label="${this.tr('teaserPlayAria')}">
+              <img loading="lazy" decoding="async" width="1280" height="720"
+                src="media/teaser-poster-${lang}.jpg" alt="${this.tr('teaserPlayAria')}">
+              <span class="teaser-playbtn" aria-hidden="true">▶</span>
+              <span class="teaser-dur" aria-hidden="true">0:32</span>
+            </button>
+          </div>
+          <p class="chain-cap">${this.tr('teaserCap')}</p>
+        </div>
+      </section>
+
+      <section class="band alt">
         <div class="wrap">
           <h2>${this.tr('sweetHead')}</h2>
           <div class="two-col">
@@ -139,7 +179,7 @@ export class FrontDoor {
         </div>
       </section>
 
-      <section class="band alt">
+      <section class="band">
         <div class="wrap">
           <h2>${this.tr('mechHead')}</h2>
           <p class="band-intro">${this.tr('mechIntro')}</p>
@@ -164,7 +204,7 @@ export class FrontDoor {
         </div>
       </section>
 
-      <section class="band">
+      <section class="band alt">
         <div class="wrap">
           <h2>${this.tr('contentHead')}</h2>
           <ul class="feats">

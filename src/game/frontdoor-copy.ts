@@ -22,6 +22,12 @@ export const S: Record<string, Str> = {
     'Trees → logs → sawmill → planks → the caravan. Your crew runs the line.',
     'Bäume → Stämme → Sägewerk → Bretter → zur Karawane. Dein Trupp hält die Linie am Laufen.',
   ],
+  teaserHead: ['See it in motion', 'Sieh es in Bewegung'],
+  teaserCap: [
+    '32 seconds: indirect control, the climb rule, the counterweight hoist, weather, night — and the race for gold.',
+    '32 Sekunden: indirekte Steuerung, die Kletter-Regel, die Gegengewichts-Winde, Wetter, Nacht — und das Rennen um Gold.',
+  ],
+  teaserPlayAria: ['Play the teaser video', 'Teaser-Video abspielen'],
   sweetHead: ['Two classics, one sweet spot', 'Zwei Klassiker, ein Sweet Spot'],
   sweetLemmingsTitle: ['The Lemmings side', 'Die Lemmings-Seite'],
   sweetLemmingsBody: [
