@@ -297,6 +297,9 @@ const D: Record<string, [string, string]> = {
   // ---- HUD -----------------------------------------------------------------------
   'hud.deliver': ['Deliver', 'Liefern'],
   'hud.crew': ['Crew', 'Trupp'],
+  'crew.idle': ['{n} idle', '{n} frei'],
+  'crew.needDigger': ['⚠ Assign a digger for the dig plan', '⚠ Weise einen Gräber für den Grabplan zu'],
+  'crew.needShovel': ['⚠ Craft a shovel in the Workshop', '⚠ Fertige einen Spaten in der Werkstatt'],
   'hud.weather': ['Weather', 'Wetter'],
   'hud.then': ['then', 'dann'],
   'wx.flood': ['🌊 rain lifts the tide', '🌊 Regen hebt die Flut'],

@@ -335,6 +335,20 @@ export class Game {
     return n;
   }
 
+  // Workers of a role with nothing to do right now (no task, or just strolling).
+  roleIdle(role: Role): number {
+    let n = 0;
+    for (const w of this.workers) if (w.role === role && (!w.task || w.task.kind === 'wander')) n++;
+    return n;
+  }
+
+  // Diggers currently holding a shovel — used by the crew panel's shovel warning.
+  equippedDiggers(): number {
+    let n = 0;
+    for (const w of this.workers) if (w.role === 'digger' && w.hasShovel) n++;
+    return n;
+  }
+
   available(item: ItemType): number {
     return this.stock[item] - this.stockReserved[item];
   }

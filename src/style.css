@@ -244,7 +244,11 @@ body.in-game #frontdoor { display: none; }
 }
 .role-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 .role-row .role-name { flex: 1; }
-.role-row .role-cnt { font-weight: 700; width: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.role-row .role-idle { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.role-row .role-cnt { font-weight: 700; width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+.role-row.gated { display: none; }
+.crew-warn { font-size: 11px; color: #ffcf6b; margin-top: 5px; line-height: 1.3; }
+.crew-warn:empty { display: none; }
 .role-btn {
   width: 22px;
   height: 22px;
