@@ -99,13 +99,20 @@ export function canPlaceRamp(
   if (world.get(x, y) !== T.AIR) return false; // never overwrite terrain/other tiles
   if (!world.isPassable(x, y - 1)) return false; // headroom for the worker standing on top
   if (!prev) {
-    // anchor: must touch something solid so the run isn't floating
+    // anchor: must touch something solid so the run isn't floating. Ramps chain
+    // diagonally, so an existing ramp counts as support horizontally OR
+    // diagonally — this lets a lone tile fill a gap between two ramps in a 45deg
+    // chain (each of which already traces back to solid ground).
     return (
       world.isSolid(x - 1, y) ||
       world.isSolid(x + 1, y) ||
       world.isSupport(x, y + 1) ||
       world.get(x - 1, y) === T.RAMP ||
-      world.get(x + 1, y) === T.RAMP
+      world.get(x + 1, y) === T.RAMP ||
+      world.get(x - 1, y - 1) === T.RAMP ||
+      world.get(x + 1, y - 1) === T.RAMP ||
+      world.get(x - 1, y + 1) === T.RAMP ||
+      world.get(x + 1, y + 1) === T.RAMP
     );
   }
   // chain step: exactly one diagonal from the previous ramp tile (fixed 45deg pitch)
