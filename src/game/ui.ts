@@ -477,6 +477,12 @@ export class Hud {
     if (autoDismiss > 0) setTimeout(() => box.remove(), autoDismiss * 1000);
   }
 
+  // Drop every stacked toast/panel at once — used when the game screen hands
+  // over to a full-screen overlay (world map) that the toasts would float over.
+  clearToasts(): void {
+    this.toastWrap.innerHTML = '';
+  }
+
   // Interactive hoist panel shown when a hoist is tapped with Select: live car
   // weights plus per-item routing toggles (send down / send up — exclusive).
   showHoist(id: number): void {

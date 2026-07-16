@@ -325,6 +325,7 @@ const D: Record<string, [string, string]> = {
   'hud.ctaDemolish': ['Demolish', 'Abreißen'],
   'hud.ctaDig': ['Dig', 'Graben'],
   'hud.tapToAim': ['Tap the map to aim', 'Tippe zum Zielen auf die Karte'],
+  'hud.tapMark': ['Tap a resource to mark it', 'Tippe eine Ressource an, um sie zu markieren'],
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
   'hud.speedMenu': ['Speed and zoom', 'Tempo und Zoom'],
