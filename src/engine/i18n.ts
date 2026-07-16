@@ -333,7 +333,10 @@ const D: Record<string, [string, string]> = {
   'hud.tapMark': ['Tap a resource to mark it', 'Tippe eine Ressource an, um sie zu markieren'],
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
-  'hud.speedMenu': ['Speed and zoom', 'Tempo und Zoom'],
+  'hud.speedMenu': ['Pause and speed', 'Pause und Tempo'],
+  'hud.speed': ['speed', 'Tempo'],
+  'hud.pause': ['Pause', 'Pause'],
+  'hud.resume': ['Resume', 'Weiter'],
   'hud.rotateHint': [
     'Tip: turn your device sideways to see more of the world.',
     'Tipp: Im Querformat siehst du mehr von der Welt.',

@@ -67,6 +67,7 @@ let currentLevelIdx = 0;
 let currentCustom: CustomLevelData | null = null;
 let playtesting = false;
 let speed = 1;
+let lastRate = 1; // rate ⏸→▶ resumes at (never 0)
 let prevSpeed = 1; // speed to restore when resuming from the level-select overlay
 let running = false;
 
@@ -973,6 +974,7 @@ function attachHud(): void {
   hud = new Hud(uiRoot, game!, {
     onTool: setTool,
     onSpeed: (s) => setSpeed(s),
+    onTogglePause: () => togglePause(),
     onZoom: (dir) => zoomStep(dir),
     onRole: (r, d) => {
       game!.setDesired(r, game!.desiredRoles[r] + d);
@@ -1222,9 +1224,16 @@ function setTool(tool: Tool): void {
 
 function setSpeed(s: number): void {
   speed = s;
+  if (s > 0) lastRate = s;
   if (game) game.paused = s === 0;
   hud?.setSpeed(s);
   audio.click();
+}
+
+// ⏸/▶ — both the island's play button and Space land here, so resuming always
+// returns to the rate you were running at rather than snapping back to 1×.
+function togglePause(): void {
+  setSpeed(speed === 0 ? lastRate : 0);
 }
 
 // ---- touch placement: tap to aim, one big ✓ to commit ------------------------------
@@ -1792,7 +1801,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.key === ' ') {
     e.preventDefault();
-    setSpeed(speed === 0 ? 1 : 0);
+    togglePause();
   }
   if (e.key === 'Escape') setTool('select');
 });

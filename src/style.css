@@ -1,5 +1,8 @@
 :root {
   --panel-bg: rgba(24, 30, 42, 0.92);
+  /* the same tone, opaque — for panels that must stay readable over a busy
+     backdrop and can't rely on backdrop-filter (see .island-pop) */
+  --panel-solid: #181e2a;
   --panel-border: #3b4a63;
   --panel-border-light: #55688a;
   --text: #e8eef7;
@@ -134,13 +137,13 @@ body.in-game #frontdoor { display: none; }
 
 .spacer { flex: 1; pointer-events: none !important; }
 
-/* ---- level clock ---- */
+/* ---- level clock (the island's centre zone) ---- */
 .clock {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  align-self: flex-start;
-  padding: 6px 10px;
+  padding: 9px 12px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -366,43 +369,95 @@ body.in-game #frontdoor { display: none; }
 .speed-btn:hover { color: var(--text); border-color: var(--accent); }
 .speed-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(255, 201, 77, 0.12); }
 
-/* ---- collapsing corner flyouts (menu bottom-left, speed+zoom bottom-right) ----
-   The flyouts live inside the topbar's .hud-row (the mobile layout lines them
-   up beside the resource strip); on desktop the row is display:contents and
-   position:fixed puts the pills back in the viewport's bottom corners. */
-.hud-row { display: contents; }
-.flyout { position: fixed; }
-.menubar { bottom: 12px; left: 12px; }
-.ctrlbar { bottom: 12px; right: 12px; }
+/* ---- the island: [⏸/1×] · [clock] · [☰], one pill at top centre ------------
+   System chrome reads as ONE object (the Dynamic-Island trick) instead of
+   three widgets scattered into corners: a single .panel surface, with hairline
+   dividers rather than gaps marking the three zones. It floats over the world,
+   clear of the topbar's resource strip (left) and info panels (right). */
+.island {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* above the toasts and the confirm bar (15), below every .overlay (20+) —
+     the island must never float over the level select, options or win screen */
+  z-index: 16;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-radius: 999px; /* a true pill — the island's whole silhouette */
+  overflow: visible; /* popovers hang out of it */
+}
+/* hairline seams between the three zones */
+.island > .clock { border-inline: 1px solid var(--panel-border); }
 
-/* the collapsed pill (.panel supplies bg/border/shadow/blur) — only rendered
-   where a hover pointer exists (see below) */
-.flyout-trigger {
-  display: none;
+.island-btn {
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px; /* tighter than .panel's 10px for the small pill */
-  color: var(--text);
-  font-size: 15px;
+  min-width: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 14px;
   font-weight: 700;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: color 0.12s, border-color 0.12s, opacity 0.14s;
+  transition: color 0.12s, background 0.12s;
 }
-.flyout-trigger:hover { border-color: var(--accent); }
-.flyout-trigger.non-default { color: var(--accent); border-color: var(--accent); }
+.island-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+/* the speed zone doubles as a live readout: lit when the sim isn't at 1× */
+.island-btn.non-default { color: var(--accent); }
+.island-btn.paused { color: var(--accent); }
+.island-btn.active { color: var(--text); background: rgba(255, 255, 255, 0.09); }
 
-/* the expanded menu panel */
-.flyout-body { display: flex; gap: 4px; padding: 6px; }
-.ctrlbar .flyout-body { flex-direction: column; gap: 6px; min-width: 172px; }
+/* the popovers hang off their own end of the island */
+/* Opaque, not the usual translucent .panel: the island's own backdrop-filter
+   makes it a backdrop root, so a blur here would sample the island rather than
+   the page and leave whatever sits behind (toasts, the objectives pill) legible
+   straight through the menu. */
+.island-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-width: 184px;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border-light);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  animation: popin 0.12s ease-out;
+}
+.island-pop[hidden] { display: none; }
+.speed-pop { left: 0; }
+.menu-pop { right: 0; }
+@keyframes popin {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.play-btn {
+  height: 38px;
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 201, 77, 0.14);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.play-btn:hover { background: rgba(255, 201, 77, 0.24); }
 
 .ctrl-row { display: flex; align-items: center; gap: 4px; }
 .ctrl-row.speed-row .speed-btn { flex: 1; }
 .ctrl-divider { height: 1px; background: var(--panel-border); margin: 1px 2px; }
-.ctrl-row.zoom-row { gap: 6px; }
 .ctrl-label {
   margin-right: auto;
   padding-left: 4px;
@@ -412,29 +467,33 @@ body.in-game #frontdoor { display: none; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.zoom-row .speed-btn { min-width: 40px; }
+.menu-pop .speed-btn { width: 100%; text-align: left; padding: 0 10px; }
 
-/* hover pointers: collapse each menu to its pill, expand on hover.
-   touch (hover: none) falls through — trigger stays hidden, body stays open. */
-@media (hover: hover) {
-  .flyout-trigger { display: inline-flex; }
-  .flyout-body {
-    position: absolute;
-    bottom: 0;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(6px);
-    transition: opacity 0.14s ease, transform 0.14s ease;
-  }
-  .menubar .flyout-body { left: 0; }
-  .ctrlbar .flyout-body { right: 0; }
-  /* :focus-within so keyboard users reveal the menu they tab into — otherwise
-     the buttons stay in the tab order but invisible (hover-only reveal). */
-  .flyout:hover .flyout-body,
-  .flyout:focus-within .flyout-body { opacity: 1; pointer-events: auto; transform: none; }
-  .flyout:hover .flyout-trigger,
-  .flyout:focus-within .flyout-trigger { opacity: 0; }
+/* ---- zoom: bottom right, the Google-Maps corner ---- */
+.zoombar {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 10px;
+  overflow: hidden; /* so the buttons' corners follow the bar's */
 }
+.zoom-btn {
+  width: 40px;
+  height: 38px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.zoom-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.zoom-btn + .zoom-btn { border-top: 1px solid var(--panel-border); }
 
 /* ---- toast / hints ---- */
 .toast-wrap {
@@ -515,9 +574,13 @@ body.in-game #frontdoor { display: none; }
 .hoist-empty { opacity: 0.6; }
 
 /* ---- overlays (title, level select, win) ---- */
+/* Full-screen screens (level select, options, win) cover the whole HUD — the
+   z-index is what keeps the island (16) from floating over them; .confirm-
+   overlay (20) and .resume-overlay (30) then stack on top of these. */
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1003,8 +1066,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 }
 @media (prefers-reduced-motion: reduce) {
   .stamp, .newrec, .confetti { animation: none; }
-  .flyout-body, .flyout-trigger { transition: none; }
-  .flyout-body { transform: none; }
+  .island-pop { animation: none; }
+  .island-btn, .zoom-btn { transition: none; }
 }
 
 /* ---- world map level select ------------------------------------------------
@@ -1546,7 +1609,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 /* ================================ mobile ================================
    The desktop HUD stays untouched; everything below layers the touch game on
    top. Three concerns, three scopes:
-   1. @media (hover: none)      — flyouts become tap-toggled pills
+   1. @media (hover: none)      — no hover affordance sticks to the last tap
    2. @media (pointer: coarse)  — every hit zone grows to thumb size
    3. the compact layout query  — phones (and short landscape phones) get the
       one-glance HUD: resource strip, fold-out info pills, a scrollable
@@ -1608,18 +1671,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .confirm-bar { animation: none; }
 }
 
-/* ---- no hover: corner flyouts become tap-toggled pills ---- */
+/* ---- no hover ---- */
 @media (hover: none) {
-  .flyout-trigger { display: inline-flex; }
-  .flyout-body { display: none; }
-  .flyout.open .flyout-body {
-    display: flex;
-    position: absolute;
-    bottom: calc(100% + 8px);
-  }
-  .menubar .flyout-body { left: 0; }
-  .ctrlbar .flyout-body { right: 0; }
-  .flyout.open .flyout-trigger { color: var(--accent); border-color: var(--accent); }
   /* sticky-hover guards: no lift/recolor stuck on the last-tapped control
      (:not(.map-popover) — same reason as the desktop rule: preserve the
      popover's own positioning transform) */
@@ -1639,7 +1692,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .res-pop { min-width: 190px; padding: 10px 12px; }
   .res-chip { min-height: 34px; }
   .speed-btn { min-width: 44px; height: 44px; font-size: 14px; }
-  .flyout-trigger { min-width: 48px; height: 44px; font-size: 16px; }
+  .play-btn { height: 46px; font-size: 14px; }
+  .island-btn { min-width: 52px; font-size: 15px; }
+  .zoom-btn { width: 46px; height: 44px; font-size: 20px; }
   .th-upgrade { padding: 10px 8px; }
   .th-toast .th-mini { padding: 11px 24px; font-size: 14px; }
   .toast .dismiss { font-size: 13px; padding: 6px 4px; }
@@ -1668,18 +1723,17 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 
 /* ---- the compact in-game layout: phones, and phone-height landscape ---- */
 @media (max-width: 820px), ((pointer: coarse) and (max-height: 520px)) {
-  /* top bar: resource strip first, then the fold-out info pills */
+  /* the island keeps the top centre; the rest of the HUD starts BELOW it —
+     there is no room to sit beside it on a phone */
+  .island { top: max(6px, env(safe-area-inset-top)); }
   .topbar {
-    top: max(6px, env(safe-area-inset-top));
+    top: calc(max(6px, env(safe-area-inset-top)) + 46px);
     left: max(6px, env(safe-area-inset-left));
     right: max(6px, env(safe-area-inset-right));
     gap: 6px;
     flex-wrap: wrap;
   }
   .spacer { display: none; }
-  /* row 1: ☰ menu · resource chips · speed pill — system chrome rides along
-     the top, small and quiet; the bottom belongs to the builder tools */
-  .hud-row { display: flex; width: 100%; gap: 6px; align-items: stretch; }
   /* no bar behind the resources: the strip goes transparent and every chip
      floats as its own pill, letting the sky show through between them */
   .res-bar {
@@ -1703,16 +1757,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
   }
 
-  /* the clock rides row 1 between the resources and the speed pill; it never
-     shrinks — a clipped time is worse than one fewer resource chip */
-  .clock {
-    flex: 0 0 auto;
-    align-self: stretch;
-    gap: 4px;
-    padding: 5px 8px;
-    border-radius: 9px;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
-  }
+  .clock { gap: 4px; padding: 8px 10px; }
 
   /* the three info panels collapse to their header pill; tap to fold out */
   .topbar .collapsible { min-width: 0; max-width: none; padding: 0 10px; }
@@ -1734,24 +1779,11 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .topbar .crew.open { min-width: 196px; }
   .topbar .weather.open .wx-row { flex-wrap: wrap; gap: 4px 10px; }
 
-  /* the menu/speed flyouts join row 1 as quiet pills; menus drop DOWN */
-  .flyout { position: relative; bottom: auto; left: auto; right: auto; }
-  .flyout-trigger {
-    min-width: 44px;
-    height: 100%;
-    padding: 0 10px;
-    font-size: 13px;
-    color: var(--text-dim);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  /* the zoom stack lifts clear of the tool dock at the bottom edge */
+  .zoombar {
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
+    right: max(8px, env(safe-area-inset-right));
   }
-  .flyout-trigger.non-default { color: var(--accent); }
-  .flyout.open .flyout-body {
-    top: calc(100% + 6px);
-    bottom: auto;
-    z-index: 30;
-  }
-  .menubar .flyout-body { left: 0; right: auto; }
-  .ctrlbar .flyout-body { right: 0; left: auto; }
 
   /* bottom: the full-width, swipeable tool row — builder actions only, no
      bar behind them: each tool floats as its own pill over the world */
