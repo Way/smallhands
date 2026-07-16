@@ -425,7 +425,8 @@ export class Hud {
     ] as const) {
       const btn = el('button', 'zoom-btn', bar);
       btn.textContent = label;
-      btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
+      // the glyph carries no meaning to a screen reader — the label does
+      btn.title = t(dir > 0 ? 'hud.zoomIn' : 'hud.zoomOut');
       btn.setAttribute('aria-label', btn.title);
       btn.onclick = () => this.cbs.onZoom(dir);
     }
