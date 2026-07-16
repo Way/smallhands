@@ -623,6 +623,21 @@ const D: Record<string, [string, string]> = {
     'Wirklich allen Fortschritt zurücksetzen? Medaillen, Bestzeiten und Abschlüsse werden gelöscht.',
   ],
   'btn.reset': ['Reset', 'Zurücksetzen'],
+  'opt.transfer': ['Save file', 'Spielstand-Datei'],
+  'opt.transferDesc': [
+    'Export downloads your progress and custom levels as a file. Import loads such a file — for example on another device.',
+    'Export lädt Fortschritt und eigene Level als Datei herunter. Import lädt so eine Datei — zum Beispiel auf einem anderen Gerät.',
+  ],
+  'btn.export': ['Export', 'Exportieren'],
+  'btn.import': ['Import', 'Importieren'],
+  'confirm.import': [
+    'Load this save file? Your current progress and custom levels will be replaced.',
+    'Diesen Spielstand laden? Dein aktueller Fortschritt und deine eigenen Level werden ersetzt.',
+  ],
+  'save.importError': [
+    'This file is not a valid Smallhands save.',
+    'Diese Datei ist kein gültiger Smallhands-Spielstand.',
+  ],
   'opt.back': ['← Back', '← Zurück'],
 
   // ---- editor --------------------------------------------------------------------

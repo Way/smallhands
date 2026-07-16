@@ -10,8 +10,10 @@ const mod = await bundleExports(`
   export { findPath } from './src/game/nav.ts';
   export { T } from './src/game/types.ts';
   export { t, setLang, getLang } from './src/engine/i18n.ts';
+  export { exportAllData, importAllData } from './src/engine/save.ts';
+  export { blankLevelData } from './src/game/leveldata.ts';
 `);
-const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -329,6 +331,50 @@ function findLadderCells(g, count) {
   }
   setLang('en');
   check('every level name/desc/hint has EN and DE text', missing === 0);
+}
+
+// ---- save export/import: full round-trip, hostile input never crashes --------
+{
+  const level = blankLevelData();
+  const save = {
+    completed: [1, 2, 3],
+    completedCustom: [level.id],
+    records: { c1: { bestTime: 62.5, medal: 'gold', feats: ['no_demolish'] } },
+    muted: true,
+    lang: 'de',
+    effects: 'reduced',
+  };
+  const text = exportAllData(save, [level]);
+  const back = importAllData(text);
+  check('export/import round-trips', back !== null);
+  check('completed levels survive', back.save.completed.join() === '1,2,3');
+  check('records survive', back.save.records.c1.bestTime === 62.5 && back.save.records.c1.medal === 'gold');
+  check('settings survive', back.save.muted === true && back.save.lang === 'de' && back.save.effects === 'reduced');
+  check('custom levels survive', back.customLevels.length === 1 && back.customLevels[0].id === level.id);
+
+  // not a save file → null, never a throw
+  check('plain text is rejected', importAllData('hello') === null);
+  check('unrelated JSON is rejected', importAllData('{"foo":1}') === null);
+  check('wrong version is rejected', importAllData(JSON.stringify({ format: 'smallhands-save', version: 99 })) === null);
+
+  // a hostile payload behind a valid envelope is sanitized field by field
+  const hostile = JSON.stringify({
+    format: 'smallhands-save',
+    version: 1,
+    save: {
+      completed: [1, 'x', null],
+      records: { bad: { bestTime: -5, medal: 'gold', feats: [] } },
+      muted: 'yes',
+      lang: 'fr',
+    },
+    customLevels: [{ v: 1, id: 'broken' }],
+  });
+  const clean = importAllData(hostile);
+  check('bogus completed entries are dropped', clean.save.completed.join() === '1');
+  check('negative best times are dropped', !('bad' in clean.save.records));
+  check('non-boolean muted coerces to false', clean.save.muted === false);
+  check('unknown language is dropped', clean.save.lang === undefined);
+  check('broken custom levels are dropped', clean.customLevels.length === 0);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

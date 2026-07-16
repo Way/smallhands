@@ -45,20 +45,25 @@ function sanitizeRecords(raw: unknown): Record<string, LevelRecord> {
   return out;
 }
 
+// Coerce anything (parsed localStorage, an imported file) into a valid SaveData.
+function sanitizeSaveData(raw: unknown): SaveData {
+  const data = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<SaveData>;
+  return {
+    completed: Array.isArray(data.completed) ? data.completed.filter((n): n is number => typeof n === 'number' && Number.isFinite(n)) : [],
+    completedCustom: Array.isArray(data.completedCustom)
+      ? data.completedCustom.filter((s): s is string => typeof s === 'string')
+      : [],
+    records: sanitizeRecords(data.records),
+    muted: data.muted === true,
+    lang: LANGS.includes(data.lang as Lang) ? (data.lang as Lang) : undefined,
+    effects: data.effects === 'reduced' ? 'reduced' : data.effects === 'full' ? 'full' : undefined,
+  };
+}
+
 export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const data = JSON.parse(raw) as Partial<SaveData>;
-      return {
-        completed: data.completed ?? [],
-        completedCustom: data.completedCustom ?? [],
-        records: sanitizeRecords(data.records),
-        muted: data.muted ?? false,
-        lang: LANGS.includes(data.lang as Lang) ? (data.lang as Lang) : undefined,
-        effects: data.effects === 'reduced' ? 'reduced' : data.effects === 'full' ? 'full' : undefined,
-      };
-    }
+    if (raw) return sanitizeSaveData(JSON.parse(raw));
   } catch {
     // corrupt or unavailable storage — start fresh
   }
@@ -112,4 +117,45 @@ export function deleteCustomLevel(levels: CustomLevelData[], id: string): Custom
   const next = levels.filter((l) => l.id !== id);
   persistCustomLevels(next);
   return next;
+}
+
+// ---- export / import (move the whole save to another browser or device) ------
+// A single self-describing JSON file bundling progress and custom levels. The
+// format marker + version let a future format evolve without silently
+// swallowing files from a newer build.
+
+const EXPORT_FORMAT = 'smallhands-save';
+const EXPORT_VERSION = 1;
+
+export interface ExportBundle {
+  save: SaveData;
+  customLevels: CustomLevelData[];
+}
+
+export function exportAllData(save: SaveData, customLevels: CustomLevelData[]): string {
+  return JSON.stringify(
+    { format: EXPORT_FORMAT, version: EXPORT_VERSION, save, customLevels },
+    null,
+    2
+  );
+}
+
+// Parse an exported file. Returns null when the text is not a Smallhands save
+// export (wrong shape, wrong marker, or a version this build doesn't know);
+// the payload itself is sanitized field by field, never trusted.
+export function importAllData(text: string): ExportBundle | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.format !== EXPORT_FORMAT) return null;
+  if (obj.version !== EXPORT_VERSION) return null;
+  const customLevels = Array.isArray(obj.customLevels)
+    ? obj.customLevels.map((l) => sanitizeLevelData(l)).filter((l): l is CustomLevelData => l !== null)
+    : [];
+  return { save: sanitizeSaveData(obj.save), customLevels };
 }
