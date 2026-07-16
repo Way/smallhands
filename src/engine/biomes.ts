@@ -15,6 +15,12 @@ export const GENERATED_BIOMES: readonly Biome[] = ['meadow', 'autumn', 'chalk', 
 
 type Tint = [number, number, number];
 
+// What grows along the distant midground crest. Data, not a branch in the
+// renderer: this used to be an allowlist of biome names, so a new biome
+// silently opted OUT of its tree line and got the bare ridge meant for the
+// arid ones. Declaring it per biome makes the choice impossible to forget.
+export type TreeLine = 'blobs' | 'conifers' | 'none';
+
 // Directional light model for the terrain shading overlays. Real sunlight is
 // warm and the shadow it leaves is filled by blue sky bounce — so a shadow is a
 // *hue rotation*, not merely less light. Shading with neutral black drains the
@@ -45,6 +51,7 @@ export interface BiomeLook extends LightLook {
   skyTint: Tint;
   skyTintAmt: number;
   snowcaps: boolean; // high ground above the level's snowline turns white
+  treeline: TreeLine; // distant crest dressing; 'none' leaves a bare ridge
 }
 
 // Snow surface shared by every snow-capped biome.
@@ -64,6 +71,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     skyTint: [0, 0, 0],
     skyTintAmt: 0,
     snowcaps: false,
+    treeline: 'blobs',
   },
   autumn: {
     ...NEUTRAL_LIGHT,
@@ -77,6 +85,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     skyTint: [255, 214, 150],
     skyTintAmt: 0.12,
     snowcaps: false,
+    treeline: 'blobs',
   },
   chalk: {
     ...NEUTRAL_LIGHT,
@@ -90,6 +99,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     skyTint: [200, 230, 240],
     skyTintAmt: 0.15,
     snowcaps: false,
+    treeline: 'none',
   },
   redrock: {
     ...NEUTRAL_LIGHT,
@@ -103,6 +113,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     skyTint: [255, 200, 160],
     skyTintAmt: 0.15,
     snowcaps: false,
+    treeline: 'none',
   },
   slate: {
     ...NEUTRAL_LIGHT,
@@ -116,6 +127,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     skyTint: [190, 210, 230],
     skyTintAmt: 0.12,
     snowcaps: true,
+    treeline: 'conifers',
   },
   // A sunlit green valley. The one biome that spends the light model: warm sun,
   // cool sky-bounce shadow. Palette measured off low-poly reference art rather
@@ -142,6 +154,7 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     // ever wants it: snow lit by blue sky is periwinkle — ~#a0bae1, hue 216° at
     // ~50% saturation — never white. That belongs in weather-look.ts.)
     snowcaps: false,
+    treeline: 'blobs',
   },
 };
 
