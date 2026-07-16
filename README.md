@@ -138,6 +138,22 @@ npm run build    # typecheck + production build into dist/
 npm run preview  # serve the production build locally
 ```
 
+### Dev mode: unlock every level
+
+To playtest a late campaign level without replaying the whole unlock chain,
+open the dev server with a `?dev` query flag:
+
+```
+http://localhost:5173/?dev=1     (also: ?dev, ?dev=true, ?dev=unlock)
+```
+
+Every campaign level becomes playable and the level select shows a
+**DEV · all levels unlocked** chip in the top bar. Progress stays honest —
+nothing is marked completed, medals and the journey trail only record real
+wins, and dropping the flag restores the normal gated view. The override is
+double-gated: it only exists in Vite dev builds (`import.meta.env.DEV`), so
+production builds ignore the flag entirely (`src/engine/devmode.ts`).
+
 ## End-to-end smoke test
 
 With a preview server running on port 4173, this drives a real browser through
@@ -159,8 +175,10 @@ share code and soaks a generated level for 60 simulated seconds:
 node tests/editor-generator.mjs
 ```
 
-Six headless suites need no browser at all: `tests/unit.mjs` covers pure
+Seven headless suites need no browser at all: `tests/unit.mjs` covers pure
 simulation logic (ladders, reserves, medals, water, weather, flood, night),
+`tests/devmode.mjs` pins the dev-mode unlock (`?dev` flag parsing, campaign
+gating with and without the override, completion never faked),
 `tests/campaign2.mjs` and `tests/campaign3.mjs` play every Campaign 2 and 3
 level start-to-finish with a scripted player and fail unless the win state
 is reached,
@@ -175,6 +193,7 @@ ballast level end-to-end:
 
 ```bash
 npm run test:unit
+npm run test:devmode
 npm run test:campaign2
 npm run test:campaign3
 npm run test:terrain
