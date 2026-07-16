@@ -7,7 +7,7 @@
 //   - selecting a building parks its draft ghost immediately (✓ Build pends)
 //   - one-finger drags pan the camera and never fire the armed tool
 //   - run tools grow tap by tap and report affordable/total tiles
-//   - the compact HUD: collapsible info pills, tap-toggled corner flyouts
+//   - the compact HUD: collapsible info pills, the tap-toggled island popovers
 //   - hit zones are thumb-sized (44px+ for primary controls)
 // Requires the production build served (default http://localhost:4173/ —
 // `npm run preview`). Mirrors tests/e2e.mjs for browser launch.
@@ -144,30 +144,48 @@ check('accordion: opening objectives closes crew', await page.evaluate(() => {
 }));
 await page.tap('.objectives > h3'); // fold everything away again
 
-// ---- system chrome rides the top; the dock owns the bottom --------------------
-check('menu + speed pills sit in the top bar, dock at the bottom', await page.evaluate(() => {
-  const menu = document.querySelector('.menubar').getBoundingClientRect();
-  const speed = document.querySelector('.ctrlbar').getBoundingClientRect();
+// ---- the island rides the top centre; the dock owns the bottom ----------------
+check('island sits top centre, zoom bottom right, dock at the bottom', await page.evaluate(() => {
+  const island = document.querySelector('.island').getBoundingClientRect();
+  const zoom = document.querySelector('.zoombar').getBoundingClientRect();
   const dock = document.querySelector('.toolbar').getBoundingClientRect();
-  return menu.top < 120 && speed.top < 120 && dock.bottom > window.innerHeight - 120;
+  const mid = window.innerWidth / 2;
+  return (
+    island.top < 120 &&
+    Math.abs((island.left + island.right) / 2 - mid) < 8 && // centred
+    zoom.right > window.innerWidth - 60 &&
+    zoom.top > window.innerHeight / 2 &&
+    dock.bottom > window.innerHeight - 120
+  );
 }));
 
-// ---- flyouts: tap-toggled pills ------------------------------------------------
-check('speed flyout starts closed on touch', await page.evaluate(() => {
-  const body = document.querySelector('.ctrlbar .flyout-body');
-  return getComputedStyle(body).display === 'none';
+// the phone has no room for the island to share a row with the resource strip
+check('island clears the resource strip', await page.evaluate(() => {
+  const island = document.querySelector('.island').getBoundingClientRect();
+  const res = document.querySelector('.res-bar').getBoundingClientRect();
+  return island.bottom <= res.top;
 }));
-await page.tap('.ctrlbar .flyout-trigger');
-check('speed flyout opens on pill tap', await page.evaluate(() => {
-  const body = document.querySelector('.ctrlbar .flyout-body');
-  return getComputedStyle(body).display !== 'none';
-}));
-const speedBtn = await page.locator('.ctrlbar .speed-btn').first().boundingBox();
+
+// ---- island popovers: tap-toggled ---------------------------------------------
+const speedPopShown = () => page.evaluate(() => !document.querySelector('.speed-pop').hidden);
+check('speed popover starts closed', !(await speedPopShown()));
+await page.tap('.island .speed-trigger');
+check('speed popover opens on tap', await speedPopShown());
+const speedBtn = await page.locator('.speed-pop .speed-btn').first().boundingBox();
 check('speed buttons are 44px+ touch targets', speedBtn.width >= 44 && speedBtn.height >= 44);
-await page.tap('.ctrlbar .flyout-trigger');
-check('speed flyout closes on second tap', await page.evaluate(() => {
-  const body = document.querySelector('.ctrlbar .flyout-body');
-  return getComputedStyle(body).display === 'none';
+await page.tap('.island .speed-trigger');
+check('speed popover closes on second tap', !(await speedPopShown()));
+
+// opening the burger must not leave the speed popover open behind it
+await page.tap('.island .speed-trigger');
+await page.tap('.island .menu-trigger');
+check('burger popover replaces the speed popover', await page.evaluate(() => {
+  return !document.querySelector('.menu-pop').hidden && document.querySelector('.speed-pop').hidden;
+}));
+// a tap on the world dismisses it — the old flyouts could only close each other
+await page.tap('#game-canvas');
+check('tapping outside closes the popover', await page.evaluate(() => {
+  return document.querySelector('.menu-pop').hidden;
 }));
 
 // ---- tap-to-aim + confirm (harvest) ------------------------------------------

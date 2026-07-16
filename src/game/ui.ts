@@ -70,9 +70,41 @@ function icon(name: string, size = 20, parent?: HTMLElement): HTMLCanvasElement 
   return c;
 }
 
+// Island popover dismissal — anywhere outside, or Escape. Both are DOM-driven
+// and deliberately stateless: the Hud is rebuilt per level (and per language
+// change), so an instance-bound document listener would pile up one dead
+// closure per level. Wired once for the page instead.
+function closeIslandPopovers(): void {
+  document.querySelectorAll<HTMLElement>('.island-pop:not([hidden])').forEach((p) => (p.hidden = true));
+  document.querySelectorAll('.island-btn.active').forEach((b) => {
+    b.classList.remove('active');
+    b.setAttribute('aria-expanded', 'false');
+  });
+  document.querySelector('.island')?.classList.remove('pop-open');
+}
+
+let islandDismissWired = false;
+function wireIslandDismiss(): void {
+  if (islandDismissWired) return;
+  islandDismissWired = true;
+  document.addEventListener('click', () => closeIslandPopovers());
+  // capture, so Escape closes an open popover instead of falling through to
+  // main.ts's "Escape = back to the select tool"
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || !document.querySelector('.island.pop-open')) return;
+      e.stopPropagation();
+      closeIslandPopovers();
+    },
+    true,
+  );
+}
+
 export interface HudCallbacks {
   onTool: (t: Tool) => void;
   onSpeed: (s: number) => void;
+  onTogglePause: () => void;
   onZoom: (dir: number) => void;
   onRole: (r: Role, delta: number) => void;
   onUpgrade: () => void;
@@ -111,7 +143,11 @@ export class Hud {
   private upgradeBtn!: HTMLButtonElement;
   private toolBtns = new Map<Tool, HTMLButtonElement>();
   private speedBtns = new Map<number, HTMLButtonElement>();
+  private lastRate = 1; // rate ▶ resumes at; mirrors main.ts's own lastRate
   private speedTrigger!: HTMLElement;
+  private island!: HTMLElement;
+  private playBtn!: HTMLButtonElement;
+  private popovers: { pop: HTMLElement; trigger: HTMLElement }[] = [];
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
@@ -130,11 +166,10 @@ export class Hud {
   private wxSum: HTMLElement | null = null;
   private clockEl!: HTMLElement;
   private clockSig = '';
-  private hudRow!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
   private confirmSig = '';
-  // hover-driven niceties (toolbar tooltips, flyout-on-hover) only make sense
-  // where a hover pointer exists; touch gets tap-driven equivalents instead
+  // hover-driven niceties (the toolbar's tooltips) only make sense where a
+  // hover pointer exists; touch gets tap-driven equivalents instead
   private readonly hoverOk =
     typeof matchMedia !== 'undefined' && matchMedia('(hover: hover)').matches;
   activeTool: Tool = 'select';
@@ -146,8 +181,8 @@ export class Hud {
     root.innerHTML = '';
     this.buildTopBar();
     this.buildToolbar();
-    this.buildControlBar();
-    this.buildMenuBar();
+    this.buildIsland();
+    this.buildZoomBar();
     this.toastWrap = el('div', 'toast-wrap', root);
     this.update();
   }
@@ -155,14 +190,11 @@ export class Hud {
   private buildTopBar(): void {
     const bar = el('div', 'topbar', this.root);
 
-    // First row on mobile: [☰ menu] [resource strip] [speed pill] — the menu
-    // and control flyouts are inserted around the resources by their builders.
-    // On desktop the row is display:contents and the flyouts position:fixed
-    // back to the bottom corners, so this wrapper changes nothing there.
-    this.hudRow = el('div', 'hud-row', bar);
+    // The clock and the menu/speed controls are NOT here — they live in the
+    // island (see buildIsland), which floats above this bar at top centre.
 
     // resources
-    const res = el('div', 'panel res-bar', this.hudRow);
+    const res = el('div', 'panel res-bar', bar);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
       chip.title = t('hud.chipTitle', { name: t(`item.${it}`) });
@@ -179,14 +211,6 @@ export class Hud {
       this.resChips.set(it, chip);
       this.keepBadges.set(it, badge);
     }
-
-    // level clock — reads game time, so it stretches with 2×/4× and holds at ⏸
-    // (and at the win, which freezes the sim clock at the final time)
-    const clock = el('div', 'panel clock', this.hudRow);
-    clock.title = t('hud.clockTitle');
-    el('span', 'clock-ic', clock).textContent = '⏱';
-    this.clockEl = el('span', 'clock-time', clock);
-    this.clockEl.textContent = fmtTime(0);
 
     el('div', 'spacer', bar);
 
@@ -286,94 +310,126 @@ export class Hud {
     }
   }
 
-  // Speed + zoom, merged into one bottom-right flyout. Collapsed on desktop to a
-  // single pill showing the current speed; hovering expands the full panel. On
-  // touch (no hover) the pill is hidden and the panel stays open — see the
-  // `@media (hover: hover)` block in style.css.
-  // On touch (no hover) a flyout's pill is the toggle: tap opens, tap closes.
-  // On hover pointers the CSS hover/focus reveal keeps working and this handler
-  // never fires a state the CSS doesn't already show.
-  private wireFlyout(bar: HTMLElement, trigger: HTMLButtonElement, closeOnAction: boolean): void {
+  // ---- the island: one pill at top centre, [speed] · [clock] · [☰] ----------
+  // Three zones share a single surface (Dynamic-Island style) rather than
+  // floating as three separate widgets. Each end zone is a trigger that drops
+  // its own popover; the clock in the middle is a passive readout.
+  //
+  // Popovers are TAP/CLICK toggled on every pointer type — no hover reveal.
+  // Hover-to-open made the island twitchy to cross with the mouse (the panels
+  // sit right under the resource strip) and left touch on a separate code path,
+  // which is exactly where the flyouts used to get stuck open.
+  private popover(
+    trigger: HTMLButtonElement,
+    cls: string,
+    closeOnAction: boolean,
+  ): HTMLElement {
+    const pop = el('div', `island-pop ${cls}`, this.island);
+    pop.hidden = true;
+    // id and aria-controls are set together — aria-controls is an IDREF, so a
+    // class name alone would leave it pointing at nothing. Unique per page:
+    // the Hud owns the only island and rebuilds it wholesale.
+    pop.id = cls;
+    trigger.setAttribute('aria-controls', cls);
     trigger.setAttribute('aria-expanded', 'false');
-    trigger.onclick = () => {
-      if (this.hoverOk) return;
-      const open = bar.classList.contains('open');
-      this.root.querySelectorAll('.flyout.open').forEach((f) => {
-        f.classList.remove('open');
-        f.querySelector('.flyout-trigger')?.setAttribute('aria-expanded', 'false');
-      });
-      bar.classList.toggle('open', !open);
-      trigger.setAttribute('aria-expanded', String(!open));
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.onclick = (e) => {
+      e.stopPropagation(); // else the document closer swallows the open
+      this.openPopover(pop.hidden ? pop : null);
     };
-    if (closeOnAction) {
-      bar.addEventListener('click', (e) => {
-        if (this.hoverOk || !bar.classList.contains('open')) return;
-        const tgt = e.target as HTMLElement;
-        if (tgt.closest('button') && !tgt.closest('.flyout-trigger')) {
-          bar.classList.remove('open');
-          trigger.setAttribute('aria-expanded', 'false');
-        }
-      });
-    }
+    // the popover's own clicks must not reach the outside-click closer
+    pop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // menu actions navigate away — fold the popover behind them. Speed taps
+      // repeat, so that popover stays put.
+      if (closeOnAction && (e.target as HTMLElement).closest('button')) {
+        this.openPopover(null);
+      }
+    });
+    this.popovers.push({ pop, trigger });
+    return pop;
   }
 
-  private buildControlBar(): void {
-    const bar = el('div', 'ctrlbar flyout', this.hudRow);
-    const trigger = el('button', 'flyout-trigger panel', bar);
-    trigger.textContent = '1×';
-    trigger.setAttribute('aria-label', t('hud.speedMenu'));
-    this.speedTrigger = trigger;
-    const body = el('div', 'flyout-body panel', bar);
+  // Single open popover at a time; `null` closes everything.
+  private openPopover(open: HTMLElement | null): void {
+    closeIslandPopovers();
+    this.closeReservePopover(); // one popover on screen at a time
+    if (!open) return;
+    const pair = this.popovers.find((p) => p.pop === open)!;
+    open.hidden = false;
+    pair.trigger.classList.add('active');
+    pair.trigger.setAttribute('aria-expanded', 'true');
+    this.island.classList.add('pop-open');
+  }
 
-    const speedRow = el('div', 'ctrl-row speed-row', body);
-    for (const [label, s] of [
-      ['⏸', 0],
-      ['1×', 1],
-      ['2×', 2],
-      ['4×', 4],
-    ] as const) {
+  private buildIsland(): void {
+    const island = el('div', 'panel island', this.root);
+    this.island = island;
+
+    // left zone: pause + speed
+    const speedTrigger = el('button', 'island-btn speed-trigger', island);
+    speedTrigger.setAttribute('aria-label', t('hud.speedMenu'));
+    this.speedTrigger = speedTrigger;
+
+    // centre zone: the level clock — reads game time, so it stretches with
+    // 2×/4× and holds at ⏸ (and at the win, which freezes the sim clock)
+    const clock = el('div', 'clock', island);
+    clock.title = t('hud.clockTitle');
+    el('span', 'clock-ic', clock).textContent = '⏱';
+    this.clockEl = el('span', 'clock-time', clock);
+    this.clockEl.textContent = fmtTime(0);
+
+    // right zone: the burger
+    const menuTrigger = el('button', 'island-btn menu-trigger', island);
+    menuTrigger.textContent = '☰';
+    menuTrigger.setAttribute('aria-label', t('menu.levels'));
+
+    // ---- speed popover: play/pause, then the rate ----
+    const speedPop = this.popover(speedTrigger, 'speed-pop', false);
+    const playRow = el('div', 'ctrl-row', speedPop);
+    this.playBtn = el('button', 'play-btn', playRow);
+    this.playBtn.onclick = () => this.cbs.onTogglePause();
+    el('div', 'ctrl-divider', speedPop);
+    const speedRow = el('div', 'ctrl-row speed-row', speedPop);
+    el('span', 'ctrl-label', speedRow).textContent = t('hud.speed');
+    for (const s of [1, 2, 4] as const) {
       const btn = el('button', 'speed-btn', speedRow);
-      btn.textContent = label;
+      btn.textContent = `${s}×`;
       btn.onclick = () => this.cbs.onSpeed(s);
       this.speedBtns.set(s, btn);
     }
 
-    el('div', 'ctrl-divider', body);
-
-    const zoomRow = el('div', 'ctrl-row zoom-row', body);
-    el('span', 'ctrl-label', zoomRow).textContent = t('hud.zoom');
-    for (const [label, dir] of [
-      ['−', -1],
-      ['+', 1],
-    ] as const) {
-      const btn = el('button', 'speed-btn', zoomRow);
-      btn.textContent = label;
-      btn.title = dir > 0 ? 'Zoom in (+)' : 'Zoom out (−)';
-      btn.onclick = () => this.cbs.onZoom(dir);
-    }
-    // zoom taps repeat; keep the panel open for them
-    this.wireFlyout(bar, trigger, false);
-  }
-
-  private buildMenuBar(): void {
-    const bar = el('div', 'menubar flyout');
-    this.hudRow.insertBefore(bar, this.hudRow.firstChild); // ☰ leads the row
-    const trigger = el('button', 'flyout-trigger panel', bar);
-    trigger.textContent = '☰';
-    trigger.setAttribute('aria-label', t('menu.levels'));
-    const body = el('div', 'flyout-body panel', bar);
-    const menu = el('button', 'speed-btn', body);
+    // ---- menu popover: levels / restart / options ----
+    const menuPop = this.popover(menuTrigger, 'menu-pop', true);
+    const menu = el('button', 'speed-btn', menuPop);
     menu.textContent = t('menu.levels');
     menu.onclick = () => this.cbs.onMenu();
-    const restart = el('button', 'speed-btn', body);
+    const restart = el('button', 'speed-btn', menuPop);
     restart.textContent = t('menu.restart');
     restart.onclick = () => this.cbs.onRestart();
-    const opts = el('button', 'speed-btn', body);
-    opts.textContent = '⚙';
+    const opts = el('button', 'speed-btn', menuPop);
+    opts.textContent = `⚙ ${t('opt.title')}`;
     opts.title = t('opt.title');
     opts.onclick = () => this.cbs.onOptions();
-    // every action here navigates away — fold the menu behind it
-    this.wireFlyout(bar, trigger, true);
+
+    wireIslandDismiss();
+  }
+
+  // Zoom keeps the bottom-right corner it already had — the Google-Maps spot,
+  // and far from the island so a zoom tap never grazes a menu.
+  private buildZoomBar(): void {
+    const bar = el('div', 'panel zoombar', this.root);
+    for (const [label, dir] of [
+      ['+', 1],
+      ['−', -1],
+    ] as const) {
+      const btn = el('button', 'zoom-btn', bar);
+      btn.textContent = label;
+      // the glyph carries no meaning to a screen reader — the label does
+      btn.title = t(dir > 0 ? 'hud.zoomIn' : 'hud.zoomOut');
+      btn.setAttribute('aria-label', btn.title);
+      btn.onclick = () => this.cbs.onZoom(dir);
+    }
   }
 
   private showTooltip(tool: Tool, anchor: HTMLElement): void {
@@ -428,6 +484,7 @@ export class Hud {
   }
 
   private toggleReservePopover(item: ItemType, anchor: HTMLElement): void {
+    closeIslandPopovers(); // one popover on screen at a time
     if (this.reservePop?.item === item) {
       this.closeReservePopover();
       return;
@@ -912,10 +969,15 @@ export class Hud {
   }
 
   setSpeed(s: number): void {
-    for (const [sp, btn] of this.speedBtns) btn.classList.toggle('active', sp === s);
-    // keep the collapsed pill in sync — it doubles as a live speed readout
+    // the rate stays lit while paused: ⏸ then ▶ resumes at that rate, so the
+    // buttons show what you'd get back, not a rate nothing is running at
+    for (const [sp, btn] of this.speedBtns) btn.classList.toggle('active', sp === s || (s === 0 && sp === this.lastRate));
+    if (s > 0) this.lastRate = s;
+    // the island's left zone doubles as the live speed readout
     this.speedTrigger.textContent = s === 0 ? '⏸' : `${s}×`;
+    this.speedTrigger.classList.toggle('paused', s === 0);
     this.speedTrigger.classList.toggle('non-default', s !== 1);
+    this.playBtn.textContent = s === 0 ? `▶ ${t('hud.resume')}` : `⏸ ${t('hud.pause')}`;
     document.querySelector('.pause-note')?.remove();
     if (s === 0) {
       const note = el('div', 'pause-note', this.root);

@@ -2,7 +2,10 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
+
 function findChrome() {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   try {
     const found = execSync('ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1').toString().trim();
     if (found) return found;
@@ -18,7 +21,7 @@ const check = (name, cond) => {
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--no-sandbox', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto('http://localhost:4173/');
+await page.goto(BASE_URL);
 await page.waitForTimeout(600);
 
 // English front door by default (headless is en-US)
@@ -50,10 +53,9 @@ check('first tool label is German', toolLabel === 'Prüfen');
 
 
 // in-game options via the gear, switch back to English -> HUD rebuilds live.
-// The corner menu auto-hides behind a pill on hover-capable pointers, so reveal
-// it first (headless shell reports `hover: hover`).
-await page.hover('.menubar');
-await page.click('.menubar .speed-btn[title="Optionen"]');
+// The gear lives in the island's burger popover, which opens on click.
+await page.click('.island .menu-trigger');
+await page.click('.menu-pop .speed-btn[title="Optionen"]');
 await page.waitForTimeout(200);
 await page.click('.seg-btn:has-text("English")');
 await page.waitForTimeout(300);

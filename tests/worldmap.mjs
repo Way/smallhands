@@ -88,8 +88,8 @@ const booted = await page.evaluate(() => ({
 check('play boots a fresh level', booted.hasGame && booted.won === false);
 
 // ---- editor reachable from the legend (back on the select first) ----
-await page.hover('.menubar');
-await page.click('.menubar .speed-btn:has-text("Levels")');
+await page.click('.island .menu-trigger'); // the burger drops the menu popover
+await page.click('.menu-pop .speed-btn:has-text("Levels")');
 await page.waitForTimeout(400);
 check('back on the worldmap', !!(await page.$('.overlay.worldmap')));
 await page.click('.legend-btn.editor');
