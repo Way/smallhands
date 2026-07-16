@@ -364,7 +364,8 @@ export class Renderer {
     // 2. midground ridge + dressing
     const midCol = bmix(hills[0], skyMid, 0.15);
     this.silhouette(W, H, cam, 0.12, rgbCss(midCol), 0.72, 60, midShape);
-    if (biome === 'meadow' || biome === 'autumn' || biome === 'slate') {
+    const treeline = BIOME_LOOK[biome].treeline;
+    if (treeline !== 'none') {
       // a distant tree line along the mid crest, anchored in layer space so it
       // parallaxes with its hill; conifers for the highlands, blobs elsewhere
       const par = 0.12;
@@ -379,7 +380,7 @@ export class Renderer {
         const sx = xw - cam.x * par;
         const cy = H * 0.72 - midShape(xw * 0.008) * 60 - cam.y * par * 0.3;
         const s = 3 + h1 * 3;
-        if (biome === 'slate') {
+        if (treeline === 'conifers') {
           ctx.beginPath();
           ctx.moveTo(sx, cy - s * 1.6);
           ctx.lineTo(sx - s * 0.55, cy + 1);

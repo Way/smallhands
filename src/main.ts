@@ -2,6 +2,8 @@ import './style.css';
 import { FEATS, TILE, TOOL_DEFS, bestTier, fmtTime, medalFor } from './game/types';
 import { detectLang, getLang, setLang, t } from './engine/i18n';
 import type { Lang } from './engine/i18n';
+import { BIOMES } from './engine/biomes';
+import type { Biome } from './engine/biomes';
 import type { MedalTier, Tool } from './game/types';
 import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio } from './engine/audio';
@@ -735,11 +737,37 @@ function showGenerateDialog(): void {
   diffRow.appendChild(diffSel);
   box.appendChild(diffRow);
 
+  // Biome override. Defaults to '' = whatever the seed picked, so the seed →
+  // biome mapping is untouched unless you deliberately override it. This is
+  // also the only way to reach a biome the generator doesn't draw from (see
+  // GENERATED_BIOMES) — without it, such a biome is unreachable in-game.
+  const biomeRow = document.createElement('div');
+  biomeRow.className = 'gen-row';
+  const biomeLbl = document.createElement('span');
+  biomeLbl.textContent = t('gen.biome');
+  biomeRow.appendChild(biomeLbl);
+  const biomeSel = document.createElement('select');
+  biomeSel.className = 'ed-input ed-select';
+  const fromSeed = document.createElement('option');
+  fromSeed.value = '';
+  fromSeed.textContent = t('gen.biomeSeeded');
+  biomeSel.appendChild(fromSeed);
+  for (const b of BIOMES) {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = t(`biome.${b}`);
+    biomeSel.appendChild(opt);
+  }
+  biomeSel.value = '';
+  biomeRow.appendChild(biomeSel);
+  box.appendChild(biomeRow);
+
   const row = document.createElement('div');
   row.className = 'btn-row';
   const gen = (openInEditor: boolean) => {
     const seed = seedIn.value.trim() || randomSeed();
     const data = generateVerifiedLevel({ seed, difficulty: Number(diffSel.value) });
+    if (biomeSel.value) data.biome = biomeSel.value as Biome;
     ov.remove();
     if (openInEditor) openEditor(data);
     else startCustomLevel(data, {});

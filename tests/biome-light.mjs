@@ -40,6 +40,21 @@ console.log('\nsnowcaps — vale is a valley, not a highland');
 check('slate still owns the only snowline', BIOME_LOOK.slate.snowcaps === true);
 check('vale has no snowline', BIOME_LOOK.vale.snowcaps === false);
 
+console.log('\ntreeline — every biome declares its distant crest dressing');
+// This was an allowlist in drawBackground (`biome === 'meadow' || 'autumn' ||
+// 'slate'`), so vale silently opted OUT and got the bare ridge meant for the
+// arid biomes. Now it is data, and TreeLine being a required field means a new
+// biome cannot forget to choose. Pin the classic five to what they rendered.
+check('meadow: blobs', BIOME_LOOK.meadow.treeline === 'blobs');
+check('autumn: blobs', BIOME_LOOK.autumn.treeline === 'blobs');
+check('slate: conifers', BIOME_LOOK.slate.treeline === 'conifers');
+check('chalk: bare ridge (arid)', BIOME_LOOK.chalk.treeline === 'none');
+check('redrock: bare ridge (arid)', BIOME_LOOK.redrock.treeline === 'none');
+check('vale: blobs — the lushest biome must not get a bare ridge', BIOME_LOOK.vale.treeline === 'blobs');
+check('every biome declares a valid treeline', BIOMES.every((b) => ['blobs', 'conifers', 'none'].includes(BIOME_LOOK[b].treeline)));
+// Only the arid pair goes bare — a green biome getting 'none' is the bug.
+check('no green biome has a bare ridge', BIOMES.filter((b) => BIOME_LOOK[b].treeline === 'none').sort().join(',') === 'chalk,redrock');
+
 console.log('\ngenerator — adding a biome must not repaint existing seeds');
 check('vale is registered as a biome', BIOMES.includes('vale'));
 check('vale is NOT in the generator pool', !GENERATED_BIOMES.includes('vale'));
