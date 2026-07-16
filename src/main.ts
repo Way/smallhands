@@ -7,11 +7,15 @@ import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio } from './engine/audio';
 import {
   deleteCustomLevel,
+  exportAllData,
+  importAllData,
   loadCustomLevels,
   loadSave,
+  persistCustomLevels,
   persistSave,
   upsertCustomLevel,
 } from './engine/save';
+import type { ExportBundle } from './engine/save';
 import { Game } from './game/sim';
 import { findPath } from './game/nav';
 import type { GameEvent } from './game/sim';
@@ -483,6 +487,62 @@ function showOptions(returnTo: () => void): void {
     box.appendChild(n);
   }
 
+  // export / import: carry the whole save (progress + custom levels) to
+  // another browser or device as a single JSON file
+  {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    const lab = document.createElement('span');
+    lab.className = 'opt-label';
+    lab.textContent = t('opt.transfer');
+    row.appendChild(lab);
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    const exp = document.createElement('button');
+    exp.className = 'seg-btn';
+    exp.textContent = t('btn.export');
+    exp.onclick = () => {
+      audio.click();
+      const blob = new Blob([exportAllData(save, customLevels)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smallhands-save-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    seg.appendChild(exp);
+    const imp = document.createElement('button');
+    imp.className = 'seg-btn';
+    imp.textContent = t('btn.import');
+    imp.onclick = () => {
+      audio.click();
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        file.text().then((text) => {
+          const bundle = importAllData(text);
+          if (!bundle) {
+            window.alert(t('save.importError'));
+            return;
+          }
+          showConfirm(t('confirm.import'), t('btn.import'), () => applyImportedData(bundle, returnTo));
+        });
+      };
+      input.click();
+    };
+    seg.appendChild(imp);
+    row.appendChild(seg);
+    box.appendChild(row);
+    const n = document.createElement('div');
+    n.className = 'opt-note';
+    n.textContent = t('opt.transferDesc');
+    box.appendChild(n);
+  }
+
   const rowBtns = document.createElement('div');
   rowBtns.className = 'btn-row';
   const back = document.createElement('button');
@@ -496,6 +556,21 @@ function showOptions(returnTo: () => void): void {
   box.appendChild(rowBtns);
   ov.appendChild(box);
   uiRoot.appendChild(ov);
+}
+
+// Replace the local save with an imported bundle and push it through every
+// live surface (persistence, audio, effects, language, HUD), then land back
+// on the options menu.
+function applyImportedData(bundle: ExportBundle, returnTo: () => void): void {
+  Object.assign(save, bundle.save);
+  persistSave(save);
+  customLevels = bundle.customLevels;
+  persistCustomLevels(customLevels);
+  audio.muted = save.muted;
+  renderer.effectsReduced = save.effects === 'reduced';
+  setLang(save.lang ?? detectLang());
+  if (game) attachHud(); // wipes uiRoot — re-opened below
+  showOptions(returnTo);
 }
 
 // trophy cartouche: the collection at a glance (world-map top bar)
