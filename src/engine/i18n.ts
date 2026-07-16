@@ -437,6 +437,7 @@ const D: Record<string, [string, string]> = {
   'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
   'map.terr4': ['Shaft & Seam', 'Schacht & Ader'],
   'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
+  'dev.badge': ['🔧 DEV · all levels unlocked', '🔧 DEV · alle Level freigeschaltet'],
   'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
   'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
   'map.progress': ['{done} of {total} cleared', '{done} von {total} geschafft'],

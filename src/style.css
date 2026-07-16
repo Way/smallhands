@@ -1085,6 +1085,21 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   color: var(--map-gold);
 }
 
+/* dev-mode chip in the topbar so bypassed gating is unmistakable while
+   testing (only rendered on dev builds with ?dev) */
+.dev-badge {
+  flex: 0 0 auto;
+  padding: 5px 10px 6px;
+  font-family: var(--map-pixel);
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  color: var(--map-gold);
+  background: rgba(24, 30, 42, 0.85);
+  border: 1px dashed rgba(255, 201, 77, 0.65);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 /* the open sea: gradient + wave hatching drawn full-bleed behind the whole
    map (topbar and islands float over it), so the waves reach every screen edge */
 .map-sea-bg {

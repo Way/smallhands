@@ -26,7 +26,8 @@ import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, ver
 import type { CustomLevelData } from './game/leveldata';
 import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 import { buildWorldMap } from './game/worldmap';
-import type { MapCampaignState } from './game/worldmap';
+import { computeCampaignStates } from './game/progress';
+import { devUnlockAll } from './engine/devmode';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui-root') as HTMLDivElement;
@@ -43,6 +44,10 @@ buildAtlas();
 
 const save = loadSave();
 let customLevels = loadCustomLevels();
+// Local dev mode (Vite dev server + `?dev` in the URL, see engine/devmode.ts):
+// every campaign level is playable for testing. Progress stays truthful.
+const devUnlock = devUnlockAll();
+if (devUnlock) console.info('[smallhands] dev unlock active — all campaign levels are playable');
 audio.muted = save.muted;
 // language: an explicit choice from the options menu wins; otherwise follow the browser
 setLang(save.lang ?? detectLang());
@@ -533,30 +538,9 @@ function showLevelSelect(): void {
   clearOverlay();
   running = false;
 
-  // Campaign/unlock state — same rules as the old grid: a campaign opens once
-  // every level of all previous campaigns is done; within a campaign levels
-  // unlock in sequence (the globally previous level must be completed).
-  const ids = [...new Set(LEVELS.map((l) => l.campaign ?? 1))].sort((a, b) => a - b);
-  const doneByCampaign = new Map(
-    ids.map((c) => [
-      c,
-      LEVELS.filter((l) => (l.campaign ?? 1) === c).every((l) => save.completed.includes(l.id)),
-    ])
-  );
-  const gate = (c: number) => ids.filter((x) => x < c).every((x) => doneByCampaign.get(x));
-  const campaigns: MapCampaignState[] = ids.map((c) => ({
-    campaign: c,
-    unlocked: gate(c),
-    complete: doneByCampaign.get(c)!,
-    levels: LEVELS.map((def, index) => ({ def, index }))
-      .filter(({ def }) => (def.campaign ?? 1) === c)
-      .map(({ def, index }) => ({
-        index,
-        def,
-        unlocked: gate(c) && (index === 0 || save.completed.includes(LEVELS[index - 1].id)),
-        done: save.completed.includes(def.id),
-      })),
-  }));
+  // Campaign/unlock state — the gating rules live in game/progress.ts; the
+  // dev-mode flag unlocks every level for local testing.
+  const campaigns = computeCampaignStates(LEVELS, save.completed, devUnlock);
 
   const daily = dailySeed();
   const ov = buildWorldMap({
@@ -612,6 +596,13 @@ function showLevelSelect(): void {
     onTitle: showTitle,
     onOptions: () => showOptions(showLevelSelect),
   });
+  if (devUnlock) {
+    // make the bypassed gating impossible to mistake for real progress
+    const badge = document.createElement('div');
+    badge.className = 'dev-badge';
+    badge.textContent = t('dev.badge');
+    (ov.querySelector('.map-topbar') ?? ov).appendChild(badge);
+  }
   uiRoot.appendChild(ov);
 }
 
