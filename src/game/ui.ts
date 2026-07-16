@@ -166,6 +166,8 @@ export class Hud {
   private wxSum: HTMLElement | null = null;
   private clockEl!: HTMLElement;
   private clockSig = '';
+  private topbar!: HTMLElement;
+  private topbarRight!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
   private confirmSig = '';
   // hover-driven niceties (the toolbar's tooltips) only make sense where a
@@ -189,11 +191,14 @@ export class Hud {
 
   private buildTopBar(): void {
     const bar = el('div', 'topbar', this.root);
+    this.topbar = bar;
 
-    // The clock and the menu/speed controls are NOT here — they live in the
-    // island (see buildIsland), which floats above this bar at top centre.
+    // The topbar is a three-track grid — [resources] [island] [info panels] —
+    // so each cluster owns a column and none can slide under another. The
+    // island (buildIsland) drops into the centre track; the info panels go in
+    // a right-hand wrapper that wraps its children rather than growing left.
 
-    // resources
+    // resources (left track)
     const res = el('div', 'panel res-bar', bar);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
@@ -212,10 +217,13 @@ export class Hud {
       this.keepBadges.set(it, badge);
     }
 
-    el('div', 'spacer', bar);
+    // right track: objectives / weather / crew share one wrapper so the grid
+    // treats them as a single cluster (they wrap inside it when space is tight)
+    const right = el('div', 'topbar-right', bar);
+    this.topbarRight = right;
 
     // objectives
-    const obj = el('div', 'panel objectives', bar);
+    const obj = el('div', 'panel objectives', right);
     const h = el('h3', undefined, obj);
     h.innerHTML = `<span>${t('hud.deliver')}</span><span class="hsum"></span><span class="lvlname">${t(this.game.level.name)}</span>`;
     this.objSum = h.querySelector('.hsum')!;
@@ -231,7 +239,7 @@ export class Hud {
 
     // weather forecast — deterministic, so showing it IS the strategy layer
     if (this.game.weatherSchedule) {
-      const wx = el('div', 'panel weather', bar);
+      const wx = el('div', 'panel weather', right);
       const wh = el('h3', undefined, wx);
       wh.innerHTML =
         `<span>${t('hud.weather')}</span><span class="hsum wx-sum"></span>` +
@@ -246,7 +254,7 @@ export class Hud {
     }
 
     // crew panel
-    const crew = el('div', 'panel crew', bar);
+    const crew = el('div', 'panel crew', right);
     const ch = el('h3', undefined, crew);
     ch.innerHTML = `<span>${t('hud.crew')}</span><span class="pop"></span>`;
     this.workerPop = ch.querySelector('.pop')!;
@@ -363,7 +371,11 @@ export class Hud {
   }
 
   private buildIsland(): void {
-    const island = el('div', 'panel island', this.root);
+    // Centre track of the topbar grid, between resources and the info panels.
+    // In-flow (not fixed) so its column is reserved and nothing can overlap it;
+    // the compact layout floats it back out on its own row.
+    const island = el('div', 'panel island');
+    this.topbar.insertBefore(island, this.topbarRight);
     this.island = island;
 
     // left zone: pause + speed
