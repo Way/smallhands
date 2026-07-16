@@ -198,8 +198,11 @@ export class Hud {
     // island (buildIsland) drops into the centre track; the info panels go in
     // a right-hand wrapper that wraps its children rather than growing left.
 
-    // resources (left track)
-    const res = el('div', 'panel res-bar', bar);
+    // left column (left track): resources + crew — the hands-on control cluster
+    // (reserve stock, staff roles, upgrade the Town Hall), grouped top-left
+    // where the eye lands first. Crew is appended further down.
+    const left = el('div', 'topbar-left', bar);
+    const res = el('div', 'panel res-bar', left);
     for (const it of ITEM_TYPES) {
       const chip = el('button', 'res-chip', res);
       chip.title = t('hud.chipTitle', { name: t(`item.${it}`) });
@@ -217,8 +220,9 @@ export class Hud {
       this.keepBadges.set(it, badge);
     }
 
-    // right track: objectives / weather / crew share one wrapper so the grid
-    // treats them as a single cluster (they wrap inside it when space is tight)
+    // right column (right track): read-only status — objectives (+ level name)
+    // on top, the dynamic weather forecast below, so a contextual panel never
+    // reflows the controls in the left column.
     const right = el('div', 'topbar-right', bar);
     this.topbarRight = right;
 
@@ -253,8 +257,9 @@ export class Hud {
       this.collapsible(wx, wh);
     }
 
-    // crew panel
-    const crew = el('div', 'panel crew', right);
+    // crew panel — lives in the LEFT column, directly under the resources, so
+    // the two control panels read as one management stack.
+    const crew = el('div', 'panel crew', left);
     const ch = el('h3', undefined, crew);
     ch.innerHTML = `<span>${t('hud.crew')}</span><span class="pop"></span>`;
     this.workerPop = ch.querySelector('.pop')!;
