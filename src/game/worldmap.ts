@@ -281,10 +281,19 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   // JS contain-fit: the wrap must have EXACTLY the viewBox aspect so that
   // percent-positioned HTML (nodes, badges, popover) lines up with SVG paths.
   // Below a minimum rendered width the wrap stops shrinking and the viewport
-  // pans instead (nodes stay tappable). Touch screens keep a larger minimum:
-  // thumb-sized medallions need the extra spacing between them.
+  // pans instead (nodes stay tappable). Touch keeps a larger minimum for two
+  // reasons: 44px thumb medallions need spacing between slots, AND the islands
+  // must render big enough that those fixed-size medallions don't dwarf the
+  // island art (the discs never shrink below thumb size, so proportion comes
+  // from growing the map instead).
   const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-  const minMapW = coarse ? 1080 : 900;
+  // same breakpoints as the compact-layout CSS block: on these screens the
+  // level popover opens as a bottom drawer instead of a node-anchored bubble
+  const compactMq =
+    typeof matchMedia !== 'undefined'
+      ? matchMedia('(max-width: 820px), ((pointer: coarse) and (max-height: 520px))')
+      : null;
+  const minMapW = coarse ? 1280 : 900;
   const fit = () => {
     const r = viewport.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -292,6 +301,10 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     s = Math.max(s, minMapW / VIEW_W);
     wrap.style.width = `${VIEW_W * s}px`;
     wrap.style.height = `${VIEW_H * s}px`;
+    // the map's render scale, for CSS: medallion digits (and, on fine
+    // pointers, the discs themselves) shrink with the map so the numbers
+    // keep their proportion to the islands instead of dominating them
+    wrap.style.setProperty('--map-s', s.toFixed(4));
   };
   const ro = new ResizeObserver(() => {
     // self-disconnect once the overlay is torn down (screen is rebuilt per visit)
@@ -449,15 +462,32 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     }
     popAnchor = anchor;
     pop = document.createElement('div');
-    // flip below for any node in the upper half — the enriched pills are tall,
-    // so a node near the top would otherwise overflow above the map. Clamp x so
-    // the pill never leaves the map horizontally.
-    pop.className = 'level-card map-popover' + (at.y < 470 ? ' below' : '');
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-modal', 'true');
-    place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
-    fill(pop);
-    wrap.appendChild(pop);
+    if (compactMq?.matches) {
+      // phones: the map pans, so a node-anchored bubble can sit half outside
+      // the viewport. A bottom drawer above the legend bar is always fully
+      // visible. Lives on the overlay (not the panning wrap) so it stays put.
+      pop.className = 'level-card map-popover sheet';
+      fill(pop);
+      const x = document.createElement('button');
+      x.className = 'lv-action-btn pop-close';
+      x.textContent = '✕';
+      x.onclick = () => {
+        deps.click();
+        closePopover();
+      };
+      pop.appendChild(x);
+      ov.appendChild(pop);
+    } else {
+      // flip below for any node in the upper half — the enriched pills are tall,
+      // so a node near the top would otherwise overflow above the map. Clamp x so
+      // the pill never leaves the map horizontally.
+      pop.className = 'level-card map-popover' + (at.y < 470 ? ' below' : '');
+      place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
+      fill(pop);
+      wrap.appendChild(pop);
+    }
     (pop.querySelector('.pop-play') as HTMLElement | null)?.focus();
   };
   ov.addEventListener('keydown', (e) => {
