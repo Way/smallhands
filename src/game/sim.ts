@@ -157,7 +157,9 @@ export class Game {
   objectives: Objective[] = [];
   won = false;
   time = 0;
-  speed = 1;
+  // The sim knows *whether* it runs, not how fast: speed is a main-loop concern
+  // (it scales the tick accumulator, so a tick is always exactly dt). Don't add
+  // a speed field here — nothing in the sim could read it.
   paused = false;
   demolishCount = 0; // for the "No Demolish" feat
 
