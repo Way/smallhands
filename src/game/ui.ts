@@ -326,6 +326,11 @@ export class Hud {
   ): HTMLElement {
     const pop = el('div', `island-pop ${cls}`, this.island);
     pop.hidden = true;
+    // id and aria-controls are set together — aria-controls is an IDREF, so a
+    // class name alone would leave it pointing at nothing. Unique per page:
+    // the Hud owns the only island and rebuilds it wholesale.
+    pop.id = cls;
+    trigger.setAttribute('aria-controls', cls);
     trigger.setAttribute('aria-expanded', 'false');
     trigger.setAttribute('aria-haspopup', 'true');
     trigger.onclick = (e) => {
@@ -364,7 +369,6 @@ export class Hud {
     // left zone: pause + speed
     const speedTrigger = el('button', 'island-btn speed-trigger', island);
     speedTrigger.setAttribute('aria-label', t('hud.speedMenu'));
-    speedTrigger.setAttribute('aria-controls', 'speed-pop');
     this.speedTrigger = speedTrigger;
 
     // centre zone: the level clock — reads game time, so it stretches with
@@ -379,7 +383,6 @@ export class Hud {
     const menuTrigger = el('button', 'island-btn menu-trigger', island);
     menuTrigger.textContent = '☰';
     menuTrigger.setAttribute('aria-label', t('menu.levels'));
-    menuTrigger.setAttribute('aria-controls', 'menu-pop');
 
     // ---- speed popover: play/pause, then the rate ----
     const speedPop = this.popover(speedTrigger, 'speed-pop', false);
