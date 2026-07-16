@@ -4,29 +4,13 @@
 //   2. the firewall holds: the sim emits lookEvents breadcrumbs, the layer
 //      drains them, reduced motion keeps the layer empty, and headless runs
 //      (nobody draining) stay capped.
-import { build } from 'esbuild';
-import { fileURLToPath } from 'node:url';
+import { bundleExports } from './bundle.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-const res = await build({
-  stdin: {
-    contents: `
-      export { MotionLayer, VerletRope, FELL_DUR } from './src/game/motion.ts';
-      export { Game } from './src/game/sim.ts';
-      export { LEVELS } from './src/game/levels.ts';
-    `,
-    resolveDir: root,
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  write: false,
-});
-const mod = await import(
-  'data:text/javascript;base64,' + Buffer.from(res.outputFiles[0].text).toString('base64')
-);
+const mod = await bundleExports(`
+  export { MotionLayer, VerletRope, FELL_DUR } from './src/game/motion.ts';
+  export { Game } from './src/game/sim.ts';
+  export { LEVELS } from './src/game/levels.ts';
+`);
 const { MotionLayer, VerletRope, FELL_DUR, Game, LEVELS } = mod;
 
 let failures = 0;
