@@ -1406,6 +1406,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   animation: drawer-up 0.18s ease-out;
 }
 .map-popover.sheet .lv-name { padding-right: 40px; }
+/* no gold corner-pixels on the drawer: on a full-width sheet the four floating
+   squares read as stray artifacts rather than a frame */
+.level-card.map-popover.sheet::after { content: none; }
 .map-popover .pop-close { position: absolute; top: 10px; right: 10px; }
 @media (prefers-reduced-motion: reduce) {
   .level-card.map-popover.sheet { animation: none; }
@@ -1760,8 +1763,28 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .tool-btn canvas { width: 26px; height: 26px; }
   .tool-btn .tool-label { font-size: 10px; }
 
-  /* floating readouts clear the dock and the notch */
-  .confirm-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
+  /* floating readouts clear the dock and the notch. The bar also slims down:
+     on a phone the desktop-sized panel covered a third of the playfield — it
+     now hugs its content (auto width, tighter type, 40px buttons) so the map
+     stays visible around the very thing being placed */
+  .confirm-bar {
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 72px);
+    /* max-content (not auto): the left:50% centring would otherwise cap
+       shrink-to-fit at half the viewport and stack the readout vertically */
+    width: max-content;
+    max-width: calc(100vw - 12px);
+    padding: 7px 9px;
+    gap: 8px;
+  }
+  .cb-tool { font-size: 12px; gap: 6px; }
+  .cb-tool canvas { width: 18px; height: 18px; }
+  .cb-count { font-size: 12px; }
+  .cb-cost { font-size: 12px; gap: 6px; }
+  .cb-cost canvas { width: 14px; height: 14px; }
+  .cb-hint { font-size: 11px; }
+  .cb-btn { height: 40px; font-size: 14px; border-radius: 9px; }
+  .cb-cancel { width: 40px; }
+  .cb-confirm { padding: 0 14px; }
   /* toasts move to the top, under the HUD pills: bottom-centre floaters sit in
      the middle of a phone screen and swallow the very taps that aim tools */
   .toast-wrap {
@@ -1772,17 +1795,43 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .pause-note { top: auto; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px); }
   .resume-overlay .confirm-box, .confirm-box { max-width: min(440px, calc(100vw - 24px)); padding: 22px 18px; }
 
-  /* world map: tighter chrome, swipeable legend, safe-area padding */
-  .map-topbar { padding: 8px 10px; gap: 10px; }
-  .map-title { font-size: 21px; }
-  .map-progress { font-size: 13px; padding: 5px 10px 6px; }
-  .shelf { padding: 6px 12px; gap: 10px; }
-  .shelf .count { font-size: 13px; gap: 4px; }
-  .shelf .count canvas { width: 20px; height: 20px; }
-  .shelf .sep { height: 18px; }
-  .shelf .pct { font-size: 11px; }
-  .map-topbtns { gap: 6px; }
-  .map-topbtn.big-btn.secondary { padding: 10px 14px; font-size: 13px; }
+  /* world map: tighter chrome, swipeable legend, safe-area padding.
+     The header wraps into at most two tidy rows instead of a ragged stack:
+     row 1 keeps title + progress and the session buttons together (the title
+     ellipsizes, the resume label truncates), and the trophy cartouche — the
+     widest, tallest piece — drops to its own centred row below. */
+  .map-topbar { padding: 6px 10px 8px; gap: 6px 10px; }
+  /* min-width keeps a readable slice of the title: when the buttons no longer
+     fit beside it they wrap as a group instead of squeezing the title to 0 */
+  .map-topleft { flex: 1 1 auto; flex-wrap: nowrap; gap: 8px; min-width: 200px; }
+  .map-title {
+    font-size: 18px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .map-progress { flex: 0 0 auto; font-size: 12px; padding: 4px 9px 5px; gap: 5px; }
+  .map-topbtns { flex: 0 0 auto; gap: 6px; flex-wrap: nowrap; }
+  .map-topbtn.big-btn.secondary { padding: 9px 11px; font-size: 12px; }
+  .map-topbtn.big-btn.secondary.resume {
+    max-width: 44vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .map-topbar .cartouche { order: 4; margin: 0 auto; }
+  .shelf {
+    padding: 4px 10px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    border-bottom-width: 3px;
+    box-shadow: 0 3px 0 #3d2712, 0 6px 14px rgba(0, 0, 0, 0.4);
+  }
+  .shelf .count { font-size: 12px; gap: 4px; }
+  .shelf .count canvas { width: 18px; height: 18px; }
+  .shelf .sep { height: 16px; }
+  .shelf .pct { display: none; } /* the long label is what forced the ragged wrap */
   .legend-bar {
     flex-wrap: nowrap;
     overflow-x: auto;

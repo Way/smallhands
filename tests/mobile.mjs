@@ -2,7 +2,9 @@
 // touch) and verifies the touch experience end to end:
 //   - the front door's Play flows into the level select and a level starts
 //   - the phone starts zoomed in (DPR-aware default) and pinch steps the zoom
-//   - tap-to-aim + confirm: a tap never places, the ✓ commits, ✕ discards
+//   - harvest toggles on the tap itself (free + reversible → no confirm step)
+//   - tap-to-aim + confirm for costly tools: the ✓ commits, ✕ discards
+//   - selecting a building parks its draft ghost immediately (✓ Build pends)
 //   - one-finger drags pan the camera and never fire the armed tool
 //   - run tools grow tap by tap and report affordable/total tiles
 //   - the compact HUD: collapsible info pills, tap-toggled corner flyouts
@@ -184,19 +186,22 @@ check('arming a tool shows the aim-hint bar', await page.locator('.confirm-bar .
 const treePos = await tileToScreen(tree.x, tree.y);
 await page.touchscreen.tap(treePos.x, treePos.y);
 await page.waitForTimeout(120);
-check('tap aims without placing', await page.evaluate(([tx, ty]) => {
-  const { game } = window.__smallhands;
-  const n = game.nodes.find((nd) => nd.x === tx && nd.y === ty);
-  return !n.marked;
-}, [tree.x, tree.y]));
-check('confirm bar offers ✓ Mark', await page.locator('.cb-confirm').isVisible());
-await page.tap('.cb-confirm');
-await page.waitForTimeout(120);
-check('✓ commits the mark', await page.evaluate(([tx, ty]) => {
+// harvest is free + reversible, so the tap toggles the mark directly — no ✓ step
+check('harvest tap marks instantly', await page.evaluate(([tx, ty]) => {
   const { game } = window.__smallhands;
   const n = game.nodes.find((nd) => nd.x === tx && nd.y === ty);
   return n.marked;
 }, [tree.x, tree.y]));
+check('no ✓ button pends after an instant mark', (await page.locator('.cb-confirm').count()) === 0);
+await page.touchscreen.tap(treePos.x, treePos.y);
+await page.waitForTimeout(120);
+check('second tap unmarks', await page.evaluate(([tx, ty]) => {
+  const { game } = window.__smallhands;
+  const n = game.nodes.find((nd) => nd.x === tx && nd.y === ty);
+  return !n.marked;
+}, [tree.x, tree.y]));
+await page.touchscreen.tap(treePos.x, treePos.y); // leave it marked for the pan test
+await page.waitForTimeout(120);
 
 // ---- one-finger drag pans, never places ---------------------------------------
 const before = await page.evaluate(() => {
@@ -232,6 +237,20 @@ const midPos = await tileToScreen(mid.tx, mid.ty);
 await page.touchscreen.tap(midPos.x, midPos.y);
 await page.waitForTimeout(120);
 check('run tool aim shows affordable/total tiles', await page.locator('.confirm-bar .cb-count').isVisible());
+
+// ---- building tools: the draft ghost parks itself the moment the tool is
+// selected — a ✓ Build pends right away, no blind first tap needed ------------
+const sawBtnIdx = await page.evaluate(() => {
+  const btns = [...document.querySelectorAll('.tool-btn')];
+  return btns.findIndex((b) => b.querySelector('.tool-key')?.textContent === '5') + 1;
+});
+await page.tap(`.tool-btn:nth-child(${sawBtnIdx})`); // Sawmill (key 5)
+await page.waitForTimeout(120);
+check('selecting a building parks a draft with a pending ✓', await page.locator('.cb-confirm').isVisible());
+check('no building placed by selecting the tool', await page.evaluate(() => {
+  const { game } = window.__smallhands;
+  return !game.buildings.some((b) => b.kind === 'sawmill');
+}));
 
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();

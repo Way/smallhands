@@ -280,6 +280,12 @@ function resumeGame(): void {
   clearOverlay();
   running = true;
   setSpeed(prevSpeed > 0 ? prevSpeed : 1);
+  // touch: restore the armed tool's bar (dropped when the map took over) —
+  // buildings park their draft ghost again, everything else re-shows its hint
+  if (COARSE) {
+    if (isGhostBuildTool(hover.tool)) parkTouchAim(hover.tool);
+    else showAimHint();
+  }
 }
 
 // ---- auto-pause on focus loss -------------------------------------------------
@@ -612,6 +618,14 @@ function buildShelf(): HTMLElement | null {
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
+  // Leaving the sim: the HUD stays mounted underneath (the run may resume), so
+  // its floaters — parked touch aim, confirm bar, hints, toasts — must not
+  // linger on top of the world map.
+  clearTouchPlace();
+  hud?.hideBuildingHint();
+  hud?.hidePlacementNeeds();
+  hud?.hideRunCost();
+  hud?.clearToasts();
 
   // Campaign/unlock state — the gating rules live in game/progress.ts; the
   // dev-mode flag unlocks every level for local testing.
@@ -1204,7 +1218,13 @@ function setTool(tool: Tool): void {
   hud.hideBuildingHint();
   if (COARSE) {
     clearTouchPlace(false);
-    showAimHint();
+    if (isGhostBuildTool(tool) && running) {
+      // Selecting a building parks its translucent ghost at the viewport
+      // centre right away: tap to reposition, ✓ to build. No blind first tap.
+      parkTouchAim(tool);
+    } else {
+      showAimHint();
+    }
   } else {
     hud.hideConfirmBar();
   }
@@ -1220,12 +1240,16 @@ function setSpeed(s: number): void {
 }
 
 // ---- touch placement: tap to aim, one big ✓ to commit ------------------------------
-// On a phone the finger hides the very tile it touches, so on touch no tool ever
-// fires on the tap itself. A tap AIMS: the ghost parks on the tile, the confirm
-// bar spells out what will be built and what it costs, and the ✓ commits. Run
-// tools (ladder/ramp/bridge) grow tap by tap from the first aimed tile. A wrong
-// tap costs nothing — tap again to move the aim, or ✕ to drop it. One-finger
-// drags always pan; mouse and pen keep the desktop click/drag behavior.
+// On a phone the finger hides the very tile it touches, so on touch no costly
+// tool fires on the tap itself. A tap AIMS: the ghost parks on the tile, the
+// confirm bar spells out what will be built and what it costs, and the ✓
+// commits. Buildings even park their ghost the moment the tool is selected
+// (see setTool), so positioning starts from a visible draft. Run tools
+// (ladder/ramp/bridge) grow tap by tap from the first aimed tile. A wrong tap
+// costs nothing — tap again to move the aim, or ✕ to drop it. Harvest is the
+// exception: marking is free and reversible, so the tap toggles it directly.
+// One-finger drags always pan; mouse and pen keep the desktop click/drag
+// behavior.
 
 // Coarse-pointer detection guides defaults (initial zoom, aim hints); per-event
 // pointerType gates behavior, so a mouse on a touch laptop stays desktop-feeling.
@@ -1245,6 +1269,26 @@ function clearTouchPlace(hideBar = true): void {
   touchPlace = null;
   hover.visible = false;
   if (hideBar) hud?.hideConfirmBar();
+}
+
+// Single-tile buildings whose ghost can be parked and repositioned before the ✓
+// commits them. Run tools grow tap by tap instead, and harvest fires instantly.
+const isGhostBuildTool = (t: Tool) =>
+  t === 'sawmill' || t === 'forge' || t === 'workshop' || t === 'lantern' ||
+  t === 'lift' || t === 'rope' || t === 'hoist';
+
+// Park a touch aim (ghost + confirm bar) on the tile at the viewport centre —
+// the "draft building" a touch user drags around by tapping before approving.
+function parkTouchAim(tool: Tool): void {
+  if (!game) return;
+  const c = cam.screenToTile((renderer.viewW - cam.rightInset) / 2, renderer.viewH / 2);
+  const tx = Math.max(0, Math.min(game.world.w - 1, c.x));
+  const ty = Math.max(0, Math.min(game.world.h - 1, c.y));
+  touchPlace = { tool, aim: { x: tx, y: ty }, end: null };
+  hover.tx = tx;
+  hover.ty = ty;
+  hover.visible = true;
+  refreshTouchUi();
 }
 
 // the ✓ label names the action, not the mechanism: Build / Mark / Demolish
@@ -1269,7 +1313,8 @@ function showAimHint(): void {
   hud.showConfirmBar({
     tool: hover.tool,
     cta: null,
-    hint: t('hud.tapToAim'),
+    // harvest acts on the tap itself (no ✓ step), so its hint says so
+    hint: hover.tool === 'harvest' ? t('hud.tapMark') : t('hud.tapToAim'),
     rows: [],
     count: null,
     confirmDisabled: true,
@@ -1361,6 +1406,12 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
     return;
   }
   audio.click();
+  // Harvest needs no approve step: the flag is free and reversible, and the
+  // planted flag itself is the feedback — the tap toggles the mark directly.
+  if (hover.tool === 'harvest') {
+    applyTool(tx, ty);
+    return;
+  }
   if (isRunTool(hover.tool)) {
     if (touchPlace && touchPlace.tool === hover.tool) {
       touchPlace.end = { x: tx, y: ty }; // grow or redirect the run
