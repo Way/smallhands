@@ -485,6 +485,32 @@ export function buildAtlas(): void {
     '......TtT.......',
     '.....TTttt......',
   ]);
+  // The vale grows a low-poly-style broadleaf. Where the classic tree dapples
+  // light through the canopy, this one reads as a single rounded mass with a
+  // hard lit/shade split — sun from the upper left, sky-blue shade falling to
+  // the lower right, matching the light model the biome's terrain shading uses.
+  // Same 16x16 grid as the others, stretched to 16x32 at draw time.
+  const valeTreePal = {
+    t: '#7a4e2e', T: '#a46e44', L: '#aadd81', G: '#81c76b', k: '#488f47',
+  };
+  makeSprite('tree_vale', valeTreePal, [
+    '......LLLL......',
+    '....LLLLLLGG....',
+    '...LLLLLLLGGGk..',
+    '..LLLLLLLLGGGkk.',
+    '..LLLLLLLGGGGkk.',
+    '.LLLLLLLLGGGGGkk',
+    '.LLLLLLLGGGGGGkk',
+    '.LLLLLLGGGGGGGkk',
+    '..LLLLLGGGGGGkk.',
+    '..LLLLGGGGGGkkk.',
+    '...LLLGGGGGkkk..',
+    '....kkGGGkkk....',
+    '......Tt........',
+    '......Tt........',
+    '......Ttt.......',
+    '.....TTttt......',
+  ]);
   const boulderPal = { r: '#8d97a8', R: '#aab4c4', k: '#69707d', K: '#525862' };
   makeSprite('boulder', boulderPal, [
     '................',

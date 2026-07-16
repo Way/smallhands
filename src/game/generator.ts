@@ -5,7 +5,7 @@
 
 import { T } from './types';
 import type { ItemType, NodeKind, ObjectiveReq, Role } from './types';
-import { BIOMES } from '../engine/biomes';
+import { GENERATED_BIOMES } from '../engine/biomes';
 import { World } from './world';
 import { t } from '../engine/i18n';
 import { encodeTiles, makeLevelId, verifyLevel, MAX_W, MAX_H } from './leveldata';
@@ -316,7 +316,10 @@ export function generateLevel(opts: GenOptions): CustomLevelData {
     [thX - 2, thX + 7], // town hall + stockpile apron
     [goalX - 2, goalX + 6], // caravan apron
   ]);
-  const biome = rng.pick(BIOMES);
+  // GENERATED_BIOMES, not BIOMES: the pick maps a seed value through the list
+  // length, so drawing from the full list would repaint every existing seed
+  // (including the shared daily challenge) whenever a biome is added.
+  const biome = rng.pick(GENERATED_BIOMES);
 
   const width = plan.heights.length;
   const height = Math.min(MAX_H, Math.max(...plan.heights) + 10);

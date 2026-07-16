@@ -10,6 +10,10 @@ import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
 import type { WeatherLook, RGB } from './weather-look';
 import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
 
+// A terrain shading overlay in one of the biome's light-model colours. Callers
+// resolve these once per frame, never per tile — the shading loop is hot.
+const shade = (c: RGB, a: number): string => `rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`;
+
 export class Camera {
   x = 0; // world px at left edge
   y = 0;
@@ -509,6 +513,18 @@ export class Renderer {
     const sfx = biomeSuffix(biome);
     const blook = BIOME_LOOK[biome];
     const surf = this.surfaceRows(world);
+    // Edge/geology shading in the biome's light: highlights carry the sun's
+    // colour, shading carries the sky's. Resolved here, once, because the loop
+    // below runs for every visible solid tile. The classic biomes declare white
+    // sun over black ambient, so these come out as the neutral overlays they
+    // have always been.
+    const sunTop = shade(blook.sun, 0.12);
+    const sunRim = shade(blook.sun, 0.08);
+    const shStrata = shade(blook.ambient, 0.09);
+    const shSpeck = shade(blook.ambient, 0.07);
+    const shCrack = shade(blook.ambient, 0.18);
+    const shRim = shade(blook.ambient, 0.12);
+    const shAo = shade(blook.ambient, 0.1);
 
     // snow-capped biomes: everything at or above the snowline wears white.
     // The line hangs off the map's highest summit so it never shifts with the
@@ -592,46 +608,46 @@ export class Renderer {
           // cliff faces show a light-to-dark gradation top to bottom)
           if (body && depth >= 3) {
             const a = Math.min(0.2, (depth - 2) * 0.03);
-            ctx.fillStyle = `rgba(8,10,18,${a.toFixed(3)})`;
+            ctx.fillStyle = shade(blook.deep, a);
             ctx.fillRect(px, py, TILE, TILE);
           }
           // sedimentary strata: a broken darker band every few rows, with a
           // little jitter per short segment so the line reads hand-laid
           if (body && depth >= 1 && (y + strata) % 4 === 0 && tileHash(x >> 1, y) < 0.8) {
-            ctx.fillStyle = 'rgba(0,0,0,0.09)';
+            ctx.fillStyle = shStrata;
             ctx.fillRect(px, py + 4 + Math.floor(tileHash(x >> 2, y) * 3), TILE, 1);
           }
           if (h > 0.82) {
-            ctx.fillStyle = 'rgba(0,0,0,0.07)';
+            ctx.fillStyle = shSpeck;
             ctx.fillRect(px + 4, py + 6, 5, 3);
           }
           // the odd crack on exposed rock faces
           if (t === T.ROCK && (airL || airR) && h > 0.55 && h < 0.63) {
-            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.fillStyle = shCrack;
             const cx = px + 4 + (Math.floor(h * 100) % 6);
             ctx.fillRect(cx, py + 3, 1, 4);
             ctx.fillRect(cx + 1, py + 7, 1, 3);
           }
           if (exposedTop && t !== T.GRASS) {
-            ctx.fillStyle = 'rgba(255,255,255,0.12)';
+            ctx.fillStyle = sunTop;
             ctx.fillRect(px, py, TILE, 2);
           }
           if (airL) {
-            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillStyle = sunRim;
             ctx.fillRect(px, py, 2, TILE);
           }
           if (airR) {
-            ctx.fillStyle = 'rgba(0,0,0,0.12)';
+            ctx.fillStyle = shRim;
             ctx.fillRect(px + TILE - 2, py, 2, TILE);
           }
           // soft ambient occlusion where a wall rises beside a walkable surface
           if (exposedTop) {
             if (world.isSolid(x - 1, y - 1)) {
-              ctx.fillStyle = 'rgba(0,0,0,0.1)';
+              ctx.fillStyle = shAo;
               ctx.fillRect(px, py, 3, TILE);
             }
             if (world.isSolid(x + 1, y - 1)) {
-              ctx.fillStyle = 'rgba(0,0,0,0.1)';
+              ctx.fillStyle = shAo;
               ctx.fillRect(px + TILE - 3, py, 3, TILE);
             }
           }
