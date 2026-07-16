@@ -251,6 +251,14 @@ check('no building placed by selecting the tool', await page.evaluate(() => {
   const { game } = window.__smallhands;
   return !game.buildings.some((b) => b.kind === 'sawmill');
 }));
+check('the draft names the tap-to-move hint in the same bar', await page.locator('.confirm-bar .cb-hint').isVisible());
+// A building is armed and aimed in one step, so ✕ drops the tool outright —
+// it must never fall back to an aim hint for a state that cannot exist.
+await page.tap('.cb-cancel');
+await page.waitForTimeout(120);
+check('✕ on a building draft dismisses the bar outright', (await page.locator('.confirm-bar').count()) === 0);
+check('✕ on a building draft hands back the Inspect tool', await page.evaluate(() =>
+  document.querySelector('.tool-btn.active')?.querySelector('.tool-key')?.textContent === '1'));
 
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();

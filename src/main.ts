@@ -1212,13 +1212,7 @@ function setTool(tool: Tool): void {
   hud.hideBuildingHint();
   if (COARSE) {
     clearTouchPlace(false);
-    if (isGhostBuildTool(tool) && running) {
-      // Selecting a building parks its translucent ghost at the viewport
-      // centre right away: tap to reposition, ✓ to build. No blind first tap.
-      parkTouchAim(tool);
-    } else {
-      showAimHint();
-    }
+    armTouchTool(tool);
   } else {
     hud.hideConfirmBar();
   }
@@ -1270,6 +1264,15 @@ function clearTouchPlace(hideBar = true): void {
 const isGhostBuildTool = (t: Tool) =>
   t === 'sawmill' || t === 'forge' || t === 'workshop' || t === 'lantern' ||
   t === 'lift' || t === 'rope' || t === 'hoist';
+
+// Arm a tool for touch. A building parks its translucent ghost at the viewport
+// centre right away — tap to reposition, ✓ to build, no blind first tap — so it
+// never shows the aim hint: it has no unaimed state to hint about. Everything
+// else has one, and waits there for the first aiming tap.
+function armTouchTool(tool: Tool): void {
+  if (isGhostBuildTool(tool) && running) parkTouchAim(tool);
+  else showAimHint();
+}
 
 // Park a touch aim (ghost + confirm bar) on the tile at the viewport centre —
 // the "draft building" a touch user drags around by tapping before approving.
@@ -1339,15 +1342,22 @@ function refreshTouchUi(): void {
       },
     });
   } else {
+    const ghost = isGhostBuildTool(tp.tool);
     hud.showConfirmBar({
       tool: tp.tool,
       cta: confirmCta(tp.tool),
-      hint: null,
+      hint: ghost ? t('hud.tapMove') : null,
       rows: game.placementShortfall(tp.tool),
       count: null,
       confirmDisabled: false,
       onConfirm: commitTouchPlace,
       onCancel: () => {
+        // A building is armed and aimed in one step, so ✕ has no half-armed
+        // state to fall back to — it means never mind, and hands back Inspect.
+        if (ghost) {
+          setTool('select');
+          return;
+        }
         audio.click();
         clearTouchPlace(false);
         showAimHint();
@@ -1368,7 +1378,7 @@ function commitTouchPlace(): void {
     applyTool(tp.aim.x, tp.aim.y);
   }
   clearTouchPlace(false);
-  showAimHint(); // the tool stays armed: tap → ✓ → tap → ✓ chains
+  armTouchTool(tp.tool); // the tool stays armed: tap → ✓ → tap → ✓ chains
 }
 
 // A confirmed-clean tap on the map (no drag, no pinch) from a touch pointer.
