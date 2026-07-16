@@ -134,6 +134,21 @@ body.in-game #frontdoor { display: none; }
 
 .spacer { flex: 1; pointer-events: none !important; }
 
+/* ---- level clock ---- */
+.clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.clock .clock-ic { font-size: 12px; opacity: 0.75; }
+/* fixed-width digits: the seconds turn over every tick and must not shuffle */
+.clock .clock-time { font-variant-numeric: tabular-nums; min-width: 38px; }
+
 /* ---- objectives ---- */
 .objectives {
   padding: 8px 12px;
@@ -1682,6 +1697,17 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     border-radius: 9px;
     background: var(--panel-bg);
     border-color: var(--panel-border);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* the clock rides row 1 between the resources and the speed pill; it never
+     shrinks — a clipped time is worse than one fewer resource chip */
+  .clock {
+    flex: 0 0 auto;
+    align-self: stretch;
+    gap: 4px;
+    padding: 5px 8px;
+    border-radius: 9px;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
   }
 
