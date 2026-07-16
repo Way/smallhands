@@ -65,13 +65,14 @@ body.in-game #frontdoor { display: none; }
 }
 
 /* ---- top bar ----
-   Three grid tracks — [resources] [island] [info panels]. The centre track is
-   `auto` (the island's own width); the two side tracks are equal `minmax(0,1fr)`,
-   which (a) keeps the island centred in the viewport no matter how wide either
-   side is, and (b) partitions the row so no cluster can ever slide under
-   another. `minmax(0,…)` lets the side tracks shrink below their content's
-   width, so tight layouts wrap inside the cluster instead of bleeding sideways
-   into the island. */
+   Three grid tracks — [controls] [island] [status]. Left = the hands-on control
+   column (resources + crew); right = read-only status (deliver + weather). The
+   centre track is `auto` (the island's own width); the two side tracks are equal
+   `minmax(0,1fr)`, which (a) keeps the island centred in the viewport no matter
+   how wide either side is, and (b) partitions the row so no cluster can ever
+   slide under another. `minmax(0,…)` lets the side tracks shrink below their
+   content's width, so tight layouts wrap inside the cluster instead of bleeding
+   sideways into the island. */
 .topbar {
   position: absolute;
   top: 10px;
@@ -85,19 +86,28 @@ body.in-game #frontdoor { display: none; }
 }
 .topbar > * { pointer-events: auto; min-width: 0; }
 
-/* right cluster: objectives / weather / crew. Wraps to a second line and stays
-   pinned to the right edge rather than expanding its track toward the centre. */
+/* the two edge columns flanking the island. Each stacks its panels top-down and
+   pins to its own edge; both build in visual order (left: resources → crew;
+   right: deliver → weather), so no `order` juggling is needed. The wrappers
+   themselves pass pointer events through — only the panels are clickable, never
+   the empty gaps a stretched-to-1fr wrapper would otherwise cover. */
+.topbar-left,
 .topbar-right {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 10px;
   min-width: 0;
+  pointer-events: none;
 }
+.topbar-left { align-items: flex-start; }
+.topbar-right { align-items: flex-end; }
+.topbar-left > *,
 .topbar-right > * { pointer-events: auto; }
 
 .res-bar {
+  /* hugs its chips, not the full track: the .topbar-left column is
+     align-items: flex-start, so the bar takes only its content width instead of
+     stretching its panel background edge-to-edge under empty space. */
   display: flex;
   gap: 4px;
   padding: 6px 8px;
@@ -397,6 +407,9 @@ body.in-game #frontdoor { display: none; }
   position: relative; /* anchor for the absolutely-positioned popovers */
   justify-self: center;
   align-self: start;
+  /* match the resource bar's height so the two flank the centre on one line
+     (res-chip icon 20 + chip pad 6 + border 2 = 28, + bar pad 12 + border 2 = 42) */
+  min-height: 42px;
   /* over its neighbours so the drop-down popovers cover them, and over the
      toasts/confirm bar (15) but below every .overlay (20+) — the island must
      never cover the level select, options or win screen */
@@ -417,7 +430,10 @@ body.in-game #frontdoor { display: none; }
   min-width: 48px;
   padding: 0 12px;
   border: none;
-  border-radius: 999px;
+  /* rounded only on the OUTER edge (matching the pill's end); the inner edge is
+     square so the hover/active fill runs flush to the clock divider and covers
+     the whole zone instead of leaving a rounded gap against it */
+  border-radius: 0;
   background: none;
   color: var(--text-dim);
   font-size: 14px;
@@ -427,6 +443,10 @@ body.in-game #frontdoor { display: none; }
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
 }
+/* each edge button rounds only its outer corners, matching the pill's end, so
+   the fill is a full half-capsule on the outside and square against the divider */
+.island-btn.speed-trigger { border-radius: 999px 0 0 999px; }
+.island-btn.menu-trigger { border-radius: 0 999px 999px 0; }
 .island-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
 /* the speed zone doubles as a live readout: lit when the sim isn't at 1× */
 .island-btn.non-default { color: var(--accent); }
@@ -1750,8 +1770,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     left: 50%;
     transform: translateX(-50%);
   }
-  /* the grid collapses back to a wrapping flex row; the right-hand wrapper
-     dissolves (display:contents) so its panels flow inline as loose pills */
+  /* the grid collapses back to a wrapping flex row; both edge wrappers dissolve
+     (display:contents) so their panels flow inline as loose pills */
   .topbar {
     display: flex;
     grid-template-columns: none;
@@ -1761,6 +1781,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
     gap: 6px;
     flex-wrap: wrap;
   }
+  .topbar-left,
   .topbar-right { display: contents; }
   /* no bar behind the resources: the strip goes transparent and every chip
      floats as its own pill, letting the sky show through between them */
