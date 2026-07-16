@@ -118,11 +118,27 @@ export function medalTimesFor(data: CustomLevelData): MedalTimes {
   return { gold: r(par), silver: r(par * 1.5), bronze: r(par * 2.3) };
 }
 
-let customDefSeq = 1000;
+// A stable per-content id. The renderer keys its scenic decoration off
+// `level.id` — set pieces and waterfalls roll on `levelHash(id)`, rock strata on
+// `id % 4` — so the id must be a pure function of the terrain, or the SAME level
+// decorates itself differently each time it is booted. A monotonic counter here
+// did exactly that: restarting a level into a live page (retry, editor playtest,
+// level→level) grew ghost scenery from the previous roll, following render order
+// rather than content (card #31). Biome is deliberately excluded: the same
+// terrain under two biomes must place identical decoration, differing only in
+// palette. Custom levels track saves/completion by `CustomLevelData.id`
+// (see recordKey / completedCustom), never by this numeric id, so a content
+// collision here is cosmetic-only.
+function contentId(data: CustomLevelData): number {
+  const s = `${data.width}x${data.height}:${data.tiles}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
 
 export function levelDefFromData(data: CustomLevelData): LevelDef {
   return {
-    id: customDefSeq++,
+    id: contentId(data),
     name: data.name,
     desc: data.desc,
     width: data.width,

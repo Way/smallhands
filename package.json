@@ -29,6 +29,7 @@
     "test:weather-visual": "node tests/weather-visual.mjs",
     "test:biome-light": "node tests/biome-light.mjs",
     "test:vale-visual": "node tests/vale-visual.mjs",
+    "test:restart-scenery": "node tests/restart-scenery.mjs",
     "test:gen-biome": "node tests/gen-biome.mjs",
     "trailer": "node tools/trailer/render-teaser.mjs"
   },

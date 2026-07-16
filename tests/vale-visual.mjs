@@ -35,13 +35,13 @@ const check = (name, cond) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}
 // (below the sky, above the HUD). Mean lightness/saturation are stable to ~1
 // unit under sway, so they compare meaningfully across biomes.
 //
-// Reloads the page for every biome, on purpose. Starting a second level into a
-// live page leaves scenery from the first one behind (reproduces on a pristine
-// tree with no biome involved: start the same meadow level twice back to back
-// and the second render grows props the first never had). That is a real bug,
-// but someone else's — reloading keeps it out of this comparison.
+// Both biomes boot into the SAME page, no reload between them. This used to be
+// impossible: starting a second level into a live page left ghost scenery from
+// the first behind (card #31 — level.id came from a per-boot counter, so the
+// renderer re-rolled its set pieces). That is fixed (level.id is now derived
+// from the terrain), and tests/restart-scenery.mjs guards it; a returning ghost
+// would surface here as a difference the reload previously masked.
 async function renderBiome(biome) {
-  await bootFresh();
   await page.evaluate(([seed, b]) => {
     const sh = window.__smallhands;
     const data = sh.generateVerifiedLevel({ seed, difficulty: 2 });
@@ -80,6 +80,7 @@ async function bootFresh() {
 }
 
 try {
+  await bootFresh();
   const meadow = await renderBiome('meadow');
   const vale = await renderBiome('vale');
 
