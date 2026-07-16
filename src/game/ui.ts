@@ -2,6 +2,7 @@ import {
   BUILD_TIME,
   carCount,
   carWeight,
+  fmtTime,
   ITEM_ICON,
   ITEM_TYPES,
   RECIPES,
@@ -127,6 +128,8 @@ export class Hud {
   private wxSig = '';
   private objSum: HTMLElement | null = null;
   private wxSum: HTMLElement | null = null;
+  private clockEl!: HTMLElement;
+  private clockSig = '';
   private hudRow!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
   private confirmSig = '';
@@ -176,6 +179,14 @@ export class Hud {
       this.resChips.set(it, chip);
       this.keepBadges.set(it, badge);
     }
+
+    // level clock — reads game time, so it stretches with 2×/4× and holds at ⏸
+    // (and at the win, which freezes the sim clock at the final time)
+    const clock = el('div', 'panel clock', this.hudRow);
+    clock.title = t('hud.clockTitle');
+    el('span', 'clock-ic', clock).textContent = '⏱';
+    this.clockEl = el('span', 'clock-time', clock);
+    this.clockEl.textContent = fmtTime(0);
 
     el('div', 'spacer', bar);
 
@@ -914,6 +925,12 @@ export class Hud {
 
   update(): void {
     const g = this.game;
+    // runs every frame, but the rendered M:SS only turns over once a second
+    const clock = fmtTime(g.time);
+    if (clock !== this.clockSig) {
+      this.clockSig = clock;
+      this.clockEl.textContent = clock;
+    }
     for (const it of ITEM_TYPES) {
       const n = g.stock[it];
       const elc = this.resCounts.get(it)!;

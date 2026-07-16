@@ -273,6 +273,17 @@ export interface ObjectiveReq {
 
 // ---- medals & feats ---------------------------------------------------------
 
+// Level times as M:SS (H:MM:SS past an hour). Shared by the live HUD clock, the
+// win ceremony and the medal readouts so one run reads the same everywhere.
+export function fmtTime(t: number): string {
+  const total = Math.max(0, Math.floor(t));
+  const hrs = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const mm = hrs > 0 ? String(mins).padStart(2, '0') : String(mins);
+  return `${hrs > 0 ? `${hrs}:` : ''}${mm}:${String(secs).padStart(2, '0')}`;
+}
+
 export type MedalTier = 'gold' | 'silver' | 'bronze';
 export const MEDAL_TIERS: MedalTier[] = ['gold', 'silver', 'bronze'];
 

@@ -1,5 +1,5 @@
 import './style.css';
-import { FEATS, TILE, TOOL_DEFS, bestTier, medalFor } from './game/types';
+import { FEATS, TILE, TOOL_DEFS, bestTier, fmtTime, medalFor } from './game/types';
 import { detectLang, getLang, setLang, t } from './engine/i18n';
 import type { Lang } from './engine/i18n';
 import type { MedalTier, Tool } from './game/types';
@@ -82,12 +82,6 @@ interface WinResult {
   firstClear: boolean;
 }
 let lastWin: WinResult | null = null;
-
-function fmtTime(t: number): string {
-  const mins = Math.floor(t / 60);
-  const secs = Math.floor(t % 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
 
 function mkIcon(name: string, size: number): HTMLCanvasElement {
   const c = document.createElement('canvas');

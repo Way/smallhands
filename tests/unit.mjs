@@ -8,12 +8,12 @@ const mod = await bundleExports(`
   export { LEVELS } from './src/game/levels.ts';
   export { canPlaceLadder } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
-  export { T } from './src/game/types.ts';
+  export { T, fmtTime } from './src/game/types.ts';
   export { t, setLang, getLang } from './src/engine/i18n.ts';
   export { exportAllData, importAllData } from './src/engine/save.ts';
   export { blankLevelData } from './src/game/leveldata.ts';
 `);
-const { Game, LEVELS, canPlaceLadder, findPath, T, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -375,6 +375,43 @@ function findLadderCells(g, count) {
   check('non-boolean muted coerces to false', clean.save.muted === false);
   check('unknown language is dropped', clean.save.lang === undefined);
   check('broken custom levels are dropped', clean.customLevels.length === 0);
+}
+
+// ---- level clock: game time, not wall-clock ---------------------------------
+// The HUD clock renders Game.time through fmtTime. Time is summed per tick, so
+// it stretches with the speed multiplier (4× = four ticks a frame) and holds
+// whenever the sim isn't ticking — pause and the win both freeze it.
+{
+  check('fresh level starts at 0:00', fmtTime(new Game(LEVELS[0]).time) === '0:00');
+  check('seconds pad to two digits', fmtTime(9) === '0:09');
+  check('minutes roll over', fmtTime(75) === '1:15');
+  check('hours only appear past an hour', fmtTime(3725) === '1:02:05');
+  check('a partial second floors', fmtTime(59.9) === '0:59');
+  check('negative time never renders', fmtTime(-5) === '0:00');
+
+  const g = new Game(LEVELS[0]);
+  const run = (secs, dt = 1 / 60) => {
+    for (let i = 0; i < secs / dt; i++) g.tick(dt);
+  };
+  run(10);
+  check('clock tracks ticked time', Math.abs(g.time - 10) < 0.05);
+  check('clock renders the elapsed run', fmtTime(g.time) === '0:10');
+
+  // pause is the sim's own guard; main.ts also stops calling tick at speed 0
+  g.paused = true;
+  run(5);
+  check('paused clock holds', Math.abs(g.time - 10) < 0.05);
+  g.paused = false;
+  run(5);
+  check('unpaused clock resumes', Math.abs(g.time - 15) < 0.05);
+
+  // the win freezes the clock at the final time — medals and PBs read it after
+  g.won = true;
+  run(5);
+  check('won clock freezes at the final time', Math.abs(g.time - 15) < 0.05);
+
+  // restart is a fresh Game, so the clock resets with no reset code
+  check('restart resets the clock', new Game(LEVELS[0]).time === 0);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
