@@ -1987,6 +1987,11 @@ function onResize(): void {
 }
 
 window.addEventListener('resize', onResize);
+// Device rotation can change the canvas's CSS size without a window resize
+// event, or fire the event before the new layout has settled (iOS) — the
+// stale backing store then gets stretched by CSS. A ResizeObserver reports
+// the element's real post-layout size, so the backing store always matches.
+new ResizeObserver(onResize).observe(canvas);
 onResize();
 showTitle();
 requestAnimationFrame(frame);

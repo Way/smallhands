@@ -1120,7 +1120,11 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   overflow: auto;
   background: transparent; /* the full-bleed sea shows through the letterbox */
 }
-.map-wrap { position: relative; margin: auto; }
+/* flex: none — the wrap is a flex item, and without it the default
+   flex-shrink:1 silently collapsed the JS-fitted width back to the viewport
+   on phones: the min-map-width panning never happened and the islands
+   rendered tiny under the fixed-size medallions */
+.map-wrap { position: relative; margin: auto; flex: none; }
 .map-svg { display: block; width: 100%; height: 100%; }
 
 /* the sea gradient (#map-sea-grad) is authored in worldmap.ts defs */
@@ -1185,14 +1189,17 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 .map-node {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 42px;
-  height: 42px;
+  /* medallions shrink with the map (--map-s, set by the JS contain-fit) so
+     their number discs keep proportion to the islands on small screens; the
+     clamp floor keeps them clickable, the ceiling is the classic full size */
+  width: clamp(30px, calc(42px * var(--map-s, 1)), 42px);
+  height: clamp(30px, calc(42px * var(--map-s, 1)), 42px);
   border-radius: 50%;
   border: 3px solid #40372a;
   background: radial-gradient(circle at 38% 32%, #fbf4dc, #e9dcb3);
   color: var(--map-ink);
   font-family: var(--font);
-  font-size: 17px;
+  font-size: clamp(12px, calc(17px * var(--map-s, 1)), 17px);
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 2px 1px rgba(255, 255, 255, 0.6);
@@ -1282,8 +1289,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 .map-daily {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 44px;
-  height: 46px;
+  width: clamp(34px, calc(44px * var(--map-s, 1)), 44px);
+  height: clamp(36px, calc(46px * var(--map-s, 1)), 46px);
   padding: 0;
   border: 2px solid #40372a;
   border-radius: 6px;
@@ -1322,7 +1329,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   place-items: center;
   font-family: var(--font);
   font-weight: 800;
-  font-size: 21px;
+  font-size: clamp(15px, calc(21px * var(--map-s, 1)), 21px);
   line-height: 1;
   color: var(--map-ink);
 }
@@ -1384,6 +1391,25 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   background-repeat: no-repeat;
 }
 .level-card.map-popover.below { transform: translate(-50%, 30px); }
+/* phone bottom drawer: the map pans on small screens, so a node-anchored
+   bubble can sit half off-screen — the drawer slides up above the legend bar
+   and is always fully visible (appended to the overlay, not the panning wrap) */
+.level-card.map-popover.sheet {
+  position: absolute;
+  left: 50%;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 16px));
+  max-height: calc(100% - 160px);
+  overflow-y: auto;
+  z-index: 6;
+  animation: drawer-up 0.18s ease-out;
+}
+.map-popover.sheet .lv-name { padding-right: 40px; }
+.map-popover .pop-close { position: absolute; top: 10px; right: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .level-card.map-popover.sheet { animation: none; }
+}
 .map-popover .lv-name { font-family: var(--font); font-weight: 800; font-size: 17px; color: var(--map-gold); }
 .map-popover .lv-desc { margin-bottom: 10px; }
 
@@ -1606,9 +1632,17 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .lv-action-btn { width: 36px; height: 36px; font-size: 14px; }
   .level-card.custom .lv-num,
   .level-card.custom .lv-name { padding-right: 124px; }
-  .map-node { width: 44px; height: 44px; font-size: 17px; }
+  /* thumbs need the full 44px tap disc (never scale it below that), so the
+     phone proportion fix comes from the other side: a larger min map width
+     (worldmap.ts) renders the islands bigger, and the digits shrink with the
+     map scale so the numbers stop dominating the island art */
+  .map-node {
+    width: 44px;
+    height: 44px;
+    font-size: clamp(13px, calc(17px * var(--map-s, 1)), 17px);
+  }
   .map-daily { width: 46px; height: 48px; }
-  .map-daily .cal-day { font-size: 22px; }
+  .map-daily .cal-day { font-size: clamp(16px, calc(22px * var(--map-s, 1)), 22px); }
   .legend-btn { padding: 12px 16px; }
   .ed-btn { padding: 9px 12px; }
   .tooltip { max-width: min(260px, calc(100vw - 16px)); }
