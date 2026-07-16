@@ -34,7 +34,14 @@ const check = (name, cond) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}
 // Boot one seed under a given biome; screenshot it and measure the terrain band
 // (below the sky, above the HUD). Mean lightness/saturation are stable to ~1
 // unit under sway, so they compare meaningfully across biomes.
+//
+// Reloads the page for every biome, on purpose. Starting a second level into a
+// live page leaves scenery from the first one behind (reproduces on a pristine
+// tree with no biome involved: start the same meadow level twice back to back
+// and the second render grows props the first never had). That is a real bug,
+// but someone else's — reloading keeps it out of this comparison.
 async function renderBiome(biome) {
+  await bootFresh();
   await page.evaluate(([seed, b]) => {
     const sh = window.__smallhands;
     const data = sh.generateVerifiedLevel({ seed, difficulty: 2 });
@@ -63,14 +70,16 @@ async function renderBiome(biome) {
 }
 const fmt = (m) => `L=${(m.light * 100).toFixed(1)}% S=${(m.sat * 100).toFixed(1)}% rgb(${m.mean.map((v) => Math.round(v)).join(',')})`;
 
-try {
+async function bootFresh() {
   await page.goto(BASE, { waitUntil: 'load' });
   await page.waitForTimeout(800);
   await page.click('.fd-play');
   await page.click('.map-node:not(:disabled)');
   await page.click('.map-popover .pop-play');
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
+}
 
+try {
   const meadow = await renderBiome('meadow');
   const vale = await renderBiome('vale');
 
