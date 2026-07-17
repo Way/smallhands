@@ -623,6 +623,7 @@ const D: Record<string, [string, string]> = {
   'opt.lang.en': ['English', 'English'],
   'opt.lang.de': ['Deutsch', 'Deutsch'],
   'opt.sound': ['Sound', 'Ton'],
+  'opt.music': ['Music', 'Musik'],
   'opt.on': ['On', 'An'],
   'opt.off': ['Off', 'Aus'],
   'opt.effects': ['Weather & light effects', 'Wetter- & Lichteffekte'],
