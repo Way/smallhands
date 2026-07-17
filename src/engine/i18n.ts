@@ -239,8 +239,8 @@ const D: Record<string, [string, string]> = {
     'Der Monsun kommt nach Fahrplan. Nasse Äxte beißen langsam — lies die Vorhersage und plane die Trockenphasen.',
   ],
   'lvl6.hint.forecast': [
-    'See the <b>forecast</b> in the top-right? The monsoon is punctual. In the <b>rain</b>, chopping and mining take almost twice as long — fell in the sun, saw in the rain.',
-    'Siehst du die <b>Vorhersage</b> oben rechts? Der Monsun ist pünktlich. Im <b>Regen</b> dauern Fällen und Abbauen fast doppelt so lang — fälle bei Sonne, säge bei Regen.',
+    'See the <b>forecast</b> by the clock up top? The monsoon is punctual. In the <b>rain</b>, chopping and mining take almost twice as long — fell in the sun, saw in the rain.',
+    'Siehst du die <b>Vorhersage</b> oben neben der Uhr? Der Monsun ist pünktlich. Im <b>Regen</b> dauern Fällen und Abbauen fast doppelt so lang — fälle bei Sonne, säge bei Regen.',
   ],
   'lvl6.hint.pond': [
     'The hollow holds a <b>pond</b> — and the caravan waits beyond it. Three <b>Bridge</b> planks across the gap open the road east.',
