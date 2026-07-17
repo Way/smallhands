@@ -278,6 +278,38 @@ check('✕ on a building draft dismisses the bar outright', (await page.locator(
 check('✕ on a building draft hands back the Inspect tool', await page.evaluate(() =>
   document.querySelector('.tool-btn.active')?.querySelector('.tool-key')?.textContent === '1'));
 
+// ---- tapped-open panels track live state (card #33) --------------------------
+// Mobile has no hover hint, so the town-hall panel IS the only readout for the
+// upgrade cost (missing resources) and progress (build time). It must refresh
+// as stock changes — not freeze on the snapshot it opened with.
+await page.evaluate(() => window.__smallhands.setTool('select'));
+const thTile = await page.evaluate(() => {
+  const { game, cam } = window.__smallhands;
+  const b = game.buildings.find((bd) => bd.kind === 'townhall');
+  const canvas = document.getElementById('game-canvas');
+  cam.x = (b.x + 0.5) * 16 * cam.zoom - canvas.width / 2;
+  cam.y = (b.y + 0.5) * 16 * cam.zoom - canvas.height / 2;
+  cam.clamp(game, canvas.width, canvas.height);
+  return { x: b.x, y: b.y };
+});
+// open the panel while the upgrade is UNaffordable → its cost renders red
+await page.evaluate(() => { const g = window.__smallhands.game; for (const k in g.stock) g.stock[k] = 0; });
+const thPos = await tileToScreen(thTile.x, thTile.y);
+await page.touchscreen.tap(thPos.x, thPos.y);
+await page.waitForTimeout(120);
+check('tapping the town hall opens its panel', (await page.locator('.th-toast').count()) > 0);
+check('town-hall cost shows red when unaffordable', await page.evaluate(() =>
+  document.querySelector('.th-toast')?.querySelectorAll('.insufficient').length > 0));
+// flood resources — a LIVE panel clears the red and enables the Upgrade button
+await page.evaluate(() => { const g = window.__smallhands.game; for (const k in g.stock) g.stock[k] = 999; });
+await page.waitForTimeout(200);
+check('town-hall cost refreshes (no stale red) once affordable', await page.evaluate(() =>
+  document.querySelector('.th-toast')?.querySelectorAll('.insufficient').length === 0));
+check('town-hall Upgrade button enables once affordable', await page.evaluate(() => {
+  const btn = document.querySelector('.th-toast .th-mini');
+  return btn && !btn.disabled;
+}));
+
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();
 console.log(failed ? '\nMOBILE E2E FAILED' : '\nMOBILE E2E PASS');

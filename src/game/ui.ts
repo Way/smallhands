@@ -170,6 +170,12 @@ export class Hud {
   private topbarRight!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
   private confirmSig = '';
+  // A tapped-open panel (town hall / hoist) that must track live state. Mobile
+  // has no hover hint, so the panel itself is the only readout for the upgrade
+  // cost (missing resources) and progress (build time) — update() re-renders it
+  // when its signature changes, the same dedup the tooltips use so its buttons
+  // don't churn under a thumb. Cleared when the panel is dismissed or evicted.
+  private livePanel: { box: HTMLElement; sig: () => string; render: () => void; last: string } | null = null;
   // hover-driven niceties (the toolbar's tooltips) only make sense where a
   // hover pointer exists; touch gets tap-driven equivalents instead
   private readonly hoverOk =
@@ -566,6 +572,7 @@ export class Hud {
   // over to a full-screen overlay (world map) that the toasts would float over.
   clearToasts(): void {
     this.toastWrap.innerHTML = '';
+    this.livePanel = null;
   }
 
   // Interactive hoist panel shown when a hoist is tapped with Select: live car
@@ -604,18 +611,38 @@ export class Hud {
       routeRow(t('hoist.sendUp'), 'lower', b.hoistSendUp);
       const d = el('span', 'dismiss', box);
       d.textContent = t('ui.dismiss');
-      d.onclick = () => box.remove();
+      d.onclick = () => {
+        this.livePanel = null;
+        box.remove();
+      };
     };
     build();
+    this.livePanel = { box, render: build, sig: () => this.hoistSig(id), last: this.hoistSig(id) };
+  }
+
+  // Signature for the tapped-open hoist panel: car weights and per-item routing.
+  // Cargo shifting between cars must keep the readout live; 'gone' lets update()
+  // notice a demolished hoist and let build() tear the panel down.
+  private hoistSig(id: number): string {
+    const b = this.game.buildings.find((bd) => bd.id === id && bd.kind === 'hoist');
+    if (!b) return 'gone';
+    return [
+      'h',
+      carWeight(b.hoistUpper),
+      carWeight(b.hoistLower),
+      ITEM_TYPES.map((i) => (b.hoistSendDown[i] ? 'd' : '') + (b.hoistSendUp[i] ? 'u' : '')).join(','),
+    ].join('|');
   }
 
   // Interactive town-hall panel shown when the building is tapped with Select.
   showTownhall(): void {
     const g = this.game;
-    const lvl = TH_LEVELS[g.thLevel - 1];
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
     const box = el('div', 'toast th-toast', this.toastWrap);
     const build = (): void => {
+      // recomputed each render: an upgrade completing while the panel is open
+      // bumps thLevel, and the cost/crew must follow it, not the opening snapshot
+      const lvl = TH_LEVELS[g.thLevel - 1];
       box.innerHTML = '';
       const head = el('div', undefined, box);
       head.innerHTML = t('th.status', { n: g.thLevel, a: g.workers.length, b: g.maxWorkers });
@@ -647,9 +674,28 @@ export class Hud {
       }
       const d = el('span', 'dismiss', box);
       d.textContent = t('ui.dismiss');
-      d.onclick = () => box.remove();
+      d.onclick = () => {
+        this.livePanel = null;
+        box.remove();
+      };
     };
     build();
+    this.livePanel = { box, render: build, sig: () => this.townhallSig(), last: this.townhallSig() };
+  }
+
+  // Signature for the tapped-open town-hall panel — everything it renders, so
+  // update() rebuilds only when it actually changes: level/crew, upgrade
+  // progress (1% steps for a smooth "build time"), and stock (missing resources).
+  private townhallSig(): string {
+    const g = this.game;
+    const lvl = TH_LEVELS[g.thLevel - 1];
+    return [
+      g.thLevel,
+      g.workers.length,
+      g.maxWorkers,
+      g.thUpgrade ? Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100) : 'x',
+      lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
+    ].join('|');
   }
 
   // Hover-to-inspect: a tiny live tooltip for whatever building sits under the
@@ -1104,6 +1150,20 @@ export class Hud {
     // lock indicators on tool buttons
     for (const [id, btn] of this.toolBtns) {
       btn.classList.toggle('locked', !g.toolUnlocked(id));
+    }
+    // a tapped-open panel (town hall / hoist) tracks live state here — it's
+    // mobile's only readout, with no hover hint behind it. Drop the reference
+    // once the panel leaves the DOM (dismissed, evicted, or level torn down).
+    if (this.livePanel) {
+      if (!this.livePanel.box.isConnected) {
+        this.livePanel = null;
+      } else {
+        const sig = this.livePanel.sig();
+        if (sig !== this.livePanel.last) {
+          this.livePanel.last = sig;
+          this.livePanel.render();
+        }
+      }
     }
   }
 
