@@ -212,26 +212,11 @@ body.in-game #frontdoor { display: none; }
 .obj-row.done .obj-cnt { color: var(--accent2); }
 .obj-row.done .obj-name { text-decoration: line-through; opacity: 0.6; }
 
-/* ---- weather forecast panel ---- */
-.weather {
-  padding: 8px 12px;
-  min-width: 168px;
-}
-.weather h3 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.weather h3 .wx-flood {
+/* ---- weather forecast (lives in the island's weather-pop) ---- */
+.wx-flood {
   color: #8fc6f0;
-  letter-spacing: 0;
-  text-transform: none;
   font-weight: 600;
+  font-size: 12px;
 }
 .wx-row {
   display: flex;
@@ -420,8 +405,13 @@ body.in-game #frontdoor { display: none; }
   border-radius: 999px; /* a true pill — the island's whole silhouette */
   overflow: visible; /* popovers hang out of it */
 }
-/* hairline seams between the three zones */
-.island > .clock { border-inline: 1px solid var(--panel-border); }
+/* hairline seams between zones: a left border on every zone but the first
+   (speed) draws exactly one line per boundary — speed | weather | clock | menu */
+.island > .weather-trigger,
+.island > .clock,
+.island > .menu-trigger { border-left: 1px solid var(--panel-border); }
+/* the weather zone is icon-only: a touch tighter than the text buttons */
+.island-btn.weather-trigger { min-width: 0; padding: 0 10px; font-size: 15px; }
 
 .island-btn {
   display: flex;
@@ -476,9 +466,22 @@ body.in-game #frontdoor { display: none; }
 .island-pop[hidden] { display: none; }
 .speed-pop { left: 0; }
 .menu-pop { right: 0; }
+/* the weather zone sits mid-pill, so its popover centres under the island. It
+   keeps a translateX to stay centred, so it can't ride the shared popin (which
+   animates transform) — fade it in on opacity alone instead. */
+.weather-pop {
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 0;
+  animation: fadein 0.12s ease-out;
+}
 @keyframes popin {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .play-btn {
@@ -1826,7 +1829,6 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .topbar .collapsible.open > h3 { margin-bottom: 4px; }
   .topbar .collapsible.open > :not(h3) { display: flex; }
   .topbar .crew.open { min-width: 196px; }
-  .topbar .weather.open .wx-row { flex-wrap: wrap; gap: 4px 10px; }
 
   /* the zoom stack lifts clear of the tool dock at the bottom edge */
   .zoombar {

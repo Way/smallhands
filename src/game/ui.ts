@@ -247,21 +247,8 @@ export class Hud {
     }
     this.collapsible(obj, h);
 
-    // weather forecast — deterministic, so showing it IS the strategy layer
-    if (this.game.weatherSchedule) {
-      const wx = el('div', 'panel weather', right);
-      const wh = el('h3', undefined, wx);
-      wh.innerHTML =
-        `<span>${t('hud.weather')}</span><span class="hsum wx-sum"></span>` +
-        (this.game.level.flood
-          ? `<span class="wx-flood" title="${t('wx.floodTitle')}">${t('wx.flood')}</span>`
-          : '');
-      this.wxSum = wh.querySelector('.wx-sum')!;
-      const row = el('div', 'wx-row', wx);
-      this.wxNow = el('div', 'wx-now', row);
-      this.wxNext = el('div', 'wx-next', row);
-      this.collapsible(wx, wh);
-    }
+    // weather no longer has its own right-column panel — it lives in the island
+    // as an icon beside the clock, its forecast in a hover/tap popover (buildIsland)
 
     // crew panel — lives in the LEFT column, directly under the resources, so
     // the two control panels read as one management stack.
@@ -394,6 +381,17 @@ export class Hud {
     speedTrigger.setAttribute('aria-label', t('hud.speedMenu'));
     this.speedTrigger = speedTrigger;
 
+    // weather zone: current-conditions icon sitting beside the clock. The full
+    // forecast (deterministic, so it IS the strategy layer) drops in a popover —
+    // hover on desktop, tap on touch. Only levels with a schedule get the zone.
+    let weatherTrigger: HTMLButtonElement | null = null;
+    if (this.game.weatherSchedule) {
+      weatherTrigger = el('button', 'island-btn weather-trigger', island);
+      weatherTrigger.title = t('hud.weather');
+      weatherTrigger.setAttribute('aria-label', t('hud.weather'));
+      this.wxSum = el('span', 'wx-ic', weatherTrigger); // updated with the live icon
+    }
+
     // centre zone: the level clock — reads game time, so it stretches with
     // 2×/4× and holds at ⏸ (and at the win, which freezes the sim clock)
     const clock = el('div', 'clock', island);
@@ -434,6 +432,27 @@ export class Hud {
     opts.textContent = `⚙ ${t('opt.title')}`;
     opts.title = t('opt.title');
     opts.onclick = () => this.cbs.onOptions();
+
+    // ---- weather popover: current phase + countdown, then the next two ----
+    // No actions inside (closeOnAction=false); it is purely a readout. The
+    // update() loop fills wxNow/wxNext, same as the old right-column panel did.
+    if (weatherTrigger) {
+      const wxPop = this.popover(weatherTrigger, 'weather-pop', false);
+      const row = el('div', 'wx-row', wxPop);
+      this.wxNow = el('div', 'wx-now', row);
+      this.wxNext = el('div', 'wx-next', row);
+      if (this.game.level.flood) {
+        const flood = el('div', 'wx-flood', wxPop);
+        flood.title = t('wx.floodTitle');
+        flood.textContent = t('wx.flood');
+      }
+      // hover devices get a tooltip feel: open on enter, close on leave. Touch
+      // falls back to the tap-toggle popover() already wired.
+      if (this.hoverOk) {
+        weatherTrigger.onmouseenter = () => this.openPopover(wxPop);
+        weatherTrigger.onmouseleave = () => this.openPopover(null);
+      }
+    }
 
     wireIslandDismiss();
   }
@@ -1094,7 +1113,7 @@ export class Hud {
       const sig = `${g.weatherIdx}:${rem}`;
       if (sig !== this.wxSig) {
         this.wxSig = sig;
-        if (this.wxSum) this.wxSum.textContent = `${WX_ICON[g.weather]} ${rem}s`;
+        if (this.wxSum) this.wxSum.textContent = WX_ICON[g.weather]; // island icon
         this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${t(`weather.${g.weather}`)}</span><b>${rem}s</b>`;
         const sched = g.weatherSchedule;
         let html = `<span class="wx-then">${t('hud.then')}</span>`;
