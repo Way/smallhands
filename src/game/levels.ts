@@ -921,4 +921,219 @@ export const LEVELS: LevelDef[] = [
     ],
     camera: { x: 4, y: 8 },
   },
+  {
+    id: 14,
+    campaign: 4,
+    name: 'lvl14.name',
+    desc: 'lvl14.desc',
+    width: 56,
+    height: 26,
+    objectives: [
+      { item: 'iron', amount: 6 },
+      { item: 'stone', amount: 6 },
+    ],
+    medals: { gold: 240, silver: 360, bronze: 600 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'workshop', 'lift', 'dig', 'demolish'],
+    startStock: { log: 2, plank: 6, stone: 2, shovel: 1 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    build: (g) => {
+      // Level 13 taught digging where every haul ran flat or downhill. This one
+      // inverts it: the seam is buried, the caravan loads on the SURFACE — so
+      // the iron must ride UP. The trick: a Cargo Lift built on the shaft floor
+      // uses the player's own shaft as its mast. Empty hands hop down (4 tiles,
+      // a safe fall) until the finished lift's head-frame decks over the well —
+      // then a ladder run down the shaft, beside the mast, is the climb back.
+      terrain(g, runs([[7, 56]])); // surface row 19; rock 22-24, bedrock 25
+      townhall(g, 3);
+      goal(g, 48);
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      tree(g, 15);
+      boulder(g, 18);
+      boulder(g, 20);
+      boulder(g, 22);
+      // the buried seam: veins embedded in the rock at row 22, revealed as the
+      // player's tunnel passes through them (dig a shaft ~x27, then head east)
+      g.addNode('vein', 30, 22);
+      g.addNode('vein', 33, 22);
+      g.addNode('vein', 36, 22);
+    },
+    hints: [
+      {
+        id: 'well',
+        text: 'lvl14.hint.well',
+        when: () => true,
+      },
+      {
+        id: 'liftup',
+        text: 'lvl14.hint.liftup',
+        when: (g) => g.nodes.some((n) => n.kind === 'vein' && n.yieldLeft < 4),
+      },
+      {
+        id: 'mast',
+        text: 'lvl14.hint.mast',
+        when: (g) => g.lifts.some((l) => l.state === 'ready'),
+      },
+    ],
+    camera: { x: 10, y: 12 },
+  },
+  {
+    id: 15,
+    campaign: 4,
+    name: 'lvl15.name',
+    desc: 'lvl15.desc',
+    width: 56,
+    height: 28,
+    objectives: [
+      { item: 'iron', amount: 6 },
+      { item: 'plank', amount: 6 },
+    ],
+    medals: { gold: 330, silver: 480, bronze: 780 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'workshop', 'rope', 'lantern', 'dig', 'demolish'],
+    // iron 2 = two shovels' worth: the workshop crafts a spare, so a digger
+    // trapped below (the classic first-run mistake) never softlocks the level
+    startStock: { log: 6, plank: 6, stone: 5, iron: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    night: true,
+    build: (g) => {
+      // Night above, iron below — and this time the CARAVAN itself is walled
+      // into the deep (the mirror of 14: deliveries flow DOWN). Diggers feel
+      // their way in the dark, but miners need light, so lanterns must ride
+      // into the gallery. One well serves both directions: cargo slides down
+      // it on a rope, and a ladder run into the same shaft (slung AFTER the
+      // rope — a laddered well reads as ground and refuses the anchor) is the
+      // climb home. The ladder also decks the mouth, so surface traffic keeps
+      // flowing over the well instead of being severed by it.
+      terrain(g, runs([[8, 56]])); // surface row 20; rock 23-26, bedrock 27
+      const { world } = g;
+      // the caravan vault, sealed at the east end of the gallery (like lvl 13)
+      for (let x = 44; x <= 47; x++) for (let y = 22; y <= 24; y++) world.set(x, y, T.AIR);
+      g.addBuilding('goal', 44, 22);
+      townhall(g, 3);
+      // one tree in the town light; x 8..14 stays clear for the lit workshops
+      tree(g, 7);
+      // beyond the light — a lantern chain wakes them one pool at a time
+      tree(g, 19);
+      tree(g, 21);
+      tree(g, 28);
+      boulder(g, 24);
+      boulder(g, 26);
+      // the buried veins at gallery depth (row 24): two in the dark mid-tunnel,
+      // one in the buried caravan's own fire-glow — the freebie that teaches
+      // "light makes veins minable" before the player hauls a lantern down
+      g.addNode('vein', 35, 24);
+      g.addNode('vein', 39, 24);
+      g.addNode('vein', 42, 24);
+    },
+    hints: [
+      {
+        id: 'dark',
+        text: 'lvl15.hint.dark',
+        when: () => true,
+      },
+      {
+        id: 'ropeway',
+        text: 'lvl15.hint.ropeway',
+        when: (g) => g.workers.some((w) => w.cy >= 24),
+      },
+      {
+        id: 'glow',
+        text: 'lvl15.hint.glow',
+        when: (g) => g.nodes.some((n) => n.kind === 'vein' && n.yieldLeft < 4),
+      },
+    ],
+    camera: { x: 8, y: 12 },
+  },
+  {
+    id: 16,
+    campaign: 4,
+    name: 'lvl16.name',
+    desc: 'lvl16.desc',
+    width: 84,
+    height: 32,
+    objectives: [
+      { item: 'spear', amount: 5 },
+      { item: 'stone', amount: 4 },
+    ],
+    medals: { gold: 720, silver: 990, bronze: 1440 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'workshop', 'lift', 'hoist', 'dig', 'demolish'],
+    startStock: { log: 4, plank: 6, stone: 4, iron: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    weather: [
+      { kind: 'clear', duration: 50 },
+      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 35 },
+      { kind: 'storm', duration: 18 },
+    ],
+    build: (g) => {
+      // The campaign finale: iron in the deep, the caravan on the heights, and
+      // storms that seize every wheel between them. Dig the seam out below,
+      // lift it up the shaft, forge spears in the meadow — then hoist them up
+      // the cliff on plateau-stone ballast (which lands below, ready for
+      // reuse). The old miners left an adit with a ladder in the cliff foot,
+      // so the crew can reach the plateau — empty hands only, as ever.
+      terrain(
+        g,
+        runs([
+          [10, 46], // the meadow: town, timber, the buried seam
+          [17, 38], // the plateau: the caravan, its stone — and a 7-tile cliff
+        ])
+      );
+      const { world } = g;
+      // the old adit: a floor-level tunnel into the cliff with a ladder
+      // chimney to the plateau top (see levels 11/12 — same Ember Road crew)
+      for (let x = 46; x < 52; x++) world.set(x, 21, T.AIR);
+      for (let y = 15; y <= 21; y++) world.set(52, y, T.LADDER);
+      townhall(g, 3);
+      goal(g, 70); // high on the plateau
+      // the meadow: timber and stone for the whole production line
+      tree(g, 9);
+      tree(g, 11);
+      tree(g, 13);
+      tree(g, 15);
+      boulder(g, 24);
+      boulder(g, 26);
+      boulder(g, 28);
+      // the buried seam (row 26): shaft down ~x30, tunnel east through it
+      g.addNode('vein', 34, 26);
+      g.addNode('vein', 38, 26);
+      g.addNode('vein', 42, 26);
+      // plateau stone: the delivery order AND the hoist's ballast supply
+      boulder(g, 56);
+      boulder(g, 59);
+      boulder(g, 62);
+      boulder(g, 65);
+      boulder(g, 68);
+    },
+    hints: [
+      {
+        id: 'vault',
+        text: 'lvl16.hint.vault',
+        when: () => true,
+      },
+      {
+        id: 'wheel',
+        text: 'lvl16.hint.wheel',
+        when: (g) => g.stock.spear >= 1 || g.buildings.some((b) => b.kind === 'forge' && (b.outputs.spear ?? 0) > 0),
+      },
+      {
+        id: 'storm',
+        text: 'lvl16.hint.storm',
+        when: (g) => g.weather === 'storm',
+      },
+      {
+        id: 'crew',
+        text: 'lvl16.hint.crew',
+        when: (g) => g.time > 150 && g.thLevel < 3,
+      },
+    ],
+    camera: { x: 10, y: 16 },
+  },
 ];

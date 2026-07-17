@@ -440,6 +440,61 @@ const D: Record<string, [string, string]> = {
     'Down in the gallery, drag the <b>Dig</b> tool sideways to carve a <b>tunnel</b> to the iron seam and the caravan. Miners work the vein; haulers carry the iron along the flat.',
     'Im Stollen ziehst du das <b>Grab</b>-Werkzeug seitwärts für einen <b>Tunnel</b> zur Eisenader und zur Karawane. Bergleute bauen die Ader ab; Träger tragen das Eisen eben hinüber.',
   ],
+  'lvl14.name': ['The Iron Well', 'Der Eisenbrunnen'],
+  'lvl14.desc': [
+    'The seam sleeps deep under the meadow — and the caravan loads up top. Send the iron up your own shaft.',
+    'Die Ader schläft tief unter der Wiese — und die Karawane lädt oben. Schick das Eisen deinen eigenen Schacht hinauf.',
+  ],
+  'lvl14.hint.well': [
+    'The veins run <b>deep below the meadow</b>. Drag the <b>Dig</b> tool straight down to sink a shaft, then sideways along the seam — empty hands hop down unharmed, and your digger already carries a shovel.',
+    'Die Adern liegen <b>tief unter der Wiese</b>. Ziehe das <b>Grab</b>-Werkzeug senkrecht hinab für einen Schacht, dann seitwärts der Ader entlang — leere Hände hüpfen unversehrt hinab, und dein Gräber trägt schon einen Spaten.',
+  ],
+  'lvl14.hint.liftup': [
+    'Iron is piling up in the dark — and <b>loaded smallhands cannot climb ladders</b>. Build a <b>Cargo Lift</b> on the shaft floor: your shaft is its mast.',
+    'Das Eisen stapelt sich im Dunkeln — und <b>beladene Smallhands klettern keine Leitern</b>. Baue einen <b>Lastenaufzug</b> auf den Schachtboden: dein Schacht ist sein Mast.',
+  ],
+  'lvl14.hint.mast': [
+    'The lift is turning — but its head-frame <b>decks over the well</b>, so nobody can hop in anymore. Run a <b>ladder</b> down the shaft beside the mast: empty hands climb down for the next load, cargo rides up.',
+    'Der Aufzug läuft — doch sein Fördergerüst <b>deckt den Brunnen ab</b>, niemand hüpft mehr hinein. Setze eine <b>Leiter</b> in den Schacht neben den Mast: Leere Hände klettern zur nächsten Ladung hinab, die Fracht fährt hinauf.',
+  ],
+  'lvl15.name': ['The Dark Gallery', 'Der dunkle Stollen'],
+  'lvl15.desc': [
+    'Night above, iron below — and the caravan itself is walled into the deep. Light the way down and let the goods slide to it.',
+    'Nacht oben, Eisen unten — und die Karawane selbst ist in der Tiefe eingemauert. Erleuchte den Weg hinab und lass die Waren zu ihr gleiten.',
+  ],
+  'lvl15.hint.dark': [
+    'Only the town fires hold back the night. Raise a <b>Workshop</b> in the light — the dig needs a shovel — and push a <b>Lantern</b> chain toward the far trees.',
+    'Nur die Stadtfeuer halten die Nacht zurück. Errichte eine <b>Werkstatt</b> im Licht — das Graben braucht einen Spaten — und schiebe eine <b>Laternen</b>-Kette zu den fernen Bäumen.',
+  ],
+  'lvl15.hint.ropeway': [
+    'The caravan is <b>walled in below</b> — and cargo will not touch a ladder. Anchor a <b>Rope</b> at the shaft mouth: loaded haulers slide straight down. Then <b>ladder the well itself</b> for the climb home — rope first, for a laddered well leaves no room to sling one.',
+    'Die Karawane ist <b>unten eingemauert</b> — und Fracht rührt keine Leiter an. Verankere ein <b>Seil</b> an der Schachtöffnung: Beladene Träger gleiten direkt hinab. Dann <b>setze Leitern in den Brunnen selbst</b> für den Heimweg — erst das Seil, denn ein verleiterter Brunnen lässt ihm keinen Platz.',
+  ],
+  'lvl15.hint.glow': [
+    'Diggers feel their way in the dark, but <b>miners need light</b>. The buried caravan keeps its own fire — a lantern carried into the gallery wakes the deeper veins.',
+    'Gräber tasten sich durchs Dunkel, doch <b>Bergleute brauchen Licht</b>. Die vergrabene Karawane hütet ihr eigenes Feuer — eine Laterne im Stollen weckt die tieferen Adern.',
+  ],
+  'lvl16.name': ['The Ember Vault', 'Das Glutgewölbe'],
+  'lvl16.desc': [
+    'Everything you have learned, in one mountain: iron in the deep, a caravan on the heights, and storms that seize every wheel between them.',
+    'Alles Gelernte in einem Berg: Eisen in der Tiefe, eine Karawane in der Höhe — und Stürme, die jedes Rad dazwischen packen.',
+  ],
+  'lvl16.hint.vault': [
+    'The order wants <b>spears on the plateau</b>: dig the iron out below, forge in the meadow, and send the goods up the cliff. The old miners left an <b>adit with a ladder</b> in the cliff foot — empty hands only, as ever.',
+    'Der Auftrag will <b>Speere auf dem Plateau</b>: Grab das Eisen unten aus, schmiede in der Wiese und schick die Waren die Klippe hinauf. Die alten Bergleute ließen einen <b>Stollen mit Leiter</b> am Klippenfuß zurück — wie immer nur für leere Hände.',
+  ],
+  'lvl16.hint.wheel': [
+    'Spears are ready! Hang a <b>Counterweight Hoist</b> on the plateau edge — <b>plateau stone</b> makes fine ballast, and it lands below ready for reuse.',
+    'Die Speere sind fertig! Hänge einen <b>Gegengewichts-Aufzug</b> an die Plateaukante — <b>Plateau-Stein</b> ist bester Ballast, und er landet unten bereit zur Wiederverwendung.',
+  ],
+  'lvl16.hint.storm': [
+    'The <b>storm</b> has seized every brake — lift and hoist stand still. Dig, saw and forge through the gusts; ship in the calm.',
+    'Der <b>Sturm</b> hat jede Bremse gepackt — Aufzug und Rad stehen still. Grabe, säge und schmiede durch die Böen; verschiffe in der Ruhe.',
+  ],
+  'lvl16.hint.crew': [
+    'Town Hall level 3 would add three more smallhands. Costly — but many hands make the mountain small.',
+    'Rathaus-Stufe 3 brächte drei weitere Smallhands. Teuer — doch viele Hände machen den Berg klein.',
+  ],
 
   // world map (level select)
   'map.terr1': ['Home Meadows', 'Heimatwiesen'],
