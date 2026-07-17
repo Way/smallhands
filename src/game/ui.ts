@@ -758,18 +758,20 @@ export class Hud {
         g.thLevel,
         g.workers.length,
         g.maxWorkers,
-        up ? Math.floor((up.progress / up.time) * 20) : 'x',
+        // quantize to whole percent — the tooltip renders %, so match it or the
+        // number visibly ticks in coarse 5% jumps (× 20) instead of counting up
+        up ? Math.floor((up.progress / up.time) * 100) : 'x',
         lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
       ].join('|');
     }
     if (b.state === 'blueprint') {
       const need = BUILD_TIME[b.kind] ?? 5;
-      return ['bp', b.id, b.kind, Math.floor((b.progress / need) * 20)].join('|');
+      return ['bp', b.id, b.kind, Math.floor((b.progress / need) * 100)].join('|');
     }
     const parts: (string | number)[] = ['b', b.id, b.kind];
     const recipe = RECIPES[b.kind];
     if (recipe) {
-      parts.push(b.processing ? Math.floor((b.processT / recipe.time) * 20) : 'idle');
+      parts.push(b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'idle');
       for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0);
     }
     if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
@@ -1124,7 +1126,7 @@ export class Hud {
     // upgrade button — only rebuild when the relevant state changes
     const lvl = TH_LEVELS[g.thLevel - 1];
     const sig = g.thUpgrade
-      ? `up:${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 20)}`
+      ? `up:${Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100)}` // whole percent — the label counts in 1% steps
       : `lv:${g.thLevel}:${ITEM_TYPES.map((i) => g.stock[i]).join(',')}`;
     if (sig !== this.upgradeSig) {
       this.upgradeSig = sig;

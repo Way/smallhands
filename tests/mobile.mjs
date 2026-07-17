@@ -310,6 +310,52 @@ check('town-hall Upgrade button enables once affordable', await page.evaluate(()
   return btn && !btn.disabled;
 }));
 
+// ---- inspect-hint build % counts in 1% steps, not coarse 5% jumps (#33) ------
+// The hint's signature used to quantize progress to 1/20, so the % it renders
+// (1/100) froze between 5% buckets. Prove a sub-5% change now updates the text.
+await page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
+const bp = await page.evaluate(() => {
+  const { game, cam } = window.__smallhands;
+  const canvas = document.getElementById('game-canvas');
+  const px = 16 * cam.zoom;
+  const dpr = canvas.width / canvas.clientWidth;
+  const scr = (x, y) => ({ x: ((x + 0.5) * px - cam.x) / dpr, y: ((y + 0.5) * px - cam.y) / dpr });
+  // an empty tile (no building covers it) near screen centre and clear of the
+  // HUD margins, so the tap lands on our blueprint — not the town hall (4-wide
+  // footprint) nor a top/bottom HUD control that would swallow the touch
+  const safe = (s) => s.x > 70 && s.x < canvas.clientWidth - 70 && s.y > 220 && s.y < canvas.clientHeight - 220;
+  const cx = Math.floor((cam.x + canvas.width / 2) / px), cy = Math.floor((cam.y + canvas.height / 2) / px);
+  let found = null;
+  for (let r = 0; r < 14 && !found; r++)
+    for (let dy = -r; dy <= r && !found; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        const xx = cx + dx, yy = cy + dy;
+        if (xx < 0 || yy < 0 || xx >= game.world.w || yy >= game.world.h) continue;
+        const s = scr(xx, yy);
+        if (!safe(s) || game.buildingAt(xx, yy)) continue;
+        found = { xx, yy, s };
+        break;
+      }
+  if (!found) return { ok: false };
+  const b = game.addBuilding('sawmill', found.xx, found.yy, false); // blueprint
+  b.progress = 0.06; // BUILD_TIME.sawmill=6 → 1%
+  window.__smallhands.setSpeed(0); // freeze the sim so only our progress applies
+  window.__smallhands.setTool('select');
+  return { ok: true, id: b.id, cx: found.s.x, cy: found.s.y };
+});
+check('found an on-screen tile for the blueprint', bp.ok);
+await page.touchscreen.tap(bp.cx, bp.cy);
+await page.waitForTimeout(120);
+const hintPct = () => page.evaluate(() => {
+  const m = document.querySelector('.tooltip')?.textContent?.match(/(\d+)%/);
+  return m ? Number(m[1]) : null;
+});
+check('inspecting the blueprint shows its build %', (await hintPct()) === 1);
+// +2% of build time: same old 1/20 bucket, so the OLD sig would freeze at 1%
+await page.evaluate((id) => { window.__smallhands.game.buildings.find((b) => b.id === id).progress = 0.18; }, bp.id);
+await page.waitForTimeout(120);
+check('build % updates in 1% steps (not frozen in a 5% bucket)', (await hintPct()) === 3);
+
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();
 console.log(failed ? '\nMOBILE E2E FAILED' : '\nMOBILE E2E PASS');
