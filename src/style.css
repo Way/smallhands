@@ -87,8 +87,8 @@ body.in-game #frontdoor { display: none; }
 .topbar > * { pointer-events: auto; min-width: 0; }
 
 /* the two edge columns flanking the island. Each stacks its panels top-down and
-   pins to its own edge; both build in visual order (left: resources → crew;
-   right: deliver → weather), so no `order` juggling is needed. The wrappers
+   pins to its own edge; both build in visual order (left: resources → deliver;
+   right: crew), so no `order` juggling is needed. The wrappers
    themselves pass pointer events through — only the panels are clickable, never
    the empty gaps a stretched-to-1fr wrapper would otherwise cover. */
 .topbar-left,
