@@ -41,8 +41,8 @@ const NEUTRAL_LIGHT: LightLook = {
 };
 
 export interface BiomeLook extends LightLook {
-  blades: { g: string; G: string; k: string }; // grass surface (mid / light / dark)
-  earth: { d: string; D: string; e: string }; // dirt body (mid / dark / light)
+  blades: { g: string; G: string; k: string; L: string }; // grass (mid / light / dark / lit tip)
+  earth: { d: string; D: string; e: string; c: string }; // dirt body (mid / dark / light / crevice)
   stone: { r: string; R: string; k: string; K: string }; // rock body
   accent: string; // flower petals, mushroom caps
   accent2: string; // secondary blossom / highlight
@@ -55,14 +55,14 @@ export interface BiomeLook extends LightLook {
 }
 
 // Snow surface shared by every snow-capped biome.
-export const SNOW_BLADES = { g: '#dfe8f4', G: '#f6f9ff', k: '#b6c4d8' };
+export const SNOW_BLADES = { g: '#dfe8f4', G: '#f6f9ff', k: '#b6c4d8', L: '#ffffff' };
 
 export const BIOME_LOOK: Record<Biome, BiomeLook> = {
   // the classic Smallhands look — palettes carried over verbatim
   meadow: {
     ...NEUTRAL_LIGHT,
-    blades: { g: '#5cb14e', G: '#7ccb62', k: '#3f7a36' },
-    earth: { d: '#8a5a35', D: '#6f4629', e: '#a4713f' },
+    blades: { g: '#5cb14e', G: '#7ccb62', k: '#3f7a36', L: '#9fdc6a' },
+    earth: { d: '#8a5a35', D: '#6f4629', e: '#a4713f', c: '#523b23' },
     stone: { r: '#7b8494', R: '#98a2b3', k: '#5c6470', K: '#454b55' },
     accent: '#e26d8a',
     accent2: '#f0d868',
@@ -75,8 +75,8 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
   },
   autumn: {
     ...NEUTRAL_LIGHT,
-    blades: { g: '#c99a3f', G: '#e0b654', k: '#96702a' },
-    earth: { d: '#8a5432', D: '#6e4026', e: '#a86c3e' },
+    blades: { g: '#c99a3f', G: '#e0b654', k: '#96702a', L: '#f2cf72' },
+    earth: { d: '#8a5432', D: '#6e4026', e: '#a86c3e', c: '#4e2e1b' },
     stone: { r: '#8a7f74', R: '#a99e90', k: '#665d53', K: '#4d463e' },
     accent: '#c8502e',
     accent2: '#e0862e',
@@ -89,8 +89,8 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
   },
   chalk: {
     ...NEUTRAL_LIGHT,
-    blades: { g: '#69b183', G: '#8bcf9d', k: '#47825d' },
-    earth: { d: '#b5a476', D: '#95845c', e: '#cbbd90' },
+    blades: { g: '#69b183', G: '#8bcf9d', k: '#47825d', L: '#ade3b8' },
+    earth: { d: '#b5a476', D: '#95845c', e: '#cbbd90', c: '#6f6242' },
     stone: { r: '#cfcaba', R: '#e5e1d4', k: '#a8a291', K: '#87816f' },
     accent: '#7f9fd8',
     accent2: '#e8e4f0',
@@ -103,8 +103,8 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
   },
   redrock: {
     ...NEUTRAL_LIGHT,
-    blades: { g: '#9aa04b', G: '#b6bc61', k: '#6f7434' },
-    earth: { d: '#9c5a34', D: '#7c4426', e: '#b8703f' },
+    blades: { g: '#9aa04b', G: '#b6bc61', k: '#6f7434', L: '#ccd27a' },
+    earth: { d: '#9c5a34', D: '#7c4426', e: '#b8703f', c: '#5a2f1a' },
     stone: { r: '#b05a38', R: '#c97a4e', k: '#8a4227', K: '#66301c' },
     accent: '#d8b04c',
     accent2: '#77a06a',
@@ -117,8 +117,8 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
   },
   slate: {
     ...NEUTRAL_LIGHT,
-    blades: { g: '#569a6c', G: '#6fb883', k: '#3a7050' },
-    earth: { d: '#6e5540', D: '#57432f', e: '#83674c' },
+    blades: { g: '#569a6c', G: '#6fb883', k: '#3a7050', L: '#8ed19f' },
+    earth: { d: '#6e5540', D: '#57432f', e: '#83674c', c: '#3f3021' },
     stone: { r: '#66707f', R: '#828e9e', k: '#4c545f', K: '#383e47' },
     accent: '#a682c8',
     accent2: '#d8d2e6',
@@ -138,8 +138,8 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     sun: [255, 246, 214], // warm midday sun
     ambient: [40, 64, 120], // blue sky filling the shadow
     deep: [18, 32, 72],
-    blades: { g: '#81c76b', G: '#aadd81', k: '#488f47' },
-    earth: { d: '#a46e44', D: '#7a4e2e', e: '#c98f5c' },
+    blades: { g: '#81c76b', G: '#aadd81', k: '#488f47', L: '#c3f090' },
+    earth: { d: '#a46e44', D: '#7a4e2e', e: '#c98f5c', c: '#56361f' },
     stone: { r: '#9aa3ad', R: '#bcc4cb', k: '#727c88', K: '#535c66' },
     accent: '#f55b37',
     accent2: '#ffd21e',
