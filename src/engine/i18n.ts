@@ -309,8 +309,8 @@ const D: Record<string, [string, string]> = {
   ],
   'hud.paused': ['Paused', 'Pausiert'],
   'hud.clockTitle': [
-    'Time on this map — runs with the game speed, so it holds while paused.',
-    'Zeit auf dieser Karte — läuft mit dem Spieltempo und hält in der Pause.',
+    'Time of day on this map. Some maps start at night, where smallhands only work in lantern light.',
+    'Tageszeit auf dieser Karte. Manche Karten beginnen bei Nacht, wo Smallhands nur im Laternenlicht arbeiten.',
   ],
   'hud.zoomIn': ['Zoom in (+)', 'Vergrößern (+)'],
   'hud.zoomOut': ['Zoom out (−)', 'Verkleinern (−)'],

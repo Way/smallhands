@@ -345,6 +345,34 @@ export const LANTERN_RADIUS = 6.5;
 export const TOWNHALL_LIGHT_RADIUS = 9;
 export const GOAL_LIGHT_RADIUS = 6.5;
 
+// ---- time of day -------------------------------------------------------------
+// The HUD clock reads a diegetic hour-of-day (0..24), NOT the run's score timer
+// (that's `Game.time`, kept off-screen and surfaced only at the win ceremony).
+// A day level holds at noon and a night level at the dead of night; nothing
+// advances the hour yet (a dynamic day→night cycle is a later phase — card #36).
+export const DAY_HOUR = 12; // noon — the default for daytime maps
+export const NIGHT_HOUR = 0; // midnight — the default for `night` maps
+
+// Format an hour-of-day (0..24, wrapping) as a 24h "HH:MM" chip. Distinct from
+// fmtTime (which renders elapsed M:SS): here the hours are always zero-padded so
+// the clock reads as wall time — "09:00", "12:00", "00:00" — not a stopwatch.
+export function fmtClock(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  const hh = Math.floor(h);
+  const mm = Math.floor((h - hh) * 60) % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+// A sun/dusk/moon glyph for the hour, so the clock reads day vs night at a
+// glance. Bands: night before dawn and after dusk, a dawn/dusk sliver either
+// side of daytime. Forward-compatible with a moving clock (later phase).
+export function dayNightIcon(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  if (h < 5 || h >= 20) return '🌙'; // deep night
+  if (h < 7 || h >= 18) return '🌇'; // dawn / dusk
+  return '☀️'; // daytime
+}
+
 // ---- look events (cosmetic outbox) -------------------------------------------
 
 // Write-only breadcrumbs the sim appends for the renderer's look-physics layer

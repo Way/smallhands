@@ -8,12 +8,12 @@ const mod = await bundleExports(`
   export { LEVELS } from './src/game/levels.ts';
   export { canPlaceLadder } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
-  export { T, fmtTime } from './src/game/types.ts';
+  export { T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR } from './src/game/types.ts';
   export { t, setLang, getLang } from './src/engine/i18n.ts';
   export { exportAllData, importAllData } from './src/engine/save.ts';
   export { blankLevelData } from './src/game/leveldata.ts';
 `);
-const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -377,10 +377,12 @@ function findLadderCells(g, count) {
   check('broken custom levels are dropped', clean.customLevels.length === 0);
 }
 
-// ---- level clock: game time, not wall-clock ---------------------------------
-// The HUD clock renders Game.time through fmtTime. Time is summed per tick, so
-// it stretches with the speed multiplier (4× = four ticks a frame) and holds
-// whenever the sim isn't ticking — pause and the win both freeze it.
+// ---- score timer: Game.time, the hidden medal clock ------------------------
+// Game.time is the run's score (medals + PBs read it after the win); it is NOT
+// shown in the HUD anymore — the clock chip renders timeOfDay instead (below).
+// Time is summed per tick, so it stretches with the speed multiplier (4× = four
+// ticks a frame) and holds whenever the sim isn't ticking — pause and the win
+// both freeze it. fmtTime still formats it for the win ceremony.
 {
   check('fresh level starts at 0:00', fmtTime(new Game(LEVELS[0]).time) === '0:00');
   check('seconds pad to two digits', fmtTime(9) === '0:09');
@@ -412,6 +414,34 @@ function findLadderCells(g, count) {
 
   // restart is a fresh Game, so the clock resets with no reset code
   check('restart resets the clock', new Game(LEVELS[0]).time === 0);
+}
+
+// ---- time of day: the diegetic HUD clock, decoupled from the score ----------
+// game.timeOfDay is the wall-clock hour the chip shows. It is static for now:
+// noon on a day map, midnight on a night map, and it does NOT advance with
+// ticks (a moving day→night cycle is a later phase — card #36).
+{
+  check('day map opens at noon', new Game(LEVELS[0]).timeOfDay === DAY_HOUR);
+
+  const nightLevel = LEVELS.find((l) => l.night);
+  check('a night map exists to test', !!nightLevel);
+  if (nightLevel) check('night map opens at midnight', new Game(nightLevel).timeOfDay === NIGHT_HOUR);
+
+  // startHour overrides the day/night default
+  check('startHour overrides the default', new Game({ ...LEVELS[0], startHour: 7 }).timeOfDay === 7);
+
+  // ticking the sim advances the score timer but NOT the time-of-day clock
+  const g = new Game(LEVELS[0]);
+  for (let i = 0; i < 600; i++) g.tick(1 / 60); // ~10s
+  check('ticks advance the score timer', Math.abs(g.time - 10) < 0.05);
+  check('ticks do NOT move the time-of-day clock', g.timeOfDay === DAY_HOUR);
+
+  // fmtClock renders a zero-padded 24h wall time and wraps the day
+  check('fmtClock pads the hour', fmtClock(9) === '09:00');
+  check('fmtClock renders noon', fmtClock(12) === '12:00');
+  check('fmtClock renders half hours', fmtClock(6.5) === '06:30');
+  check('fmtClock renders midnight', fmtClock(0) === '00:00');
+  check('fmtClock wraps past midnight', fmtClock(25) === '01:00');
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
