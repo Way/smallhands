@@ -4,7 +4,7 @@ import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
 import { BIOME_LOOK, biomeSuffix, treeSprite } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
 import { t } from '../engine/i18n';
-import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
+import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding, rampFacesLeft } from './world';
 import type { Game } from './sim';
 import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
 import type { WeatherLook, RGB, RGBA } from './weather-look';
@@ -598,14 +598,12 @@ export class Renderer {
             break;
         }
         if (name === 'tile_ramp') {
-          // face the slope toward the higher neighbour. The run climbs to the
-          // left when a ramp sits up-left OR down-right of this tile — checking
-          // both ends means the top cap of an up-left run mirrors correctly too
-          // (its only ramp neighbour is the tile below-right). Default art climbs
-          // right, so only up-left runs get mirrored.
-          const upLeft = world.get(x - 1, y - 1) === T.RAMP || world.get(x + 1, y + 1) === T.RAMP;
+          // Face the slope the right way: along its diagonal chain, or — for a
+          // standalone tile — toward the terrain ledge it climbs against (see
+          // rampFacesLeft). Default art climbs right, so only left-climbers flip.
+          const facesLeft = rampFacesLeft(world, x, y);
           const spr = sprite('tile_ramp').canvas;
-          if (upLeft) {
+          if (facesLeft) {
             ctx.save();
             ctx.translate(px + TILE, py);
             ctx.scale(-1, 1);
@@ -1860,7 +1858,17 @@ export class Renderer {
           game.canAfford({ plank: 1 }) &&
           !game.darkBlocks('ramp', tx, ty);
         ctx.globalAlpha = 0.6;
-        ctx.drawImage(sprite('tile_ramp').canvas, px, py);
+        // preview the same facing the laid tile will take (toward the ledge)
+        const spr = sprite('tile_ramp').canvas;
+        if (rampFacesLeft(game.world, tx, ty)) {
+          ctx.save();
+          ctx.translate(px + TILE, py);
+          ctx.scale(-1, 1);
+          ctx.drawImage(spr, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.drawImage(spr, px, py);
+        }
         ctx.globalAlpha = 1;
         outline(ok);
         break;
