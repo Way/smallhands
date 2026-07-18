@@ -2067,11 +2067,16 @@ function frame(now: number): void {
       }
 
       if (isIdle) {
-        // slow auto-pan across the idle scene (fixed camera under reduced motion)
-        cam.zoom = 2;
-        const maxX = idleGame!.world.w * TILE * 2 - renderer.viewW;
+        // slow auto-pan across the idle scene (fixed camera under reduced motion).
+        // Base zoom is 2, but on viewports wider than the world at that zoom the
+        // terrain would end mid-screen (sky-filled void on the right) — so scale
+        // up just enough to always span the full width. When the world already
+        // overflows the width, zoom stays 2 and the auto-pan is preserved.
+        const worldPxW = idleGame!.world.w * TILE;
+        cam.zoom = Math.max(2, renderer.viewW / worldPxW);
+        const maxX = worldPxW * cam.zoom - renderer.viewW;
         cam.x = idleStatic ? 0 : (Math.sin(now / 9000) * 0.5 + 0.5) * Math.max(0, maxX);
-        cam.y = idleGame!.world.h * TILE * 2 - renderer.viewH + 20;
+        cam.y = idleGame!.world.h * TILE * cam.zoom - renderer.viewH + 20;
       }
 
       // Under reduced motion, freeze the clock fed to the renderer too, so
