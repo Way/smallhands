@@ -864,6 +864,9 @@ export class Hud {
     const recipe = RECIPES[b.kind];
     if (recipe) {
       parts.push(b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'idle');
+      // paused flips the rendered status (fillBuildingHint reads b.paused first),
+      // so the hover tooltip must re-render on it even when nothing else changes
+      parts.push(b.paused ? 'P' : '-');
       for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0);
     }
     if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
