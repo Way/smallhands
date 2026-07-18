@@ -535,6 +535,14 @@ export class Renderer {
     const shCrack = shade(blook.ambient, 0.18);
     const shRim = shade(blook.ambient, 0.12);
     const shAo = shade(blook.ambient, 0.1);
+    // edge enrichment: the grass lip's drop shadow, an overhang's shaded
+    // underside, and chunky clods clinging to exposed earth/rock faces
+    const shLip = shade(blook.ambient, 0.24);
+    const shLip2 = shade(blook.ambient, 0.13);
+    const shUnder = shade(blook.ambient, 0.2);
+    const shClump = shade(blook.ambient, 0.17);
+    const shClumpDk = shade(blook.ambient, 0.3);
+    const sunClump = shade(blook.sun, 0.16);
 
     // snow-capped biomes: everything at or above the snowline wears white.
     // The line hangs off the map's highest summit so it never shifts with the
@@ -659,6 +667,37 @@ export class Renderer {
             if (world.isSolid(x + 1, y - 1)) {
               ctx.fillStyle = shAo;
               ctx.fillRect(px + TILE - 3, py, 3, TILE);
+            }
+          }
+          const earth = t === T.DIRT || t === T.ROCK;
+          // the grass lip casts a soft shadow onto the earth it caps
+          if (earth && world.get(x, y - 1) === T.GRASS) {
+            ctx.fillStyle = shLip;
+            ctx.fillRect(px, py, TILE, 2);
+            ctx.fillStyle = shLip2;
+            ctx.fillRect(px, py + 2, TILE, 2);
+          }
+          // the underside of an overhang falls into shadow
+          if (!world.isSolid(x, y + 1)) {
+            ctx.fillStyle = shUnder;
+            ctx.fillRect(px, py + TILE - 2, TILE, 2);
+          }
+          // chunky clods across an exposed earth/rock face: each a lit crown over
+          // a shaded body with a dark undercut, scattered deterministically so
+          // the raw cliff face reads as clumped earth rather than a flat wall
+          if (earth && (airL || airR)) {
+            for (let k = 0; k < 3; k++) {
+              const h1 = tileHash(x * 4 + k * 37, y * 3 + 11);
+              if (h1 < 0.32) continue;
+              const cw = 3 + Math.floor(tileHash(x + k * 5, y * 2 + 1) * 3); // 3..5 wide
+              const cxp = px + 1 + Math.floor(tileHash(x * 2 + 3, y + k * 9) * (TILE - cw - 2));
+              const cy = py + 2 + Math.floor(h1 * (TILE - 7));
+              ctx.fillStyle = shClump;
+              ctx.fillRect(cxp, cy, cw, 3);
+              ctx.fillStyle = sunClump;
+              ctx.fillRect(cxp, cy - 1, cw - 1, 1);
+              ctx.fillStyle = shClumpDk;
+              ctx.fillRect(cxp, cy + 3, cw, 1);
             }
           }
         }
@@ -983,6 +1022,14 @@ export class Renderer {
       const px = b.x * TILE;
       const py = b.y * TILE;
       const spr = sprite(b.kind).canvas;
+
+      // a soft contact shadow grounds a finished building on the terrain
+      if (b.state === 'ready') {
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.beginPath();
+        ctx.ellipse(px + fw / 2, py + fh - 1, fw * 0.44, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       if (b.state === 'blueprint') {
         ctx.globalAlpha = 0.45;

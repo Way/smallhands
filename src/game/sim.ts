@@ -125,6 +125,7 @@ export interface Particle {
   maxLife: number;
   color: string;
   size: number;
+  grav?: number; // per-particle downward accel (defaults to 9); low = floaty dust
 }
 
 // ---- the game -------------------------------------------------------------
@@ -1501,7 +1502,13 @@ export class Game {
         return;
       }
       b.progress += dt * BUILDER_SPEED;
-      if (Math.random() < dt * 4) this.spawnBurst(b.x + Math.random() * footprintW(b), b.y + 1, '#d8c27a', 2);
+      // dust kicked up off the base, plus the odd sawdust chip from the work
+      if (Math.random() < dt * 6) {
+        const bx = b.x + Math.random() * footprintW(b);
+        const by = b.y + footprintH(b) - 0.1;
+        this.spawnDust(bx, by, 2);
+        if (Math.random() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
+      }
       const need = BUILD_TIME[b.kind] ?? 5;
       if (b.progress >= need) {
         b.state = 'ready';
@@ -1520,7 +1527,12 @@ export class Game {
       }
       up.progress += dt * BUILDER_SPEED;
       const th = this.townhall;
-      if (Math.random() < dt * 4) this.spawnBurst(th.x + Math.random() * 4, th.y + 1, '#d8c27a', 2);
+      if (Math.random() < dt * 6) {
+        const bx = th.x + Math.random() * footprintW(th);
+        const by = th.y + footprintH(th) - 0.1;
+        this.spawnDust(bx, by, 2);
+        if (Math.random() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
+      }
       if (up.progress >= up.time) {
         this.thUpgrade = null;
         this.thLevel++;
@@ -1894,6 +1906,27 @@ export class Game {
     }
   }
 
+  // Pale dust kicked into the air by construction work: a soft upward fan that
+  // drifts sideways and settles back down (tickParticles' gravity pulls it in).
+  // Airier and longer-lived than spawnBurst's debris chips.
+  spawnDust(x: number, y: number, n = 3): void {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.3; // fan upward
+      const sp = 1.2 + Math.random() * 1.8;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 0.6,
+        y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 1.6,
+        life: 0.8 + Math.random() * 0.6,
+        maxLife: 1.4,
+        color: Math.random() < 0.5 ? '#e6dcc6' : '#d0bd98',
+        size: 1.5 + Math.random() * 2,
+        grav: 1.5, // floaty: hangs in the air a moment before settling
+      });
+    }
+  }
+
   // ---- main tick ------------------------------------------------------------------------
 
   tick(dt: number): void {
@@ -1960,7 +1993,7 @@ export class Game {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 9 * dt;
+      p.vy += (p.grav ?? 9) * dt;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
   }

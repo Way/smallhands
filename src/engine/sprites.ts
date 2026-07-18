@@ -551,25 +551,29 @@ export function buildAtlas(): void {
   ]);
 
   // ---- items (8x8) ----
-  makeSprite('item_log', { l: '#8a5a2b', L: '#a8743c', k: '#5f3c1b' }, [
+  // a log lying on its side: a pale sawn end-ring on the left, bark barrel to
+  // the right lit along the top. Reads as "cut wood" at HUD and 6px pip sizes.
+  makeSprite('item_log', { k: '#402a14', l: '#7a4e26', L: '#9c6835', e: '#caa06a', E: '#eccb92' }, [
     '........',
-    '.kllllk.',
-    'kLLLLLlk',
-    'lLkllkLl',
-    'lLlkklll',
-    'kLLLLLlk',
-    '.kllllk.',
+    '.kkkkkk.',
+    'keeLLLLk',
+    'keElllLk',
+    'keElllLk',
+    'keellllk',
+    '.kkkkkk.',
     '........',
   ]);
+  // a neat stack of three sawn boards, staggered for depth: each board shows a
+  // lit top face (P), a front face (p) and a shadowed end/underside (k).
   makeSprite('item_plank', { p: '#d3a45c', P: '#e8c084', k: '#96703a' }, [
+    '..PPPPPP',
+    '..pppppk',
+    '.PPPPPPk',
+    '.pppppk.',
+    'PPPPPPk.',
+    'pppppk..',
+    'kkkkk...',
     '........',
-    '......Pk',
-    '....PPpk',
-    '..PPppk.',
-    'PPppkk..',
-    'Pppk....',
-    'ppk.....',
-    'kk......',
   ]);
   makeSprite('item_stone', { s: '#9aa5b5', S: '#bcc6d4', k: '#6b7482' }, [
     '........',
