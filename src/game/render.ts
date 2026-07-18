@@ -1,4 +1,4 @@
-import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
+import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS, LANTERN_RADIUS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
 import { BIOME_LOOK, biomeSuffix, treeSprite } from '../engine/biomes';
@@ -1747,6 +1747,37 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  // Preview the patch a lantern would light from the aimed cell, so the player
+  // can place it without guessing. Faithful to the sim: same centre
+  // ((tx+0.5, ty+0.5)) and LANTERN_RADIUS the finished lantern uses for isLit,
+  // and the same soft warm disc the night veil punches around a real light. The
+  // ghost draws after drawDarkness, so at night the previewed area visibly
+  // brightens; the dashed ring marks the exact lit boundary. Static (no flicker)
+  // to stay deterministic and reduce-motion-safe.
+  private drawLanternRange(tx: number, ty: number): void {
+    const { ctx } = this;
+    const cx = (tx + 0.5) * TILE;
+    const cy = (ty + 0.5) * TILE;
+    const r = LANTERN_RADIUS * TILE;
+    ctx.save();
+    const grad = ctx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r);
+    grad.addColorStop(0, 'rgba(255,201,109,0.30)');
+    grad.addColorStop(0.72, 'rgba(255,201,109,0.13)');
+    grad.addColorStop(1, 'rgba(255,201,109,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,214,120,0.85)';
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   private drawGhost(game: Game, hover: HoverState, t: number): void {
     const { ctx } = this;
     const { tool, tx, ty } = hover;
@@ -1842,6 +1873,9 @@ export class Renderer {
           game.toolUnlocked(tool) &&
           // at night, workshops need a lit site — lanterns go anywhere
           !game.darkBlocks(tool, tx, ty);
+        // show the area this lantern would light before it's placed (under the
+        // sprite/outline so those stay legible on top)
+        if (tool === 'lantern') this.drawLanternRange(tx, ty);
         ctx.globalAlpha = 0.55;
         const spr = sprite(tool).canvas;
         ctx.drawImage(spr, 0, 0, fp.w * TILE, fp.h * TILE, px, py, fp.w * TILE, fp.h * TILE);
