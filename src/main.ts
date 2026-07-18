@@ -32,7 +32,7 @@ import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, ver
 import type { CustomLevelData } from './game/leveldata';
 import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 import { buildWorldMap } from './game/worldmap';
-import { rampRunFacesLeft } from './game/world';
+import { rampCellsFaceLeft } from './game/world';
 import { computeCampaignStates } from './game/progress';
 import { devUnlockAll } from './engine/devmode';
 
@@ -2030,8 +2030,9 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!spriteName) return; // only the run tools have a ghost sprite
   const spr = sprite(spriteName).canvas;
   // A ramp run previews with the same facing it will settle into once laid, so it
-  // never flips on release. The whole run is one slope face, read off the drag.
-  const flipRamp = tool === 'ramp' && rampRunFacesLeft(game.world, ax, ay, ex, ey);
+  // never flips on release — read off the run's actual cells (which may truncate
+  // to a lone tile against a wall), matching what the renderer draws per tile.
+  const flipRamp = tool === 'ramp' && rampCellsFaceLeft(game.world, plan.cells);
   plan.cells.forEach((c, i) => {
     const affordable = !dark && i < plan.affordable;
     ctx.globalAlpha = affordable ? 0.6 : 0.35;

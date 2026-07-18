@@ -173,15 +173,19 @@ export function rampFacesLeft(world: World, x: number, y: number): boolean {
   return edgeL && !edgeR;
 }
 
-// Facing for a whole drag-run preview, before any tile is laid (the run's cells
-// aren't in the world yet, so rampFacesLeft can't read them as chain neighbours).
-// A diagonal run is one slope face read straight off its drag direction; a
-// single-axis / single-tile run falls back to the standalone terrain-edge rule.
-export function rampRunFacesLeft(world: World, ax: number, ay: number, ex: number, ey: number): boolean {
-  const dx = Math.sign(ex - ax);
-  const dy = Math.sign(ey - ay);
-  if (dx !== 0 && dy !== 0) return dx === dy; // down-right / up-left "\" climbs left
-  return rampFacesLeft(world, ax, ay);
+// Facing for a drag-run preview, before any tile is laid. Read off the run's
+// ACTUAL cells (from rampRunCells) rather than the raw drag vector: a diagonal
+// drag can truncate to a single tile when the next cell fails placement (e.g.
+// dragging into a wall), and that lone tile settles by the standalone terrain
+// edge rule — which the drag direction alone can contradict, flipping the art on
+// release. Deferring to rampFacesLeft for a 1-cell run keeps preview and settle
+// in lockstep; a multi-cell run is one slope face read from its first step
+// (which matches the per-tile chain rule the renderer applies once laid).
+export function rampCellsFaceLeft(world: World, cells: { x: number; y: number }[]): boolean {
+  if (cells.length === 0) return false; // nothing drawn — value unused
+  if (cells.length === 1) return rampFacesLeft(world, cells[0].x, cells[0].y);
+  const [a, b] = cells;
+  return Math.sign(b.x - a.x) === Math.sign(b.y - a.y); // down-right / up-left "\" climbs left
 }
 
 // The buildable horizontal bridge run at row ay from ax toward tx. The anchor

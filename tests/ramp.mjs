@@ -7,14 +7,14 @@ const mod = await bundleExports(`
   export { World } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
   export { T } from './src/game/types.ts';
-  export { canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampRunFacesLeft } from './src/game/world.ts';
+  export { canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft } from './src/game/world.ts';
   export { Game } from './src/game/sim.ts';
   export { LEVELS } from './src/game/levels.ts';
   export { TOOL_DEFS } from './src/game/types.ts';
   export { t } from './src/engine/i18n.ts';
   export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
 `);
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampRunFacesLeft, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -286,15 +286,41 @@ function stepWorld() {
   check('standalone ramp with edges on both sides defaults to climb right',
     rampFacesLeft(wa, 6, 10) === false);
 
-  // Drag-preview facing (tiles not yet laid) reads straight off the drag vector.
+  // Drag-preview facing reads the run's actual laid-out cells (one slope face).
   const wp = new World(20, 20);
-  check('drag preview: up-right run climbs right', rampRunFacesLeft(wp, 6, 12, 9, 9) === false);
-  check('drag preview: up-left run climbs left', rampRunFacesLeft(wp, 9, 12, 6, 9) === true);
-  check('drag preview: down-right run climbs left', rampRunFacesLeft(wp, 6, 9, 9, 12) === true);
-  // A single-tile drag falls back to the terrain edge under the anchor.
-  wp.set(5, 10, T.ROCK);
-  check('drag preview: single tile leans toward the left edge',
-    rampRunFacesLeft(wp, 6, 10, 6, 10) === true);
+  const up = [{ x: 6, y: 12 }, { x: 7, y: 11 }, { x: 8, y: 10 }]; // "/" up-right
+  const dn = [{ x: 6, y: 10 }, { x: 7, y: 11 }, { x: 8, y: 12 }]; // "\" down-right
+  check('drag preview: "/" run climbs right', rampCellsFaceLeft(wp, up) === false);
+  check('drag preview: "\\" run climbs left', rampCellsFaceLeft(wp, dn) === true);
+
+  // A run that truncates to a single tile settles by the same standalone
+  // terrain-edge rule the renderer uses — so the preview must NOT read the drag
+  // direction (which would flip the lone tile on release). Regression for the
+  // diagonal-drag-into-a-wall collapse.
+  const wc = new World(20, 20);
+  const surfaceY = 14;
+  for (let x = 0; x < wc.w; x++)
+    for (let y = 0; y < wc.h; y++) wc.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+  wc.set(5, surfaceY - 1, T.ROCK); // a wall directly left of the anchor at (6, surfaceY-1)
+  // Drag down-right into the ground: the next cell hits solid, so the run is 1 tile.
+  const clipped = rampRunCells(wc, 6, surfaceY - 1, 9, surfaceY + 2);
+  check('diagonal drag into terrain truncates to one tile', clipped.length === 1);
+  // dx===dy for that drag would say "climb left"; the lone tile actually settles
+  // by the edge rule (wall on the left → also climb left here, but via the same
+  // path the renderer takes), so preview and settle agree.
+  check('truncated 1-tile preview matches the settled facing',
+    rampCellsFaceLeft(wc, clipped) === rampFacesLeft(wc, clipped[0].x, clipped[0].y));
+
+  // And when the edge rule disagrees with the drag vector, the preview follows
+  // the edge rule (settle), not the vector: wall on the RIGHT, drag down-right.
+  const wc2 = new World(20, 20);
+  for (let x = 0; x < wc2.w; x++)
+    for (let y = 0; y < wc2.h; y++) wc2.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+  wc2.set(7, surfaceY - 1, T.ROCK); // wall up-right of the anchor at (6, surfaceY-1)
+  const clip2 = rampRunCells(wc2, 6, surfaceY - 1, 9, surfaceY + 2);
+  check('drag-into-right-wall truncates to one tile', clip2.length === 1);
+  check('truncated tile climbs right (edge rule wins over the "\\" drag vector)',
+    rampCellsFaceLeft(wc2, clip2) === false);
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
