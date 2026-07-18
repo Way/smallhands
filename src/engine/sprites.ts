@@ -47,65 +47,67 @@ export function tileHash(x: number, y: number): number {
 }
 
 // ---- terrain tile string maps, shared by every biome ----------------------
-// Chars: g/G/k grass blades (mid/light/dark), d/D/e dirt (mid/dark/light),
-// r/R/k/K rock. Palettes come from BIOME_LOOK, so one map = five biomes.
+// Chars: g/G/k/L grass blades (mid/light/dark/lit-tip), d/D/e/c dirt
+// (mid/dark/light/crevice), r/R/k/K rock. Palettes come from BIOME_LOOK, so one
+// map = every biome. The grass and dirt tiles are generated (below) rather than
+// hand-typed: dirt is a field of domed clods, grass is a lush cap over it.
 
-const GRASS_ROWS = [
-  'GgGGgGgGGgGGgGGg',
-  'gkGgkgGkgGgkGgkg',
-  'dedddeddddededdd',
-  'ddddDdddeddddDdd',
-  'dDddddDdddddeddd',
-  'dddedddddDdddddD',
-  'ddDdddedddddDddd',
-  'ddddddddDedddddd',
-  'dedddDddddddedDd',
-  'dddDddddedDddddd',
-  'Dddddedddddddded',
-  'ddddDdddDddddddd',
-  'ddeddddddddeDddd',
-  'dDdddedDdddddddd',
-  'ddddDddddddDdedd',
-  'dddddddDeddddddd',
-];
+// Cobbled earth: domed clods packed on a brick-offset grid, each lit along the
+// top (e), mid-bodied (d) and shadowed at the base (D), separated by dark
+// crevices (c). Deterministic and wrap-tiled so it repeats seamlessly.
+// p maps the four clod tones onto a palette: crevice / lit-crown / mid / shadow.
+function clodField(p: { c: string; e: string; d: string; D: string }): string[] {
+  const N = 16;
+  const g: string[][] = Array.from({ length: N }, () => Array(N).fill(p.c));
+  const put = (x: number, y: number, ch: string) => {
+    g[((y % N) + N) % N][((x % N) + N) % N] = ch;
+  };
+  for (let by = 0; by < N; by += 4) {
+    const off = (by / 4) & 1 ? 3 : 0;
+    for (let bx = -off; bx < N; bx += 5) {
+      const jx = Math.round((tileHash(bx * 2 + 1, by) - 0.5) * 2);
+      const jy = Math.round((tileHash(bx, by * 2 + 3) - 0.5) * 1.4);
+      const ox = bx + 2 + jx;
+      const oy = by + 2 + jy;
+      const hw = tileHash(bx + 3, by + 1) > 0.5 ? 3 : 2; // half-width 2..3
+      for (let dy = -1; dy <= 2; dy++) {
+        const rw = dy === -1 || dy === 2 ? hw - 1 : hw; // round top + bottom
+        for (let dx = -rw; dx <= rw; dx++) {
+          const tone = dy <= -1 ? p.e : dy === 0 ? (dx < 0 ? p.e : p.d) : dy === 1 ? p.d : p.D;
+          put(ox + dx, oy + dy, tone);
+        }
+      }
+      if (tileHash(bx + 5, by + 2) > 0.7) put(ox - hw, oy - 1, p.e); // extra glint
+    }
+  }
+  return g.map((r) => r.join(''));
+}
+const DIRT = { c: 'c', e: 'e', d: 'd', D: 'D' };
+const DIRT_ROWS = clodField(DIRT);
 
-const DIRT_ROWS = [
-  'ddddDdddeddddDdd',
-  'dDddddDdddddeddd',
-  'dddedddddDdddddD',
-  'ddDdddedddddDddd',
-  'ddddddddDeddddde',
-  'dedddDddddddedDd',
-  'dddDddddedDddddd',
-  'DdddDedddddddded',
-  'ddddDdddDddddddd',
-  'ddeddddddddeDddd',
-  'dDdddedDdddddddd',
-  'ddddDddddddDdedd',
-  'dddddddDeddddddd',
-  'dedDddddddDddddd',
-  'ddddddeddddddDdd',
-  'dDdddddddedddddd',
-];
+// Lush grass cap over the cobbled earth: bright lit tips against the sky (with a
+// ragged silhouette), a light then mid band, then dark roots that droop a row
+// into the clods below. The lower 11 rows ARE the clod field, so the grass tile
+// and the dirt tile beneath it read as one continuous body.
+function grassField(): string[] {
+  const rows = clodField(DIRT).map((r) => r.split(''));
+  const band = (x: number, y: number): string => {
+    const h = tileHash(x * 3 + 1, y * 7 + 2);
+    if (y === 0) return h < 0.16 ? '.' : h < 0.55 ? 'L' : 'G'; // ragged lit tips
+    if (y === 1) return h < 0.42 ? 'L' : 'G';
+    if (y === 2) return h < 0.5 ? 'G' : 'g';
+    if (y === 3) return h < 0.38 ? 'g' : 'k';
+    return h < 0.32 ? 'k' : h < 0.58 ? 'g' : 'd'; // y===4: roots meeting earth
+  };
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 16; x++) rows[y][x] = band(x, y);
+  for (let x = 0; x < 16; x++) if (tileHash(x * 5 + 3, 9) < 0.3) rows[5][x] = 'k'; // droop
+  return rows.map((r) => r.join(''));
+}
+const GRASS_ROWS = grassField();
 
-const ROCK_ROWS = [
-  'rrRrrrkrrrrRrrrr',
-  'rRrrrrrrkrrrrrkr',
-  'rrrkrrrRrrrkrrrr',
-  'krrrrKrrrrrrrRrr',
-  'rrrRrrrrrkrrrrrr',
-  'rrrrrkrrrrrKrrrk',
-  'rKrrrrrrRrrrrrrr',
-  'rrrrRrrrrrrkrrRr',
-  'rrkrrrrKrrrrrrrr',
-  'Rrrrrkrrrrrrkrrr',
-  'rrrrrrrRrrKrrrrR',
-  'rrKrrrrrrrrrrkrr',
-  'rrrrkrRrrrrrrrrr',
-  'krrrrrrrrkrRrrrr',
-  'rrrRrrrKrrrrrrkr',
-  'rrrrrrrrrrrkrrrr',
-];
+// rock gets the same cobbled clods, mapped onto the stone palette so cliffs of
+// rock read as chunky as the earth above them
+const ROCK_ROWS = clodField({ c: 'K', e: 'R', d: 'r', D: 'k' });
 
 // A grass tile whose top corner sits on a cliff lip: the corner pixels go
 // transparent (the sky shows through = a rounded silhouette) and the blades
@@ -177,12 +179,13 @@ function wedgeRows(): string[] {
 // Grass strands drooping over a cliff lip into the neighbouring air cell
 // (art hangs from the cell's left edge; mirrored for the other side).
 const FRINGE_ROWS = [
-  'gG....',
-  'kgg...',
-  '.kg...',
-  '.kk...',
-  '..k...',
-  '..k...',
+  'LGLg..',
+  'gGgGk.',
+  'kgGgk.',
+  '.kggk.',
+  '..kgk.',
+  '..kg..',
+  '...k..',
 ];
 
 // ---- scenic set pieces (one quiet monument per level, at most) -------------
@@ -551,25 +554,29 @@ export function buildAtlas(): void {
   ]);
 
   // ---- items (8x8) ----
-  makeSprite('item_log', { l: '#8a5a2b', L: '#a8743c', k: '#5f3c1b' }, [
+  // a log lying on its side: a pale sawn end-ring on the left, bark barrel to
+  // the right lit along the top. Reads as "cut wood" at HUD and 6px pip sizes.
+  makeSprite('item_log', { k: '#402a14', l: '#7a4e26', L: '#9c6835', e: '#caa06a', E: '#eccb92' }, [
     '........',
-    '.kllllk.',
-    'kLLLLLlk',
-    'lLkllkLl',
-    'lLlkklll',
-    'kLLLLLlk',
-    '.kllllk.',
+    '.kkkkkk.',
+    'keeLLLLk',
+    'keElllLk',
+    'keElllLk',
+    'keellllk',
+    '.kkkkkk.',
     '........',
   ]);
+  // a neat stack of three sawn boards, staggered for depth: each board shows a
+  // lit top face (P), a front face (p) and a shadowed end/underside (k).
   makeSprite('item_plank', { p: '#d3a45c', P: '#e8c084', k: '#96703a' }, [
+    '..PPPPPP',
+    '..pppppk',
+    '.PPPPPPk',
+    '.pppppk.',
+    'PPPPPPk.',
+    'pppppk..',
+    'kkkkk...',
     '........',
-    '......Pk',
-    '....PPpk',
-    '..PPppk.',
-    'PPppkk..',
-    'Pppk....',
-    'ppk.....',
-    'kk......',
   ]);
   makeSprite('item_stone', { s: '#9aa5b5', S: '#bcc6d4', k: '#6b7482' }, [
     '........',
