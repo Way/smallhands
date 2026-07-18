@@ -29,6 +29,7 @@ export interface LevelDef {
   weather?: WeatherPhase[]; // looping phase schedule; omit for an always-clear sky
   night?: boolean; // night level: work only happens in the light (see lanterns)
   startHour?: number; // HUD clock's hour-of-day (0..24); defaults to noon, or midnight when night
+  dayNight?: { rate: number }; // live day→night cycle: advance the clock `rate` game-hours per second (omit for a fixed sky)
   flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
   biome?: Biome; // terrain palette family; omit for the classic meadow look
 }
@@ -1136,5 +1137,71 @@ export const LEVELS: LevelDef[] = [
       },
     ],
     camera: { x: 10, y: 16 },
+  },
+  {
+    id: 17,
+    campaign: 4,
+    name: 'lvl17.name',
+    desc: 'lvl17.desc',
+    width: 72,
+    height: 30,
+    objectives: [
+      { item: 'plank', amount: 6 },
+      { item: 'stone', amount: 4 },
+    ],
+    medals: { gold: 330, silver: 510, bronze: 810 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'lantern', 'demolish'],
+    startStock: { log: 3, plank: 2, stone: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
+    startWorkers: 5,
+    startThLevel: 2,
+    // The showcase for the living clock: opens at high noon and turns the whole
+    // day over during play (a full cycle ~every 480s). Harvest is free while the
+    // sun holds; once dusk deepens past NIGHT_WORK_DARK the far ground goes dark
+    // and only lantern-lit paths still work — so the player must run the light
+    // out along the route BEFORE nightfall. Not a `night` level: the darkness
+    // arrives on the clock, not from the start.
+    startHour: 12,
+    dayNight: { rate: 0.05 },
+    build: (g) => {
+      terrain(
+        g,
+        runs([
+          [9, 24], // the vale floor: town and the near timber
+          [10, 24], // a gentle rise east
+          [11, 24], // the far shelf — first to lose the light
+        ])
+      );
+      townhall(g, 4);
+      goal(g, 64); // far east, out past where the dark will fall
+      // near timber & stone — cut these in the free daylight
+      tree(g, 9);
+      tree(g, 12);
+      tree(g, 15);
+      boulder(g, 19);
+      boulder(g, 22);
+      // the mid vale
+      tree(g, 30);
+      tree(g, 33);
+      boulder(g, 44);
+      boulder(g, 47);
+      // the far shelf — reached only by a lantern-lit route once night falls
+      tree(g, 56);
+      tree(g, 59);
+      boulder(g, 62);
+    },
+    hints: [
+      {
+        id: 'dusk',
+        text: 'lvl17.hint.dusk',
+        when: () => true,
+      },
+      {
+        id: 'nightfall',
+        text: 'lvl17.hint.dark',
+        when: (g) => g.nightAmount() > 0.2,
+      },
+    ],
+    camera: { x: 8, y: 16 },
   },
 ];

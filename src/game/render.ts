@@ -7,7 +7,7 @@ import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding } from './world';
 import type { Game } from './sim';
 import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
-import type { WeatherLook, RGB } from './weather-look';
+import type { WeatherLook, RGB, RGBA } from './weather-look';
 import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
 
 // A terrain shading overlay in one of the biome's light-model colours. Callers
@@ -173,44 +173,49 @@ export class Renderer {
 
   private drawSky(game: Game, look: WeatherLook, W: number, H: number, t: number, cam: Camera): void {
     const { ctx } = this;
-    const night = !!game.level.night;
+    // night intensity now: 0 day .. 1 deep night. Fixed on day/static-night maps
+    // (0 / 1), a live curve on a day↔night cycle — so the sky eases through dusk.
+    const nA = game.nightAmount();
 
     // the biome leans on the daytime atmosphere (applied after the weather
-    // blend so crossfades keep working); night keeps its fixed palette
+    // blend so crossfades keep working); the fixed night palette is crossfaded
+    // in by nA on top, so a cycle level slides day→night rather than snapping.
     const bl = BIOME_LOOK[(game.level.biome ?? 'meadow') as Biome];
     const bmix = (c: RGB, to: readonly number[], amt: number): RGB =>
       amt <= 0 ? c : [c[0] + (to[0] - c[0]) * amt, c[1] + (to[1] - c[1]) * amt, c[2] + (to[2] - c[2]) * amt];
+    const mix3 = (a: RGB, b: RGB, t: number): RGB =>
+      t <= 0 ? a : [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const mix4 = (a: RGBA, b: RGBA, t: number): RGBA =>
+      t <= 0 ? a : [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
 
-    // gradient stops + hill/cloud palettes per mood, kept as RGB tuples so the
-    // parallax layers can derive sky-drowned distance tints. Night is a level
-    // flag, not weather: it overrides the sky palette, but the wet tint/streaks
-    // (drawn in drawWeatherFx) still crossfade on top.
-    let stopsRgb: [RGB, RGB, RGB];
-    let hillsRgb: [RGB, RGB];
-    let cloudCol: string;
-    if (night) {
-      stopsRgb = [
-        [10, 16, 40],
-        [20, 30, 66],
-        [36, 54, 84],
-      ];
-      hillsRgb = [
-        [42, 74, 68],
-        [29, 56, 51],
-      ];
-      cloudCol = 'rgba(46,58,92,0.65)';
-    } else {
-      stopsRgb = [
-        bmix(look.sky[0], bl.skyTint, bl.skyTintAmt),
-        bmix(look.sky[1], bl.skyTint, bl.skyTintAmt),
-        bmix(look.sky[2], bl.skyTint, bl.skyTintAmt),
-      ];
-      hillsRgb = [
-        bmix(look.hills[0], bl.hillTint, bl.hillTintAmt),
-        bmix(look.hills[1], bl.hillTint, bl.hillTintAmt),
-      ];
-      cloudCol = rgbaCss(look.cloudCol);
-    }
+    // day palettes (biome-tinted) and the fixed night palette, crossfaded by nA.
+    // Night is a level condition, not weather: it overrides the sky palette, but
+    // the wet tint/streaks (drawn in drawWeatherFx) still crossfade on top.
+    const dayStops: [RGB, RGB, RGB] = [
+      bmix(look.sky[0], bl.skyTint, bl.skyTintAmt),
+      bmix(look.sky[1], bl.skyTint, bl.skyTintAmt),
+      bmix(look.sky[2], bl.skyTint, bl.skyTintAmt),
+    ];
+    const dayHills: [RGB, RGB] = [
+      bmix(look.hills[0], bl.hillTint, bl.hillTintAmt),
+      bmix(look.hills[1], bl.hillTint, bl.hillTintAmt),
+    ];
+    const nightStops: [RGB, RGB, RGB] = [
+      [10, 16, 40],
+      [20, 30, 66],
+      [36, 54, 84],
+    ];
+    const nightHills: [RGB, RGB] = [
+      [42, 74, 68],
+      [29, 56, 51],
+    ];
+    const stopsRgb: [RGB, RGB, RGB] = [
+      mix3(dayStops[0], nightStops[0], nA),
+      mix3(dayStops[1], nightStops[1], nA),
+      mix3(dayStops[2], nightStops[2], nA),
+    ];
+    const hillsRgb: [RGB, RGB] = [mix3(dayHills[0], nightHills[0], nA), mix3(dayHills[1], nightHills[1], nA)];
+    const cloudCol = rgbaCss(mix4(look.cloudCol, [46, 58, 92, 0.65], nA));
     const stops = [rgbCss(stopsRgb[0]), rgbCss(stopsRgb[1]), rgbCss(stopsRgb[2])];
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, stops[0]);
@@ -219,17 +224,22 @@ export class Renderer {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    if (night) {
-      // stars — fixed constellation with a slow twinkle, faint cloud parallax
+    // stars fade in as night deepens (skip the loop entirely by day)
+    if (nA > 0.02) {
       for (let i = 0; i < 70; i++) {
         const sx = (tileHash(i, 3) * (W + 120) - 60 - cam.x * 0.015 + W * 2) % W;
         const sy = tileHash(i, 11) * H * 0.55 - cam.y * 0.012;
         const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * (0.4 + tileHash(i, 5)) + i));
-        ctx.fillStyle = `rgba(220,230,255,${(0.5 * tw).toFixed(3)})`;
+        ctx.fillStyle = `rgba(220,230,255,${(0.5 * tw * nA).toFixed(3)})`;
         const s = tileHash(i, 7) > 0.85 ? 2 : 1;
         ctx.fillRect(sx, sy, s, s);
       }
-      // the moon
+    }
+    // the moon rises with the night; the sun burns through the day (and fades as
+    // rain builds). At dusk both hang faintly — sunset over a rising moon.
+    if (nA > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = nA;
       const mx = W * 0.78 - cam.x * 0.02;
       const my = H * 0.16 - cam.y * 0.02;
       ctx.fillStyle = '#e8ecf6';
@@ -246,22 +256,21 @@ export class Renderer {
         ctx.arc(mx + dx, my + dy, r, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else {
-      // the sun fades out as precipitation builds and returns as it clears
-      const sunA = 1 - Math.min(1, look.rain);
-      if (sunA > 0.01) {
-        ctx.save();
-        ctx.globalAlpha = sunA;
-        ctx.fillStyle = '#fff3c4';
-        ctx.beginPath();
-        ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffe89a';
-        ctx.beginPath();
-        ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
+      ctx.restore();
+    }
+    const sunA = (1 - Math.min(1, look.rain)) * (1 - nA);
+    if (sunA > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = sunA;
+      ctx.fillStyle = '#fff3c4';
+      ctx.beginPath();
+      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe89a';
+      ctx.beginPath();
+      ctx.arc(W * 0.82 - cam.x * 0.02, H * 0.16 - cam.y * 0.02, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // distant terrain in three strict parallax layers: a sky-drowned horizon
@@ -285,9 +294,9 @@ export class Renderer {
       ctx.fill();
     }
 
-    // birds keep to fair daylight skies; they stop spawning as rain builds but
-    // any already aloft finish crossing (no mid-air disappearance)
-    if (!night) this.drawBirds(W, H, t, cam, look.rain < 0.05);
+    // birds keep to fair daylight skies; they stop spawning as rain builds or
+    // dusk deepens, but any already aloft finish crossing (no mid-air vanish)
+    if (nA < 0.5) this.drawBirds(W, H, t, cam, look.rain < 0.05);
   }
 
   // ---- distant terrain (three-layer parallax) --------------------------------
@@ -688,9 +697,8 @@ export class Renderer {
       if (surf[x] < hi) hi = surf[x];
     }
     if (lo - hi < 8) return;
-    const night = !!game.level.night;
     const breathe = this.reduceMotion ? 0 : Math.sin(t * 0.3) * 0.02;
-    const a = (night ? 0.07 : 0.11) + breathe;
+    const a = (0.11 - 0.04 * game.nightAmount()) + breathe;
     const topY = (lo - 5) * TILE;
     const botY = (lo + 3) * TILE;
     const g = ctx.createLinearGradient(0, topY, 0, botY);
@@ -1543,7 +1551,10 @@ export class Renderer {
   private darkCanvas: HTMLCanvasElement | null = null;
 
   private drawDarkness(game: Game, cam: Camera, W: number, H: number, t: number): void {
-    if (!game.level.night) return;
+    // the veil deepens with the night — nothing by day, a gentle dimming through
+    // dusk, full dark once night has fallen. Light-source holes stay full-cut.
+    const nA = game.nightAmount();
+    if (nA <= 0.001) return;
     const { ctx } = this;
     if (!this.darkCanvas) this.darkCanvas = document.createElement('canvas');
     const dc = this.darkCanvas;
@@ -1554,7 +1565,7 @@ export class Renderer {
     const dctx = dc.getContext('2d')!;
     dctx.globalCompositeOperation = 'source-over';
     dctx.clearRect(0, 0, W, H);
-    dctx.fillStyle = 'rgba(8,12,32,0.84)';
+    dctx.fillStyle = `rgba(8,12,32,${(0.84 * nA).toFixed(3)})`;
     dctx.fillRect(0, 0, W, H);
     dctx.globalCompositeOperation = 'destination-out';
     const scale = TILE * cam.zoom;

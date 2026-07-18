@@ -496,6 +496,19 @@ const D: Record<string, [string, string]> = {
     'Town Hall level 3 would add three more smallhands. Costly — but many hands make the mountain small.',
     'Rathaus-Stufe 3 brächte drei weitere Smallhands. Teuer — doch viele Hände machen den Berg klein.',
   ],
+  'lvl17.name': ['The Waning Light', 'Das schwindende Licht'],
+  'lvl17.desc': [
+    'The whole day turns over this map. Harvest freely while the sun holds high — but string your lanterns out along the route before it sets, for when night falls only the lit paths still work.',
+    'Über dieser Karte vergeht ein ganzer Tag. Erntet frei, solange die Sonne hoch steht — doch spannt eure Laternen entlang des Weges, bevor sie sinkt, denn wenn die Nacht fällt, arbeiten nur noch die erleuchteten Pfade.',
+  ],
+  'lvl17.hint.dusk': [
+    'The sun rides high — for now. Cut the near timber while it lasts, and build lanterns out toward the far shelf before dusk seals it in dark.',
+    'Die Sonne steht hoch — noch. Schlagt das nahe Holz, solange es hält, und baut Laternen hinaus zum fernen Sims, bevor die Dämmerung es in Dunkel hüllt.',
+  ],
+  'lvl17.hint.dark': [
+    'Night is closing in. Beyond the lantern light nothing gets harvested — keep pushing the glow outward, or the far ground goes idle till dawn.',
+    'Die Nacht bricht herein. Jenseits des Laternenlichts wird nichts geerntet — treibt den Schein weiter hinaus, sonst ruht das ferne Land bis zum Morgengrauen.',
+  ],
 
   // world map (level select)
   'map.terr1': ['Home Meadows', 'Heimatwiesen'],
