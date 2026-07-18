@@ -1421,13 +1421,17 @@ function refreshTouchUi(): void {
     });
   } else {
     const ghost = isGhostBuildTool(tp.tool);
+    // Aimed on an unlit cell at night, a dark-gated build (its ghost is already
+    // red) can't be raised — say why and block ✓, matching the run branch and
+    // the desktop cursor note. Exempt tools (lantern) return false here.
+    const dark = game.darkBlocks(tp.tool, tp.aim.x, tp.aim.y);
     hud.showConfirmBar({
       tool: tp.tool,
       cta: confirmCta(tp.tool),
-      hint: ghost ? t('hud.tapMove') : null,
+      hint: dark ? t('hud.tooDark') : ghost ? t('hud.tapMove') : null,
       rows: game.placementShortfall(tp.tool),
       count: null,
-      confirmDisabled: false,
+      confirmDisabled: dark,
       onConfirm: commitTouchPlace,
       onCancel: () => {
         // A building is armed and aimed in one step, so ✕ has no half-armed
