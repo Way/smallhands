@@ -312,6 +312,7 @@ const D: Record<string, [string, string]> = {
     'Time of day on this map. Some maps start at night, where smallhands only work in lantern light.',
     'Tageszeit auf dieser Karte. Manche Karten beginnen bei Nacht, wo Smallhands nur im Laternenlicht arbeiten.',
   ],
+  'hud.clockElapsed': ['Running for {t}', 'Läuft seit {t}'],
   'hud.zoomIn': ['Zoom in (+)', 'Vergrößern (+)'],
   'hud.zoomOut': ['Zoom out (−)', 'Verkleinern (−)'],
   'hud.upgradeBtn': ['Upgrade Town Hall → {n}', 'Rathaus ausbauen → {n}'],

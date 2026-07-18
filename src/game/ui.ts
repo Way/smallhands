@@ -4,6 +4,7 @@ import {
   carWeight,
   dayNightIcon,
   fmtClock,
+  fmtTime,
   ITEM_ICON,
   ITEM_TYPES,
   RECIPES,
@@ -167,8 +168,10 @@ export class Hud {
   private wxSum: HTMLElement | null = null;
   private clockEl!: HTMLElement;
   private clockIcEl!: HTMLElement;
+  private clockBoxEl!: HTMLElement;
   private clockSig = '';
   private clockIcSig = '';
+  private clockTitleSig = '';
   private topbar!: HTMLElement;
   private topbarRight!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
@@ -399,7 +402,9 @@ export class Hud {
     // wall-clock hour. Static today (noon by day, night on night maps); a moving
     // day→night cycle is a later phase (card #36).
     const clock = el('div', 'clock', island);
-    clock.title = t('hud.clockTitle');
+    this.clockBoxEl = clock;
+    clock.title = this.clockTitleText();
+    this.clockTitleSig = clock.title;
     this.clockIcEl = el('span', 'clock-ic', clock);
     this.clockIcEl.textContent = dayNightIcon(this.game.timeOfDay);
     this.clockEl = el('span', 'clock-time', clock);
@@ -1074,6 +1079,13 @@ export class Hud {
     }
   }
 
+  // Tooltip for the diegetic clock: the time-of-day help line, plus how long
+  // the current level has been running so the player can check elapsed time on
+  // demand without a permanent stopwatch cluttering the HUD.
+  private clockTitleText(): string {
+    return `${t('hud.clockTitle')}\n${t('hud.clockElapsed', { t: fmtTime(this.game.time) })}`;
+  }
+
   update(): void {
     const g = this.game;
     // runs every frame; the diegetic clock turns over only when the HH:MM (or
@@ -1088,6 +1100,15 @@ export class Hud {
     if (clockIc !== this.clockIcSig) {
       this.clockIcSig = clockIc;
       this.clockIcEl.textContent = clockIc;
+    }
+    // the clock's hover tooltip also carries how long this level has been
+    // running (g.time, the run's score timer — otherwise off-screen until the
+    // win ceremony). fmtTime ticks per second, so redo the attribute only when
+    // the whole-second reading changes, not every frame.
+    const clockTitle = this.clockTitleText();
+    if (clockTitle !== this.clockTitleSig) {
+      this.clockTitleSig = clockTitle;
+      this.clockBoxEl.title = clockTitle;
     }
     for (const it of ITEM_TYPES) {
       const n = g.stock[it];
