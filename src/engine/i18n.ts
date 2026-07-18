@@ -664,6 +664,13 @@ const D: Record<string, [string, string]> = {
   'inspect.working': ['Working {p}%', 'Arbeitet {p} %'],
   'inspect.idleNeeds': ['Idle · needs {name}', 'Leerlauf · braucht {name}'],
   'inspect.idleReady': ['Idle · ready', 'Leerlauf · bereit'],
+  'inspect.paused': ['Paused · stockpiling', 'Pausiert · sammelt an'],
+  'producer.hint': [
+    'Tap with Inspect to pause — hold the conversion and stockpile raw goods.',
+    'Mit Prüfen antippen zum Pausieren — Umwandlung anhalten und Rohstoffe sammeln.',
+  ],
+  'producer.pause': ['⏸ Pause', '⏸ Pause'],
+  'producer.resume': ['▶ Resume', '▶ Fortsetzen'],
   'inspect.lift': ['Lifts crew up {n} tiles · up only', 'Hebt Trupp {n} Felder hoch · nur aufwärts'],
   'inspect.carrying': ['Carrying…', 'Trägt…'],
   'inspect.idle': ['Idle', 'Leerlauf'],

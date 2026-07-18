@@ -249,6 +249,7 @@ export class Game {
       outputs: {},
       processT: 0,
       processing: false,
+      paused: false,
       liftTopY: y,
       liftCarY: y,
       liftBusy: false,
@@ -704,6 +705,15 @@ export class Game {
     if (routes[item]) opposite[item] = false;
   }
 
+  // Pause/resume a producer (sawmill/forge/workshop). While paused it starts no
+  // new batch and pulls in no fresh inputs, so raw goods pile up in stock instead
+  // of being converted — e.g. keep logs as logs rather than sawing them to planks.
+  toggleProducerPause(id: number): void {
+    const b = this.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
+    if (!b) return;
+    b.paused = !b.paused;
+  }
+
   demolish(x: number, y: number): boolean {
     // Cancelling a pending dig order is the cheapest thing demolish can do here.
     if (this.clearDigOrder(x, y)) {
@@ -1116,6 +1126,9 @@ export class Game {
       if (b.state !== 'ready') continue;
       const recipe = RECIPES[b.kind];
       if (!recipe) continue;
+      // paused: leave raw goods in stock rather than staging them here (this is
+      // what lets logs pile up instead of being hauled in and sawn to planks)
+      if (b.paused) continue;
       for (const [k, need] of Object.entries(recipe.inputs)) {
         const item = k as ItemType;
         const have = (b.inputs[item] ?? 0) + (b.inbound[item] ?? 0);
@@ -1771,7 +1784,9 @@ export class Game {
       const recipe = RECIPES[b.kind];
       if (!recipe) continue;
       if (!b.processing) {
-        const canStart = Object.entries(recipe.inputs).every(
+        // paused producers hold: no fresh batch starts, so a batch already in
+        // flight when paused still finishes (its input was spent) but no more begin
+        const canStart = !b.paused && Object.entries(recipe.inputs).every(
           ([k, v]) => (b.inputs[k as ItemType] ?? 0) >= (v as number)
         );
         const outTotal = Object.values(b.outputs).reduce((s, v) => s + (v ?? 0), 0);
