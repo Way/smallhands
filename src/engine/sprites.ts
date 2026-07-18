@@ -320,6 +320,74 @@ function buildBiomeSet(b: Biome): void {
   }
 }
 
+// ---- building composition helpers ----------------------------------------
+// Buildings are drawn by stamping features onto a fixed W×H char grid, so every
+// row is guaranteed the right width and features sit at exact coordinates
+// (hand-typing 32-wide rows drifts). Each stamper takes single-char palette keys.
+type Grid = string[][];
+function bgrid(w: number, h: number): Grid {
+  return Array.from({ length: h }, () => Array(w).fill('.'));
+}
+function bset(g: Grid, x: number, y: number, ch: string): void {
+  if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = ch;
+}
+function bbox(g: Grid, x0: number, y0: number, x1: number, y1: number, ch: string): void {
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) bset(g, x, y, ch);
+}
+function brows(g: Grid): string[] {
+  return g.map((r) => r.join(''));
+}
+// A pitched roof between a narrow ridge (y0) and a full-width base (y1): sunlit
+// rake edges + ridge, alternating shingle courses (mid/shadow), a dark eave.
+function broof(g: Grid, cx: number, y0: number, y1: number, half: number, p: { hi: string; mid: string; sh: string; eave: string }): void {
+  const span = y1 - y0 + 1;
+  for (let y = y0; y <= y1; y++) {
+    const hw = Math.max(1, Math.round((half * (y - y0 + 1)) / span));
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      let ch = (y - y0) & 1 ? p.sh : p.mid; // shingle courses
+      if (y === y1) ch = p.eave; // dark overhang
+      if (x === cx - hw || x === cx + hw) ch = p.hi; // sunlit rake
+      if (y === y0) ch = p.hi; // bright ridge cap
+      bset(g, x, y, ch);
+    }
+  }
+}
+// A timber-frame wall: mid fill, lit top plate + left post, shadowed bottom
+// plate + right post, and vertical studs.
+function bwall(g: Grid, x0: number, y0: number, x1: number, y1: number, p: { W: string; w: string; k: string }): void {
+  bbox(g, x0, y0, x1, y1, p.w);
+  bbox(g, x0, y0, x1, y0, p.W); // top plate (lit)
+  bbox(g, x0, y0, x0, y1, p.W); // left post (lit)
+  bbox(g, x1, y0, x1, y1, p.k); // right post (shadow)
+  bbox(g, x0, y1, x1, y1, p.k); // bottom plate (shadow)
+  for (let x = x0 + 4; x < x1 - 1; x += 5) bbox(g, x, y0 + 1, x, y1 - 1, p.k); // studs
+}
+// A 4×4 framed window with a corner glint and a sill below.
+function bwindow(g: Grid, x: number, y: number, p: { frame: string; glass: string; glint: string; sill: string }): void {
+  bbox(g, x, y, x + 3, y + 3, p.frame);
+  bbox(g, x + 1, y + 1, x + 2, y + 2, p.glass);
+  bset(g, x + 1, y + 1, p.glint);
+  bbox(g, x, y + 4, x + 3, y + 4, p.sill);
+}
+// A recessed, round-topped door.
+function bdoor(g: Grid, x0: number, x1: number, y0: number, y1: number, p: { frame: string; door: string; recess: string }): void {
+  bbox(g, x0, y0, x1, y1, p.frame);
+  bbox(g, x0 + 1, y0 + 1, x1 - 1, y1, p.door);
+  bbox(g, x0 + 1, y0 + 1, x1 - 1, y0 + 1, p.recess); // shadowed lintel
+  bset(g, x0, y0, '.'); // arch corners
+  bset(g, x1, y0, '.');
+}
+// Stacked stone foundation with offset block seams.
+function bfoundation(g: Grid, x0: number, y0: number, x1: number, y1: number, p: { n: string; N: string; m: string }): void {
+  bbox(g, x0, y0, x1, y1, p.n);
+  bbox(g, x0, y0, x1, y0, p.N); // lit top course
+  for (let y = y0; y <= y1; y++) {
+    const off = (y - y0) & 1 ? 3 : 0;
+    for (let x = x0 + off; x <= x1; x += 6) bset(g, x, y, p.m); // block seams
+    bset(g, x1, y, p.m);
+  }
+}
+
 export function buildAtlas(): void {
   // ---- terrain tiles (16x16), one family per biome ----
   for (const b of BIOMES) buildBiomeSet(b);
@@ -706,129 +774,101 @@ export function buildAtlas(): void {
   // Authored at half resolution and drawn scaled 2x to their footprint:
   // townhall/goal 32x24 -> 64x48 (4x3 tiles), sawmill/forge 24x16 -> 48x32 (3x2).
   const thPal = {
-    w: '#b98850', W: '#d3a86e', k: '#7c5830', r: '#b8503c', R: '#d4694f', d: '#5f3c1b',
-    F: '#ffc94d', s: '#cfe3f5', p: '#6b4a26',
+    R: '#e0794f', r: '#c1543a', q: '#8f3428', // roof: rake/ridge, courses, eave shadow
+    W: '#d8ad72', w: '#bd8c54', k: '#7c5830', // wall: lit, mid, dark posts/studs
+    g: '#8fb9d4', G: '#dbeef9', b: '#4a3a28', o: '#2c2114', // glass, glint, frame, recess
+    D: '#7a5230', // door planks
+    n: '#8f97a3', N: '#b3bcc7', m: '#68707b', // foundation stone
+    F: '#ffc94d', p: '#6b4a26', // flag, pole
   };
-  makeSprite('townhall', thPal, [
-    '...............p................',
-    '...............pFFFF............',
-    '...............pFFF.............',
-    '...............pF...............',
-    '...............p................',
-    '..........RRRRRRRRRRR...........',
-    '........RRrrrrrrrrrrrRR.........',
-    '......RRrrrrrrrrrrrrrrrRR.......',
-    '....RRrrrrrrrrrrrrrrrrrrrRR.....',
-    '..RRrrrrrrrrrrrrrrrrrrrrrrrRR...',
-    '.RRrrrrrrrrrrrrrrrrrrrrrrrrrRR..',
-    '.WWWWWWWWWWWWWWWWWWWWWWWWWWWWW..',
-    '.WwwkwwwkwwwWwwwkwwwkwwwWwwkwW..',
-    '.WwsswwwwwwwwwwwwwwwwwwwwwsswW..',
-    '.WwsswwkwwwwwwwddddwwwwkwwsswW..',
-    '.WwwwwwwwwwwwwwddddwwwwwwwwwwW..',
-    '.WkwwwWwwkwwwwwddddwwwwwWwwwkW..',
-    '.WwwwwwwwwwwwwwddddwwwwwwwwwwW..',
-    '.WwwkwwwwwWwwwwddddwwwWwwwkwwW..',
-    '.WwwwwwkwwwwwwwddddwwwwwwwwwwW..',
-    '.WWWWWWWWWWWWWWWWWWWWWWWWWWWWW..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-  ]);
+  const th = bgrid(32, 24);
+  bbox(th, 15, 1, 15, 6, 'p'); // flag pole
+  bbox(th, 16, 1, 18, 1, 'F');
+  bbox(th, 16, 2, 17, 2, 'F');
+  broof(th, 15, 5, 11, 15, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' }); // overhanging pyramid roof
+  bwall(th, 1, 12, 29, 20, { W: 'W', w: 'w', k: 'k' });
+  bwindow(th, 4, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bwindow(th, 23, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bdoor(th, 13, 18, 14, 20, { frame: 'b', door: 'D', recess: 'o' });
+  bfoundation(th, 1, 21, 29, 23, { n: 'n', N: 'N', m: 'm' });
+  makeSprite('townhall', thPal, brows(th));
   const millPal = {
-    w: '#b98850', W: '#d3a86e', k: '#7c5830', r: '#8a94a6', R: '#a5b0c2', d: '#5f3c1b', s: '#e0b070', b: '#6b7482',
+    R: '#c98a52', r: '#a06e3c', q: '#6e4a26', // wood-shingle roof
+    W: '#d3a86e', w: '#b98850', k: '#7c5830',
+    g: '#8fb9d4', G: '#dbeef9', b: '#4a3a28', o: '#2c2114',
+    D: '#7a5230',
+    n: '#8f97a3', N: '#b3bcc7', m: '#68707b',
+    s: '#c2ccd8', S: '#e2e8ef', t: '#5c6470', // saw blade steel / hub / teeth
   };
-  makeSprite('sawmill', millPal, [
-    '......RRRRRRRRRR........',
-    '....RRrrrrrrrrrrRR......',
-    '..RRrrrrrrrrrrrrrrRR....',
-    '.RRrrrrrrrrrrrrrrrrRR...',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.WwkwwwkwwwWwwwkwwkwW...',
-    '.WwwwwwwwwwwwwwwwwwwW.b.',
-    '.Wwsswwwwwddddwwwwsswbbb',
-    '.Wwsswwkwwddddwwkwssbbbb',
-    '.WwwwwwwwwddddwwwwwwWbbb',
-    '.WkwwwWwwwddddwwwwwkW.b.',
-    '.WwwwwwwwwddddwwWwwwW...',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '........................',
-  ]);
+  const mill = bgrid(24, 16);
+  broof(mill, 11, 0, 4, 11, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' });
+  bwall(mill, 1, 5, 22, 12, { W: 'W', w: 'w', k: 'k' });
+  bwindow(mill, 3, 7, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bdoor(mill, 9, 13, 7, 12, { frame: 'b', door: 'D', recess: 'o' });
+  bfoundation(mill, 1, 13, 22, 14, { n: 'n', N: 'N', m: 'm' });
+  bbox(mill, 18, 7, 20, 9, 's'); // saw blade disc
+  bset(mill, 19, 8, 'S');
+  bset(mill, 19, 6, 't'); bset(mill, 19, 10, 't'); bset(mill, 17, 8, 't'); bset(mill, 21, 8, 't');
+  makeSprite('sawmill', millPal, brows(mill));
   const forgePal = {
-    w: '#8a94a6', W: '#a5b0c2', k: '#5c6470', r: '#454b55', d: '#2f333b', f: '#ff8c42', F: '#ffb26b',
+    R: '#6b7480', r: '#4c545f', q: '#333a44', // dark slate roof
+    W: '#a5b0c2', w: '#8a94a6', k: '#5c6470', // stone-grey wall
+    g: '#8fb9d4', G: '#dbeef9', b: '#2f333b', o: '#1c2027',
+    D: '#454b55', // iron door
+    n: '#6b7480', N: '#8a94a6', m: '#454b55',
+    f: '#ff8c42', F: '#ffd27a', // forge fire
   };
-  makeSprite('forge', forgePal, [
-    '.....rrr......F.........',
-    '.....rrr......Ff........',
-    '...rrrrrrr....ff........',
-    '..rrrrrrrrr...rr........',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.WwkwwwkwwwWwwrrwwkwW...',
-    '.WwwwwwwwwwwwwrrwwwwW...',
-    '.WwFFwwwwwddddwwwwwwW...',
-    '.WwffwwkwwddddwwkwwkW...',
-    '.WwffwwwwwddddwwwwwwW...',
-    '.WkffwWwwwddddwwwwwkW...',
-    '.WwffwwwwwddddwwWwwwW...',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '........................',
-  ]);
+  const forge = bgrid(24, 16);
+  broof(forge, 10, 1, 4, 9, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' });
+  bbox(forge, 18, 0, 20, 4, 'k'); // chimney stack (rises through the roof)
+  bbox(forge, 18, 0, 20, 0, 'q');
+  bset(forge, 19, 0, 'f'); // ember at the flue
+  bwall(forge, 1, 5, 22, 12, { W: 'W', w: 'w', k: 'k' });
+  bwindow(forge, 4, 8, { frame: 'b', glass: 'f', glint: 'F', sill: 'o' }); // glowing forge mouth
+  bdoor(forge, 10, 14, 7, 12, { frame: 'b', door: 'D', recess: 'o' });
+  bfoundation(forge, 1, 13, 22, 14, { n: 'n', N: 'N', m: 'm' });
+  makeSprite('forge', forgePal, brows(forge));
   // workshop: a carpenter's shed — mossy plank roof, a tool (shovel) mounted on
   // the wall to read as "where shovels are made". 3x2 footprint like the sawmill.
   const workshopPal = {
-    w: '#b98850', W: '#d3a86e', k: '#7c5830', r: '#7a8a5c', R: '#95a56e', d: '#5f3c1b', s: '#cfe3f5', i: '#9aa5b5', I: '#cdd6e2',
+    R: '#8fae5f', r: '#6e8c47', q: '#4c6431', // mossy green plank roof
+    W: '#d3a86e', w: '#b98850', k: '#7c5830',
+    g: '#8fb9d4', G: '#dbeef9', b: '#4a3a28', o: '#2c2114',
+    D: '#7a5230',
+    n: '#8f97a3', N: '#b3bcc7', m: '#68707b',
+    i: '#9aa5b5', I: '#cdd6e2', s: '#7c5830', // mounted shovel
   };
-  makeSprite('workshop', workshopPal, [
-    '......RRRRRRRRRR........',
-    '....RRrrrrrrrrrrRR......',
-    '..RRrrrrrrrrrrrrrrRR....',
-    '.RRrrrrrrrrrrrrrrrrRR...',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.WwkwwwkwwwWwwwkwwkwW...',
-    '.WwwwwwwwwwwwwwwwkwwW...',
-    '.WwsswwwwwddddwwiIwwW...',
-    '.WwsswwwwwddddwwiIwwW...',
-    '.WwwwwwwwwddddwwwkwwW...',
-    '.WkwwwWwwwddddwwwkwwW...',
-    '.WwwwwwwwwddddwwWwwwW...',
-    '.WWWWWWWWWWWWWWWWWWWW...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '.kkkkkkkkkkkkkkkkkkkk...',
-    '........................',
-  ]);
+  const ws = bgrid(24, 16);
+  broof(ws, 11, 0, 4, 11, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' });
+  bwall(ws, 1, 5, 22, 12, { W: 'W', w: 'w', k: 'k' });
+  bwindow(ws, 3, 7, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bdoor(ws, 9, 13, 7, 12, { frame: 'b', door: 'D', recess: 'o' });
+  bfoundation(ws, 1, 13, 22, 14, { n: 'n', N: 'N', m: 'm' });
+  bbox(ws, 18, 6, 18, 9, 's'); // shovel haft
+  bbox(ws, 17, 9, 19, 10, 'i'); // blade
+  bset(ws, 18, 10, 'I');
+  makeSprite('workshop', workshopPal, brows(ws));
   const goalPal = {
-    s: '#c8b28a', S: '#e0cda6', k: '#93815f', b: '#8a5aa8', B: '#a878c8', d: '#5f4a2b', p: '#6b4a26',
+    R: '#e0cda6', r: '#c8b28a', q: '#93815f', // sandstone pediment roof
+    W: '#e0cda6', w: '#c8b28a', k: '#93815f', // sandstone wall / columns
+    g: '#c9a6ec', G: '#eaddfb', b: '#5f4a2b', o: '#3f3018', // portal glow, frame, recess
+    D: '#8a5aa8', v: '#a878c8', B: '#c8a0e0', // portal fill, banner mid / light
+    n: '#a89474', N: '#c8b28a', m: '#7a6848',
+    p: '#6b4a26',
   };
-  makeSprite('goal', goalPal, [
-    '..............p.................',
-    '..............pBBBB.............',
-    '..............pBBB..............',
-    '..............pB................',
-    '..............p.................',
-    '.........SSSSSSSSSSSS...........',
-    '........SssssssssssssS..........',
-    '.......SsskssssksssssS..........',
-    '......SsssssssssssskssS.........',
-    '.....SSSSSSSSSSSSSSSSSSS........',
-    '....SssksssssksssssksssS........',
-    '....SsssssssssssssssssssS.......',
-    '...SSSSSSSSSSSSSSSSSSSSSSS......',
-    '...SsssksssssdddddssssksssS.....',
-    '..SssssssssssdddddsssssssssS....',
-    '..SskssssskssdddddsskssssksS....',
-    '..SssssssssssdddddssssssssssS...',
-    '.SsssskssssssdddddssssskssssS...',
-    '.SsssssssskssdddddsssssssssssS..',
-    '.SsskssssssssdddddsskssssskssS..',
-    '.SSSSSSSSSSSSSSSSSSSSSSSSSSSSS..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-  ]);
+  const goal = bgrid(32, 24);
+  bbox(goal, 15, 1, 15, 5, 'p'); // banner pole
+  bbox(goal, 16, 1, 19, 1, 'B');
+  bbox(goal, 16, 2, 18, 2, 'v');
+  bbox(goal, 16, 3, 17, 3, 'v');
+  broof(goal, 15, 5, 11, 15, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' });
+  bwall(goal, 1, 12, 29, 20, { W: 'W', w: 'w', k: 'k' });
+  bwindow(goal, 4, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bwindow(goal, 23, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
+  bdoor(goal, 12, 18, 13, 20, { frame: 'b', door: 'D', recess: 'g' }); // glowing delivery portal
+  bset(goal, 15, 16, 'G');
+  bfoundation(goal, 1, 21, 29, 23, { n: 'n', N: 'N', m: 'm' });
+  makeSprite('goal', goalPal, brows(goal));
   // lift mast segment + car
   makeSprite('lift_mast', { m: '#7c5830', M: '#9a7040', k: '#5f3c1b' }, [
     'Mk............Mk',
