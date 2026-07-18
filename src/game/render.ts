@@ -1802,7 +1802,10 @@ export class Renderer {
         break;
       }
       case 'platform': {
-        const ok = canPlacePlatform(game.world, tx, ty) && game.canAfford({ plank: 1 });
+        const ok =
+          canPlacePlatform(game.world, tx, ty) &&
+          game.canAfford({ plank: 1 }) &&
+          !game.darkBlocks('platform', tx, ty);
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_platform').canvas, px, py);
         ctx.globalAlpha = 1;
@@ -1811,7 +1814,10 @@ export class Renderer {
       }
       case 'ramp': {
         // at-rest preview of the anchor tile (a drag then previews the full run)
-        const ok = canPlaceRamp(game.world, tx, ty, null) && game.canAfford({ plank: 1 });
+        const ok =
+          canPlaceRamp(game.world, tx, ty, null) &&
+          game.canAfford({ plank: 1 }) &&
+          !game.darkBlocks('ramp', tx, ty);
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_ramp').canvas, px, py);
         ctx.globalAlpha = 1;
@@ -1820,8 +1826,8 @@ export class Renderer {
       }
       case 'dig': {
         // green when this cell can be marked to dig, red when it can't
-        // (bedrock, world edge, under a building, or no reachable face)
-        outline(game.canDig(tx, ty));
+        // (bedrock, world edge, under a building, no reachable face — or too dark)
+        outline(game.canDig(tx, ty) && !game.darkBlocks('dig', tx, ty));
         break;
       }
       case 'sawmill':
@@ -1835,7 +1841,7 @@ export class Renderer {
           game.canAfford(cost) &&
           game.toolUnlocked(tool) &&
           // at night, workshops need a lit site — lanterns go anywhere
-          (tool === 'lantern' || game.isLit(tx + Math.floor(fp.w / 2), ty + fp.h - 1));
+          !game.darkBlocks(tool, tx, ty);
         ctx.globalAlpha = 0.55;
         const spr = sprite(tool).canvas;
         ctx.drawImage(spr, 0, 0, fp.w * TILE, fp.h * TILE, px, py, fp.w * TILE, fp.h * TILE);
@@ -1846,7 +1852,11 @@ export class Renderer {
       case 'lift': {
         const topY = liftTopFor(game.world, tx, ty);
         const liftCost = TOOL_DEFS.find((d) => d.id === 'lift')?.cost ?? {};
-        const ok = topY !== null && game.canAfford(liftCost) && game.toolUnlocked('lift');
+        const ok =
+          topY !== null &&
+          game.canAfford(liftCost) &&
+          game.toolUnlocked('lift') &&
+          !game.darkBlocks('lift', tx, ty);
         if (topY !== null) {
           ctx.globalAlpha = 0.5;
           for (let y = topY; y <= ty; y++) {
@@ -1863,7 +1873,11 @@ export class Renderer {
       case 'rope': {
         const drop = ropeDropFor(game.world, tx, ty);
         const ropeCost = TOOL_DEFS.find((d) => d.id === 'rope')?.cost ?? {};
-        const ok = drop !== null && game.canAfford(ropeCost) && game.toolUnlocked('rope');
+        const ok =
+          drop !== null &&
+          game.canAfford(ropeCost) &&
+          game.toolUnlocked('rope') &&
+          !game.darkBlocks('rope', tx, ty);
         if (drop !== null) {
           ctx.globalAlpha = 0.6;
           ctx.drawImage(sprite('rope_anchor').canvas, px, py);
@@ -1880,7 +1894,11 @@ export class Renderer {
       case 'hoist': {
         const drop = ropeDropFor(game.world, tx, ty);
         const hoistCost = TOOL_DEFS.find((d) => d.id === 'hoist')?.cost ?? {};
-        const ok = drop !== null && game.canAfford(hoistCost) && game.toolUnlocked('hoist');
+        const ok =
+          drop !== null &&
+          game.canAfford(hoistCost) &&
+          game.toolUnlocked('hoist') &&
+          !game.darkBlocks('hoist', tx, ty);
         if (drop !== null) {
           ctx.globalAlpha = 0.6;
           const post = sprite('hoist_post').canvas;

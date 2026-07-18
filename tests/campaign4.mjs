@@ -61,6 +61,8 @@ const mark = () => (g) => {
 const air = (x, y) => (g) => g.world.get(x, y) === T.AIR;
 const dig = (ax, ay, tx, ty) => (g) => g.paintDigRun(ax, ay, tx, ty) > 0;
 const shovelReady = (g) => g.stock.shovel >= 1 || g.equippedDiggers() >= 1;
+const lanternReady = (x, y) => (g) =>
+  g.buildings.some((b) => b.kind === 'lantern' && b.x === x && b.y === y && b.state === 'ready');
 
 // ---- Level 14: The Iron Well — dig down, lift the iron back up ----------------
 {
@@ -106,8 +108,11 @@ const shovelReady = (g) => g.stock.shovel >= 1 || g.equippedDiggers() >= 1;
       { name: 'workshop in the town light', when: () => true, do: (g) => g.placeBuilding('workshop', 8, 18) },
       { name: 'lantern by the far trees', when: () => true, do: (g) => g.placeBuilding('lantern', 16, 19) },
       { name: 'lantern by the boulders', when: () => true, do: (g) => g.placeBuilding('lantern', 23, 19) },
+      // #41: digging now needs a lit face — light the well mouth (and, from the
+      // surface, the shaft floor + tunnel mouth + rope anchor) before sinking it
+      { name: 'lantern at the well mouth', when: () => true, do: (g) => g.placeBuilding('lantern', 32, 19) },
       { name: 'sawmill', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 12, 18) },
-      { name: 'sink the well', when: shovelReady, do: dig(30, 20, 30, 24) },
+      { name: 'sink the well', when: (g) => shovelReady(g) && lanternReady(32, 19)(g), do: dig(30, 20, 30, 24) },
       // the workshop keeps crafting shovels as long as it is fed — reclaim it
       // (and anything parked in its inputs) once the digger holds a shovel
       { name: 'reclaim the workshop', when: (g) => g.equippedDiggers() >= 1, do: (g) => g.demolish(8, 18) },

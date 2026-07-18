@@ -281,6 +281,24 @@ function findLadderCells(g, count) {
   check('day levels are always lit', new Game(LEVELS[0]).isLit(0, 0) === true);
 }
 
+// ---- #41 night build gate: only lanterns and ladders defy the dark -----------
+// Once night falls, ramps, platforms, digs and the machine blueprints all need a
+// lit site; only the light source (lantern) and vertical mobility (ladder) stay
+// buildable, so the player must run the light out first. See docs/architecture.md.
+{
+  const g = new Game(LEVELS[6]); // Lantern Ridge — the far ridge (44,17) lies dark
+  check('the far ridge lies in darkness', g.isLit(44, 17) === false);
+  for (const tool of ['ramp', 'platform', 'lift', 'rope', 'hoist', 'dig']) {
+    check(`darkBlocks refuses ${tool} on an unlit cell`, g.darkBlocks(tool, 44, 17) === true);
+  }
+  check('darkBlocks lets a ladder defy the dark', g.darkBlocks('ladder', 44, 17) === false);
+  check('darkBlocks lets a lantern defy the dark', g.darkBlocks('lantern', 44, 17) === false);
+  check('darkBlocks passes a build in the lit town', g.darkBlocks('ramp', 10, 20) === false);
+  // a finished lantern lights the ridge, and building resumes there
+  g.addBuilding('lantern', 43, 17, true);
+  check('darkBlocks clears once the site is lit', g.darkBlocks('ramp', 44, 17) === false);
+}
+
 // ---- day↔night cycle: the living clock drives the light ----------------------
 // nightAmountAt maps the hour to a 0..1 night intensity; a `dayNight` level
 // advances timeOfDay so lighting, sky and veil all move together. Day and
@@ -316,9 +334,14 @@ function findLadderCells(g, count) {
 // diagonal. Workers standing there when it lands must still be able to step
 // out onto the ramp (a ramp tile overhead counts as headroom in the nav).
 {
-  const g = new Game(LEVELS[8]); // Tempest Summit: wall at x50, terrace floor row 20
+  const g = new Game(LEVELS[8]); // Tempest Summit (night): wall at x50, terrace floor row 20
   g.stock.plank = 10;
-  check('ramp run against the wall places fully', g.placeRampRun(49, 16, 45, 20) === 5);
+  // Tempest Summit is a night level, and ramps now refuse an unlit anchor (#41),
+  // so the dark run is rejected and spends nothing until the site is lit.
+  check('a ramp run is refused on an unlit anchor at night', g.placeRampRun(49, 16, 45, 20) === 0);
+  check('the refused ramp spent no planks', g.stock.plank === 10);
+  g.addBuilding('lantern', 47, 16, true); // a finished lantern lights the run's anchor
+  check('ramp run against the wall places fully once lit', g.placeRampRun(49, 16, 45, 20) === 5);
   // a worker in the pocket under the diagonal (x46..49, row 20)
   const targets = new Set([g.world.key(50, 15)]); // the terrace above
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
