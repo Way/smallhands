@@ -154,7 +154,7 @@ export class FrontDoor {
               <img loading="lazy" decoding="async" width="1280" height="720"
                 src="media/teaser-poster-${lang}.jpg" alt="${this.tr('teaserPlayAria')}">
               <span class="teaser-playbtn" aria-hidden="true">▶</span>
-              <span class="teaser-dur" aria-hidden="true">0:32</span>
+              <span class="teaser-dur" aria-hidden="true">0:35</span>
             </button>
           </div>
           <p class="chain-cap">${this.tr('teaserCap')}</p>
@@ -205,6 +205,27 @@ export class FrontDoor {
       </section>
 
       <section class="band alt">
+        <div class="wrap">
+          <h2>${this.tr('worldHead')}</h2>
+          <p class="band-intro">${this.tr('worldIntro')}</p>
+          <div class="mech-grid world-grid">
+            <article class="mech">
+              <div class="mech-ic">${this.icon('moon')}</div>
+              <div><h3>${this.tr('worldDayTitle')}</h3><p>${this.tr('worldDayBody')}</p></div>
+            </article>
+            <article class="mech">
+              <div class="mech-ic">${this.icon('storm')}</div>
+              <div><h3>${this.tr('worldWeatherTitle')}</h3><p>${this.tr('worldWeatherBody')}</p></div>
+            </article>
+            <article class="mech">
+              <div class="mech-ic">${this.icon('wave')}</div>
+              <div><h3>${this.tr('worldFloodTitle')}</h3><p>${this.tr('worldFloodBody')}</p></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
         <div class="wrap">
           <h2>${this.tr('contentHead')}</h2>
           <ul class="feats">

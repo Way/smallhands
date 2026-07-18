@@ -445,6 +445,8 @@
 #frontdoor .card h3 { font-family: var(--fd-pixel); font-weight: 600; font-size: 20px; margin-bottom: 8px; color: var(--fd-gold); }
 #frontdoor .card p { color: var(--fd-dim); font-size: 15px; }
 #frontdoor .mech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* the living-world trio (day-night · weather · flood) sits three across */
+#frontdoor .world-grid { grid-template-columns: repeat(3, 1fr); }
 #frontdoor .mech {
   display: flex;
   gap: 15px;

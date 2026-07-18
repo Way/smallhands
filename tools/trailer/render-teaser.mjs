@@ -82,8 +82,9 @@ const COPY = {
     hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallhands benutzen sie' },
     build: { h: 'Nur leere Hände können klettern.', sub: 'Fracht braucht einen anderen Weg nach oben' },
     hoist: { h: 'Schwerkraft als Spielelement.', sub: 'Ballast runter, Fracht rauf' },
-    weather: { h: 'Regen erschwert die Arbeit.', sub: 'Das Wetter beeinflusst die Arbeit der Smallhands' },
-    night: { h: 'Gearbeitet wird nur bei Licht.', sub: 'Laternen bringen Licht ins Dunkel' },
+    storm: { h: 'Stürme ziehen nach Plan auf.', sub: 'Regen bremst die Äxte; Böen blockieren die Aufzüge' },
+    tide: { h: 'Jeder Guss hebt die Flut.', sub: 'Rette die Waren, eh das Wasser sie holt' },
+    daynight: { h: 'Der Tag selbst wendet sich.', sub: 'Wettlauf mit der Nacht — Laternen halten das Licht' },
     biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
     deliver: { h: 'Geschwindigkeit und Geschick sind entscheidend.', sub: 'Prestige und Highscores warten auf dich' },
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
@@ -92,8 +93,9 @@ const COPY = {
     hook: { h: 'No direct control.', sub: 'You build the world — the smallhands use it' },
     build: { h: 'Only empty hands can climb.', sub: 'Cargo needs another way up' },
     hoist: { h: 'Gravity as a game mechanic.', sub: 'Ballast down, cargo up' },
-    weather: { h: 'Rain slows the work.', sub: 'Weather shapes what the smallhands can do' },
-    night: { h: 'Work only happens in the light.', sub: 'Lanterns bring light into the dark' },
+    storm: { h: 'Storms roll in on the forecast.', sub: 'Rain slows the axes; gusts lock the lifts' },
+    tide: { h: 'Every downpour lifts the tide.', sub: 'Rescue the goods before the water takes them' },
+    daynight: { h: 'The day itself turns.', sub: 'Race the dark — lanterns hold the light' },
     biomes: { h: 'Every seed generates a unique world.', sub: '5 biomes · Daily challenge · Level editor' },
     deliver: { h: 'Speed and skill decide.', sub: 'Prestige and highscores await' },
     end: { h: '', sub: '' },
@@ -356,55 +358,84 @@ function buildScenes(copy) {
       },
     },
     {
-      id: 'weather',
-      frames: 135,
-      text: copy.weather,
+      id: 'storm',
+      frames: 105,
+      text: copy.storm,
       textEnv: [12, 16],
       fade: { in: 6, out: 0 },
-      cam: { from: [12, 17.5, 2], to: [26, 17.5, 2] },
+      cam: { from: [28, 13, 2.4], to: [42, 13, 2.4] },
       setup: () => {
         const SH = window.__smallhands;
-        SH.startLevel(5); // Monsoon Hollow — clear 45 s -> rain 30 s on a visible forecast
+        SH.startLevel(11); // The High Forge — clear 60 s -> storm 20 s; gusts seize the lifts
         window.__H.markAll();
         window.__H.runSteps(
-          [
-            { when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 0, 19) },
-            { when: (g) => g.stock.plank >= 3, do: (g) => g.placeBridgeRun(27, 23, 29, 23) !== 0 },
-          ],
+          [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 8, 22) }],
           40
         );
-        // land mid-crossfade: the flip already happened and the fade is visibly
-        // rolling when the scene opens, leaving most of the take to settled
-        // rain — streaks, wind sway and the darkened sky front and center.
-        // (Wait for the phase itself, not a narrow remaining-time window — the
-        // poll runs every 10 ticks and would skip past anything tighter.)
-        window.__H.ffUntil((g) => g.weather === 'rain', 120);
-        window.__H.ff(1.0);
+        // fast-forward to the storm phase, then a beat past the crossfade so the
+        // darkened sky, slanted streaks and thrashing treetops are settled in
+        // frame. Wait for the phase itself (poll is every 10 ticks) not a window.
+        window.__H.ffUntil((g) => g.weather === 'storm', 120);
+        window.__H.ff(1.5);
       },
     },
     {
-      id: 'night',
-      frames: 135,
-      text: copy.night,
+      id: 'tide',
+      frames: 110,
+      text: copy.tide,
       textEnv: [12, 16],
       fade: { in: 6, out: 0 },
-      cam: { from: [8, 18.5, 3], to: [30, 17.5, 3] },
+      cam: { from: [27, 22, 2.4], to: [40, 21, 2.4] },
       setup: () => {
         const SH = window.__smallhands;
-        SH.startLevel(6); // night level — lantern chain pushes the light frontier
+        SH.startLevel(7); // The Rising Tide — each downpour lifts the water one row
         window.__H.markAll();
-        const afford = (g) => g.stock.log >= 1 && g.stock.stone >= 1;
         window.__H.runSteps(
-          [
-            { when: afford, do: (g) => g.placeBuilding('lantern', 14, 20) },
-            { when: afford, do: (g) => g.placeBuilding('lantern', 20, 19) },
-            { when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 0, 19) },
-            { when: afford, do: (g) => g.placeBuilding('lantern', 27, 19) },
-            { when: afford, do: (g) => g.placeBuilding('lantern', 33, 18) },
-          ],
-          200
+          [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 6, 19) }],
+          40
         );
-        window.__H.ff(30);
+        // ride just after the first downpour floods the basin, so the new lake
+        // and the rain that raised it are both on screen.
+        window.__H.ffUntil((g) => g.waterRow !== null, 150);
+        window.__H.ff(2.0);
+      },
+    },
+    {
+      id: 'daynight',
+      frames: 115,
+      text: copy.daynight,
+      textEnv: [12, 16],
+      fade: { in: 6, out: 0 },
+      cam: { from: [14, 16, 2.3], to: [40, 15, 2.3] },
+      setup: () => {
+        const SH = window.__smallhands;
+        SH.startLevel(16); // The Waning Light — noon slides to dusk; lanterns hold the light
+        window.__H.markAll();
+        // Each level's ground sits at a different row, so find the surface at
+        // runtime: the first air cell with solid ground directly beneath it.
+        const surf = (g, x) => {
+          for (let y = 4; y < g.level.height - 1; y++) {
+            if (g.world.get(x, y) === 0 && g.world.isSolid(x, y + 1)) return y;
+          }
+          return -1;
+        };
+        const afford = (g) => g.stock.log >= 1 && g.stock.stone >= 1;
+        const lantern = (x) => ({
+          when: afford,
+          do: (g) => {
+            const y = surf(g, x);
+            return y > 0 && g.placeBuilding('lantern', x, y);
+          },
+        });
+        // string lanterns out along the route while daylight is still free, so
+        // they are lit and holding pools of light when dusk arrives.
+        window.__H.runSteps(
+          [lantern(14), lantern(22), lantern(30), lantern(38), lantern(46)],
+          150
+        );
+        // roll the clock on into deep dusk: the sky dims, the veil closes in and
+        // the lantern pools stand out against the darkening far ground.
+        window.__H.ffUntil((g) => g.nightAmount() >= 0.6, 200);
       },
     },
     // three quick biome cuts — wide establishing pans, HUD hidden

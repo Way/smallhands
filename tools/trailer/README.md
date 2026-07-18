@@ -1,6 +1,6 @@
 # Teaser trailer renderer
 
-Renders a ~32 s teaser video (1280×720 @ 30 fps, H.264 MP4 with a synthesized
+Renders a ~35 s teaser video (1280×720 @ 30 fps, H.264 MP4 with a synthesized
 chiptune soundtrack) straight out of the real game — no screen recording, no
 external footage.
 
@@ -27,11 +27,12 @@ external footage.
 1. **Hook** — level 1 in full swing (indirect control, hauling, sawmill)
 2. **Build** — the Cliff Shrine: cargo lift + a ladder run appearing tile by tile
 3. **Hoist** — Campaign 3's counterweight hoist cycling at a cliff edge
-4. **Weather** — Monsoon Hollow's clear→rain crossfade on the forecast HUD
-5. **Night** — the lantern chain pushing the frontier of light
-6. **Biomes** — three quick cuts through generated worlds (autumn/redrock/slate)
-7. **Deliver** — a goal delivery landing at the caravan
-8. **End card** — the front door hero: logo, pitch, Play button
+4. **Storm** — The High Forge under a storm: darkened sky, slanted rain, gusts that seize the lifts
+5. **Rising tide** — The Rising Tide: a downpour lifts the water and floods the basin
+6. **Day-night** — The Waning Light: noon turns to dusk and the lantern chain holds the light
+7. **Biomes** — three quick cuts through generated worlds (autumn/redrock/slate)
+8. **Deliver** — a goal delivery landing at the caravan
+9. **End card** — the front door hero: logo, pitch, Play button
 
 ## Usage
 
