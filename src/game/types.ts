@@ -142,6 +142,7 @@ export interface Building {
   outputs: Partial<Record<ItemType, number>>;
   processT: number;
   processing: boolean;
+  paused: boolean; // producer only (sawmill/forge/workshop): player holds conversion so raw inputs stockpile
   // lift only
   liftTopY: number; // tile y of the top landing (liftTopY < y)
   liftCarY: number; // current car position in tile coords (render/anim)

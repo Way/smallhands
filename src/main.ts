@@ -1481,6 +1481,12 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
       hud!.showHoist(b.id);
       return;
     }
+    if (b && isProducer(b) && b.state === 'ready') {
+      hud!.hideBuildingHint();
+      touchInspect = null;
+      hud!.showProducer(b.id);
+      return;
+    }
     const n = b ? undefined : g.nodeAt(tx, ty);
     if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
     else if (n) touchInspect = { kind: 'n', id: n.id, cx: clientX, cy: clientY };
@@ -1547,6 +1553,9 @@ let downY = 0; // with a wider tolerance for wobbly fingers than for mice
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
 const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder' || t === 'dig';
+// recipe producers carry a pause toggle (tap/click with Select opens the panel)
+const isProducer = (b: { kind: string }): boolean =>
+  b.kind === 'sawmill' || b.kind === 'forge' || b.kind === 'workshop';
 
 function canvasDpr(): number {
   return canvas.width / canvas.clientWidth || 1;
@@ -1895,6 +1904,7 @@ function applyTool(tx: number, ty: number): void {
       const b = g.buildingAt(tx, ty);
       if (b && b.kind === 'townhall') hud!.showTownhall();
       else if (b && b.kind === 'hoist' && b.state === 'ready') hud!.showHoist(b.id);
+      else if (b && isProducer(b) && b.state === 'ready') hud!.showProducer(b.id);
       break;
     }
     case 'harvest': {

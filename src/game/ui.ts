@@ -663,6 +663,69 @@ export class Hud {
     ].join('|');
   }
 
+  // Interactive producer panel (sawmill/forge/workshop) shown when the building
+  // is tapped/clicked with Select: the recipe, live status, and a pause toggle so
+  // the player can hold the conversion and stockpile raw inputs (e.g. keep logs
+  // instead of letting the sawmill turn them all into planks).
+  showProducer(id: number): void {
+    const g = this.game;
+    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
+    const box = el('div', 'toast th-toast', this.toastWrap);
+    const build = (): void => {
+      const b = g.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
+      const recipe = b && RECIPES[b.kind];
+      if (!b || !recipe || b.state !== 'ready') {
+        this.livePanel = null;
+        box.remove();
+        return;
+      }
+      box.innerHTML = '';
+      const head = el('div', undefined, box);
+      head.innerHTML = `<b>${t(`tool.${b.kind}.label`)}</b>`;
+      this.renderRecipe(box, recipe);
+      let status: string;
+      if (b.paused) status = t('inspect.paused');
+      else if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
+      else {
+        const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
+          (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
+        );
+        status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
+      }
+      el('div', 'th-toast-body', box).textContent = status;
+      const btn = el('button', 'th-mini', box);
+      btn.textContent = b.paused ? t('producer.resume') : t('producer.pause');
+      btn.onclick = () => {
+        g.toggleProducerPause(id);
+        build(); // reflect the flip immediately (label + status)
+      };
+      const d = el('span', 'dismiss', box);
+      d.textContent = t('ui.dismiss');
+      d.onclick = () => {
+        this.livePanel = null;
+        box.remove();
+      };
+    };
+    build();
+    this.livePanel = { box, render: build, sig: () => this.producerSig(id), last: this.producerSig(id) };
+  }
+
+  // Signature for the tapped-open producer panel: paused flag, work progress, and
+  // buffered inputs/outputs — so update() re-renders when any of them change while
+  // the panel stays open (status text goes live, pause button label stays honest).
+  private producerSig(id: number): string {
+    const b = this.game.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
+    const recipe = b && RECIPES[b.kind];
+    if (!b || !recipe || b.state !== 'ready') return 'gone';
+    return [
+      'p',
+      b.paused ? 1 : 0,
+      b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'x',
+      ITEM_TYPES.map((i) => b.inputs[i] ?? 0).join(','),
+      ITEM_TYPES.map((i) => b.outputs[i] ?? 0).join(','),
+    ].join('|');
+  }
+
   // Interactive town-hall panel shown when the building is tapped with Select.
   showTownhall(): void {
     const g = this.game;
@@ -840,7 +903,8 @@ export class Hud {
       this.renderRecipe(tip, recipe);
       // live status
       let status: string;
-      if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
+      if (b.paused) status = t('inspect.paused');
+      else if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
       else {
         const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
           (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
@@ -848,6 +912,7 @@ export class Hud {
         status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
       }
       el('div', 'tt-desc', tip).textContent = status;
+      if (b.state === 'ready') el('div', 'tt-desc', tip).textContent = t('producer.hint');
     } else if (b.kind === 'lift') {
       el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
       el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');

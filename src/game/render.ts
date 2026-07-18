@@ -1095,6 +1095,16 @@ export class Renderer {
             ox -= 5;
           }
         }
+        if (b.paused) {
+          // held: two little bars so a paused producer reads at a glance
+          const bx = px + fw - 8;
+          const by = py + 2;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(bx - 1, by - 1, 8, 9);
+          ctx.fillStyle = '#ffd94d';
+          ctx.fillRect(bx, by, 2, 7);
+          ctx.fillRect(bx + 4, by, 2, 7);
+        }
       }
       if (b.kind === 'goal') {
         // delivered progress ring of items over the goal
