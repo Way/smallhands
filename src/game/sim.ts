@@ -1,6 +1,7 @@
 import {
   BUILD_TIME,
   BUILDER_SPEED,
+  DAY_HOUR,
   DIG_TIME,
   DIG_TIME_DEFAULT,
   CLIMB_SPEED,
@@ -14,6 +15,7 @@ import {
   ITEM_TYPES,
   LANTERN_RADIUS,
   LIFT_SPEED,
+  NIGHT_HOUR,
   NODE_ROLE,
   NODE_YIELD,
   RECIPES,
@@ -156,7 +158,11 @@ export class Game {
 
   objectives: Objective[] = [];
   won = false;
-  time = 0;
+  time = 0; // elapsed run seconds — the medal/best-time score. NOT shown in-game.
+  // Diegetic hour-of-day (0..24) the HUD clock renders, decoupled from `time`.
+  // Static for now (noon on day maps, midnight on night maps); a dynamic
+  // day→night cycle that advances it is a later phase (card #36).
+  timeOfDay = DAY_HOUR;
   // The sim knows *whether* it runs, not how fast: speed is a main-loop concern
   // (it scales the tick accumulator, so a tick is always exactly dt). Don't add
   // a speed field here — nothing in the sim could read it.
@@ -185,6 +191,9 @@ export class Game {
   constructor(level: LevelDef) {
     this.level = level;
     this.world = new World(level.width, level.height);
+    // Night maps open in the dark, day maps at noon. `startHour` overrides both
+    // when a level wants a specific time; a moving cycle comes in a later phase.
+    this.timeOfDay = level.startHour ?? (level.night ? NIGHT_HOUR : DAY_HOUR);
     level.build(this);
     this.thLevel = level.startThLevel ?? 1;
     for (const [k, v] of Object.entries(level.startStock ?? {})) {

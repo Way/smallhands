@@ -2,7 +2,8 @@ import {
   BUILD_TIME,
   carCount,
   carWeight,
-  fmtTime,
+  dayNightIcon,
+  fmtClock,
   ITEM_ICON,
   ITEM_TYPES,
   RECIPES,
@@ -165,7 +166,9 @@ export class Hud {
   private objSum: HTMLElement | null = null;
   private wxSum: HTMLElement | null = null;
   private clockEl!: HTMLElement;
+  private clockIcEl!: HTMLElement;
   private clockSig = '';
+  private clockIcSig = '';
   private topbar!: HTMLElement;
   private topbarRight!: HTMLElement;
   private confirmBar: HTMLElement | null = null;
@@ -392,13 +395,16 @@ export class Hud {
       this.wxSum = el('span', 'wx-ic', weatherTrigger); // updated with the live icon
     }
 
-    // centre zone: the level clock — reads game time, so it stretches with
-    // 2×/4× and holds at ⏸ (and at the win, which freezes the sim clock)
+    // centre zone: the diegetic time-of-day clock. It reads the world's hour
+    // (game.timeOfDay), NOT the run's score timer — a sun/moon glyph plus the
+    // wall-clock hour. Static today (noon by day, night on night maps); a moving
+    // day→night cycle is a later phase (card #36).
     const clock = el('div', 'clock', island);
     clock.title = t('hud.clockTitle');
-    el('span', 'clock-ic', clock).textContent = '⏱';
+    this.clockIcEl = el('span', 'clock-ic', clock);
+    this.clockIcEl.textContent = dayNightIcon(this.game.timeOfDay);
     this.clockEl = el('span', 'clock-time', clock);
-    this.clockEl.textContent = fmtTime(0);
+    this.clockEl.textContent = fmtClock(this.game.timeOfDay);
 
     // right zone: the burger
     const menuTrigger = el('button', 'island-btn menu-trigger', island);
@@ -1071,11 +1077,18 @@ export class Hud {
 
   update(): void {
     const g = this.game;
-    // runs every frame, but the rendered M:SS only turns over once a second
-    const clock = fmtTime(g.time);
+    // runs every frame; the diegetic clock turns over only when the HH:MM (or
+    // the day/night glyph) actually changes — held constant today, live once a
+    // day→night cycle advances g.timeOfDay (card #36)
+    const clock = fmtClock(g.timeOfDay);
     if (clock !== this.clockSig) {
       this.clockSig = clock;
       this.clockEl.textContent = clock;
+    }
+    const clockIc = dayNightIcon(g.timeOfDay);
+    if (clockIc !== this.clockIcSig) {
+      this.clockIcSig = clockIc;
+      this.clockIcEl.textContent = clockIc;
     }
     for (const it of ITEM_TYPES) {
       const n = g.stock[it];

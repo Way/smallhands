@@ -28,6 +28,7 @@ export interface LevelDef {
   campaign?: number; // 1 (default), 2 or 3 — grouping + unlock gate on the level select
   weather?: WeatherPhase[]; // looping phase schedule; omit for an always-clear sky
   night?: boolean; // night level: work only happens in the light (see lanterns)
+  startHour?: number; // HUD clock's hour-of-day (0..24); defaults to noon, or midnight when night
   flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
   biome?: Biome; // terrain palette family; omit for the classic meadow look
 }
