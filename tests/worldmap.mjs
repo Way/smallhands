@@ -45,7 +45,7 @@ check('4 territories', (await page.$$('.territory')).length === 4);
 check('3 territories fogged', (await page.$$('.territory.locked')).length === 3);
 check('3 lock hints', (await page.$$('.terr-lock')).length === 3);
 const nodes = await page.$$('.map-node');
-check('16 level nodes', nodes.length === 16);
+check('17 level nodes', nodes.length === 17);
 check('exactly 1 unlocked node', (await page.$$('.map-node:not(:disabled)')).length === 1);
 check('daily lighthouse present', !!(await page.$('.map-daily')));
 check('legend has 4 buttons', (await page.$$('.legend-btn')).length === 4);

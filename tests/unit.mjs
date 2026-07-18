@@ -8,12 +8,12 @@ const mod = await bundleExports(`
   export { LEVELS } from './src/game/levels.ts';
   export { canPlaceLadder } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
-  export { T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR } from './src/game/types.ts';
+  export { T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, nightAmountAt, NIGHT_WORK_DARK } from './src/game/types.ts';
   export { t, setLang, getLang } from './src/engine/i18n.ts';
   export { exportAllData, importAllData } from './src/engine/save.ts';
   export { blankLevelData } from './src/game/leveldata.ts';
 `);
-const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, nightAmountAt, NIGHT_WORK_DARK, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -203,11 +203,11 @@ function findLadderCells(g, count) {
 
 // ---- campaign structure -----------------------------------------------------
 {
-  check('sixteen campaign levels ship', LEVELS.length === 16);
+  check('seventeen campaign levels ship', LEVELS.length === 17);
   check('level ids stay sequential', LEVELS.every((l, i) => l.id === i + 1));
   check('campaign 1 keeps its four levels', LEVELS.filter((l) => (l.campaign ?? 1) === 1).length === 4);
   check('campaign 2 brings five levels', LEVELS.filter((l) => l.campaign === 2).length === 5);
-  check('campaign 4 digs four levels deep', LEVELS.filter((l) => l.campaign === 4).length === 4);
+  check('campaign 4 digs five levels deep', LEVELS.filter((l) => l.campaign === 4).length === 5);
 }
 
 // ---- water: impassable, unbuildable, bridgeable -----------------------------
@@ -279,6 +279,36 @@ function findLadderCells(g, count) {
   check('a finished lantern lights its surroundings', g.isLit(48, 17) === true);
   check('the lit vein can now be marked', g.toggleMark(vein.x, vein.y) === true && vein.marked === true);
   check('day levels are always lit', new Game(LEVELS[0]).isLit(0, 0) === true);
+}
+
+// ---- day↔night cycle: the living clock drives the light ----------------------
+// nightAmountAt maps the hour to a 0..1 night intensity; a `dayNight` level
+// advances timeOfDay so lighting, sky and veil all move together. Day and
+// static-night maps stay pinned at the ends (0 / 1) — behaviour-preserving.
+{
+  // the pure curve
+  check('curve: noon is full day', nightAmountAt(12) === 0);
+  check('curve: 3am is deep night', nightAmountAt(3) === 1);
+  check('curve: mid-dusk sits at the work threshold', nightAmountAt(19.5) >= NIGHT_WORK_DARK);
+  check('curve: early dusk still counts as day-lit', nightAmountAt(18.2) < NIGHT_WORK_DARK);
+  check('curve: hours wrap past midnight', nightAmountAt(27) === nightAmountAt(3));
+
+  // fixed level types read the ends of the curve
+  check('a day map reads full daylight', new Game(LEVELS[0]).nightAmount() === 0);
+  check('a static night map reads full night', new Game(LEVELS[6]).nightAmount() === 1);
+
+  // the showcase cycle level (#17, The Waning Light) opens at noon and turns over
+  const g = new Game(LEVELS[16]);
+  check('the cycle level opens in daylight', g.nightAmount() === 0);
+  check('midday, the far ground is lit', g.isLit(35, 2) === true);
+  check('the cycle clock starts at noon', Math.abs(g.timeOfDay - 12) < 0.001);
+
+  // run the clock forward ~10 game-hours (rate 0.05 h/s → 200s) into deep night
+  for (let i = 0; i < 800; i++) g.tick(0.25);
+  check('the clock moved with the world', g.timeOfDay > 21 && g.timeOfDay < 23);
+  check('night has fallen on the cycle', g.nightAmount() > 0.9);
+  check('the far ground falls dark at night', g.isLit(35, 2) === false);
+  check('the town fire still holds its own light', g.isLit(6, g.buildings.find((b) => b.kind === 'townhall').y + 1) === true);
 }
 
 // ---- no smallhand prison under a ramp -----------------------------------------

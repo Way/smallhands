@@ -16,6 +16,8 @@ import {
   LANTERN_RADIUS,
   LIFT_SPEED,
   NIGHT_HOUR,
+  NIGHT_WORK_DARK,
+  nightAmountAt,
   NODE_ROLE,
   NODE_YIELD,
   RECIPES,
@@ -314,6 +316,15 @@ export class Game {
 
   // ---- light (night levels) ----------------------------------------------------
 
+  // Night intensity right now, 0 (full daylight) .. 1 (deep night). Flat on the
+  // fixed level types — 0 on a day map, 1 on a static `night` map — but a live
+  // curve of the clock on a day↔night cycle level (`dayNight`), so lighting, the
+  // sky and the veil all move together as dusk falls. See nightAmountAt.
+  nightAmount(): number {
+    if (this.level.dayNight) return nightAmountAt(this.timeOfDay);
+    return this.level.night ? 1 : 0;
+  }
+
   // Light sources: the town hall and caravan keep their own fires, plus every
   // finished lantern. Radii are in tiles, measured from the source's centre.
   lightSources(): { x: number; y: number; r: number }[] {
@@ -326,10 +337,12 @@ export class Game {
     return out;
   }
 
-  // Is the tile lit? Always true outside night levels. Smallhands only harvest
-  // and raise buildings in the light (lanterns themselves are the exception).
+  // Is the tile lit? True whenever it isn't dark enough to matter (all day, and
+  // through the early dusk up to NIGHT_WORK_DARK). Once night takes hold,
+  // smallhands only harvest and raise buildings within a light source — lanterns
+  // themselves are the exception, so the player can push the frontier of light.
   isLit(x: number, y: number): boolean {
-    if (!this.level.night) return true;
+    if (this.nightAmount() < NIGHT_WORK_DARK) return true;
     const cx = x + 0.5;
     const cy = y + 0.5;
     for (const s of this.lightSources()) {
@@ -1893,6 +1906,13 @@ export class Game {
       return;
     }
     this.time += dt;
+
+    // day↔night cycle levels advance the diegetic clock (game-hours per second);
+    // day/static-night maps leave timeOfDay fixed. Driven by sim dt, not the
+    // render clock, so it keeps honest under reduced motion and at every speed.
+    if (this.level.dayNight) {
+      this.timeOfDay = (this.timeOfDay + this.level.dayNight.rate * dt) % 24;
+    }
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.workers.length < this.maxWorkers) {

@@ -373,6 +373,28 @@ export function dayNightIcon(hour: number): string {
   return '☀️'; // daytime
 }
 
+// Night intensity (0 = full daylight, 1 = deep night) for an hour-of-day.
+// Day 07–18 is fully lit; dusk 18–21 ramps up to dark; night 21–05 is fully
+// dark; dawn 05–07 ramps back down — smoothstepped so the sky, the darkness
+// veil and the lighting ease rather than slide. One curve keeps all three in
+// lockstep on a day↔night cycle level (see Game.nightAmount / LevelDef.dayNight).
+export function nightAmountAt(hour: number): number {
+  const h = ((hour % 24) + 24) % 24;
+  const smooth = (a: number, b: number, x: number): number => {
+    const u = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return u * u * (3 - 2 * u);
+  };
+  if (h >= 7 && h < 18) return 0; // day
+  if (h >= 18 && h < 21) return smooth(18, 21, h); // dusk → dark
+  if (h >= 5 && h < 7) return 1 - smooth(5, 7, h); // dawn → light
+  return 1; // 21..24 and 00..05 — night
+}
+
+// Above this night intensity the open ground goes dark: smallhands only work
+// within a light source (see Game.isLit). Below it the whole map is lit, so the
+// early dusk stays fully workable — the player's window to string lanterns.
+export const NIGHT_WORK_DARK = 0.5;
+
 // ---- look events (cosmetic outbox) -------------------------------------------
 
 // Write-only breadcrumbs the sim appends for the renderer's look-physics layer
