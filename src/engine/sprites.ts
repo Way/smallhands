@@ -1133,6 +1133,60 @@ export function buildAtlas(): void {
     'RRR........RRR',
     'RR..........RR',
   ]);
+
+  // living-world icons for the front-door "world that fights back" band ------
+  // crescent moon: the turning day. Cool silver disc with a shaded terminator
+  // (c) carving the crescent out of the right side.
+  makeSprite('moon', { m: '#e8eefc', M: '#b9c6e0', c: '#8b99b6' }, [
+    '.....mmmm.....',
+    '...mmMMMMm....',
+    '..mMMMMc......',
+    '..mMMMc.......',
+    '.mMMMM........',
+    '.mMMMc........',
+    '.mMMMM........',
+    '.mMMMM........',
+    '.mMMMc........',
+    '.mMMMM........',
+    '..mMMMc.......',
+    '..mMMMMc......',
+    '...mmMMMMm....',
+    '.....mmmm.....',
+  ]);
+  // storm: a dark cloud, a gold bolt, and blue rain streaks.
+  makeSprite('storm', { c: '#aab6ce', C: '#7d8aa6', y: '#ffd94d', r: '#7fb2ec' }, [
+    '....ccccc.....',
+    '..ccCCCCCcc...',
+    '.cCCCCCCCCCc..',
+    'cCCCCCCCCCCCc.',
+    '.CCCCCCCCCCC..',
+    '..CCCCCCCCC...',
+    '..r...yy...r..',
+    '.r...yy...r...',
+    '..r.yy....r...',
+    '.r.yyyyy..r...',
+    '..r...yy..r...',
+    '.r...yy...r...',
+    '..r.yy....r...',
+    '.r........r...',
+  ]);
+  // wave: the rising tide — stacked bands of water topped with foam crests.
+  makeSprite('wave', { f: '#e8f4ff', w: '#7fb2ec', W: '#3f7fc8' }, [
+    '..............',
+    '...ff....ff...',
+    '..fWWf..fWWf..',
+    '.fWWWWffWWWWf.',
+    '.WWWWWWWWWWWW.',
+    '.wWWWWWWWWWWw.',
+    '..ff...ff...f.',
+    '.fWWWfWWWfWWWf',
+    'WWWWWWWWWWWWWW',
+    'wWWWWWWWWWWWWw',
+    '..f...ff...f..',
+    '.fWWWfWWWfWWWf',
+    'WWWWWWWWWWWWWW',
+    'wwwwwwwwwwwwww',
+  ]);
 }
 
 // Convenience: draw a sprite scaled to fit a square HUD canvas.
