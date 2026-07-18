@@ -22,7 +22,8 @@ export interface SaveData {
   completed: number[]; // campaign level ids
   completedCustom: string[]; // custom/generated level ids
   records: Record<string, LevelRecord>;
-  muted: boolean;
+  muted: boolean; // sound effects off
+  music: boolean; // background music on/off (default on)
   lang?: Lang; // unset until the player picks one (browser language applies)
   effects?: 'full' | 'reduced'; // weather/light effect intensity
 }
@@ -55,6 +56,7 @@ function sanitizeSaveData(raw: unknown): SaveData {
       : [],
     records: sanitizeRecords(data.records),
     muted: data.muted === true,
+    music: data.music !== false, // default on; only an explicit false disables it
     lang: LANGS.includes(data.lang as Lang) ? (data.lang as Lang) : undefined,
     effects: data.effects === 'reduced' ? 'reduced' : data.effects === 'full' ? 'full' : undefined,
   };
@@ -67,7 +69,7 @@ export function loadSave(): SaveData {
   } catch {
     // corrupt or unavailable storage — start fresh
   }
-  return { completed: [], completedCustom: [], records: {}, muted: false };
+  return { completed: [], completedCustom: [], records: {}, muted: false, music: true };
 }
 
 export function persistSave(data: SaveData): void {

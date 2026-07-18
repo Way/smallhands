@@ -6,7 +6,7 @@ import { BIOMES } from './engine/biomes';
 import type { Biome } from './engine/biomes';
 import type { MedalTier, Tool } from './game/types';
 import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
-import { audio } from './engine/audio';
+import { audio, music } from './engine/audio';
 import {
   deleteCustomLevel,
   exportAllData,
@@ -55,6 +55,7 @@ let customLevels = loadCustomLevels();
 const devUnlock = devUnlockAll();
 if (devUnlock) console.info('[smallhands] dev unlock active — all campaign levels are playable');
 audio.muted = save.muted;
+music.setEnabled(save.music); // background music preference; plays only once in a live level
 // language: an explicit choice from the options menu wins; otherwise follow the browser
 setLang(save.lang ?? detectLang());
 
@@ -72,6 +73,17 @@ let speed = 1;
 let lastRate = 1; // rate ⏸→▶ resumes at (never 0)
 let prevSpeed = 1; // speed to restore when resuming from the level-select overlay
 let running = false;
+// True while a live level is the current screen — stays true through a manual
+// pause or the options overlay (so the music toggle is audible), and goes false
+// on the menus, the front door, the editor and on win. Distinct from `running`,
+// which the options overlay clears.
+let inLevel = false;
+
+// Background music follows the scene: it plays only in a live, unfinished level
+// with the tab visible. Called wherever the scene changes.
+function syncMusic(): void {
+  music.setPlaying(inLevel && game !== null && !game.won && !document.hidden);
+}
 
 const hover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
 const noHover: HoverState = { tool: 'select', tx: 0, ty: 0, visible: false };
@@ -163,8 +175,10 @@ const editor = new Editor(uiRoot, {
 function openEditor(data?: CustomLevelData): void {
   clearOverlay();
   running = false;
+  inLevel = false;
   game = null;
   hud = null;
+  syncMusic();
   uiRoot.innerHTML = '';
   editor.open(data);
   canvas.style.cursor = 'crosshair'; // editor paints tiles; drop the game tool cursor
@@ -205,6 +219,8 @@ function enterFrontDoor(): void {
   document.body.classList.remove('in-game');
   clearOverlay();
   running = false;
+  inLevel = false;
+  syncMusic();
   drawIdleBackdrop(); // ensure the idle scene exists behind the hero
   frontDoor.show();
   window.scrollTo(0, 0);
@@ -276,6 +292,8 @@ function confirmIfInProgress(message: string, confirmLabel: string, action: () =
 function resumeGame(): void {
   clearOverlay();
   running = true;
+  inLevel = true;
+  syncMusic();
   setSpeed(prevSpeed > 0 ? prevSpeed : 1);
   // touch: restore the armed tool's bar (dropped when the map took over) —
   // buildings park their draft ghost again, everything else re-shows its hint
@@ -356,6 +374,7 @@ window.addEventListener('focus', resumeDialogOnFocus);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) autoPauseOnFocusLoss();
   else resumeDialogOnFocus();
+  syncMusic(); // pause the bed when the tab is hidden, resume it when it returns
 });
 
 // ---- options menu -------------------------------------------------------------
@@ -440,6 +459,21 @@ function showOptions(returnTo: () => void): void {
     (v) => {
       audio.muted = v === 'off';
       save.muted = audio.muted;
+      persistSave(save);
+      showOptions(returnTo);
+    }
+  );
+
+  segRow(
+    t('opt.music'),
+    [
+      { value: 'on', label: t('opt.on') },
+      { value: 'off', label: t('opt.off') },
+    ],
+    save.music ? 'on' : 'off',
+    (v) => {
+      save.music = v === 'on';
+      music.setEnabled(save.music);
       persistSave(save);
       showOptions(returnTo);
     }
@@ -615,6 +649,8 @@ function buildShelf(): HTMLElement | null {
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
+  inLevel = false;
+  syncMusic();
   // Leaving the sim: the HUD stays mounted underneath (the run may resume), so
   // its floaters — parked touch aim, confirm bar, hints, toasts — must not
   // linger on top of the world map.
@@ -1056,6 +1092,8 @@ function startGame(def: LevelDef): void {
 
   game.onEvent = handleEvent;
   running = true;
+  inLevel = true;
+  syncMusic();
 
   // one gentle, once-per-session nudge: the worlds are wide, landscape shows more
   if (COARSE && window.innerHeight > window.innerWidth && !rotateHintShown) {
@@ -1148,6 +1186,7 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'win': {
       audio.win();
+      syncMusic(); // level solved — let the music fade under the win jingle
       // medal, feats & personal best
       {
         const g = game!;
