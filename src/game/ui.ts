@@ -207,9 +207,9 @@ export class Hud {
     // island (buildIsland) drops into the centre track; the info panels go in
     // a right-hand wrapper that wraps its children rather than growing left.
 
-    // left column (left track): resources + crew — the hands-on control cluster
-    // (reserve stock, staff roles, upgrade the Town Hall), grouped top-left
-    // where the eye lands first. Crew is appended further down.
+    // left column (left track): resources on top, the delivery objectives right
+    // beneath — the "what I have / what I owe" stack, grouped top-left where the
+    // eye lands first. The Deliver panel is appended further down.
     const left = el('div', 'topbar-left', bar);
     const res = el('div', 'panel res-bar', left);
     for (const it of ITEM_TYPES) {
@@ -229,14 +229,11 @@ export class Hud {
       this.keepBadges.set(it, badge);
     }
 
-    // right column (right track): read-only status — objectives (+ level name)
-    // on top, the dynamic weather forecast below, so a contextual panel never
-    // reflows the controls in the left column.
-    const right = el('div', 'topbar-right', bar);
-    this.topbarRight = right;
-
-    // objectives
-    const obj = el('div', 'panel objectives', right);
+    // objectives (Deliver) — lives in the LEFT column, directly under the
+    // resources, so the stock counts and the goal they feed read as one stack.
+    // Weather no longer has its own panel — it lives in the island as an icon
+    // beside the clock, its forecast in a hover/tap popover (buildIsland).
+    const obj = el('div', 'panel objectives', left);
     const h = el('h3', undefined, obj);
     h.innerHTML = `<span>${t('hud.deliver')}</span><span class="hsum"></span><span class="lvlname">${t(this.game.level.name)}</span>`;
     this.objSum = h.querySelector('.hsum')!;
@@ -250,12 +247,14 @@ export class Hud {
     }
     this.collapsible(obj, h);
 
-    // weather no longer has its own right-column panel — it lives in the island
-    // as an icon beside the clock, its forecast in a hover/tap popover (buildIsland)
+    // right column (right track): the crew panel — staff roles + Town-Hall
+    // upgrade, pinned to the right edge so this control cluster never reflows
+    // the resources + objectives stack in the left column.
+    const right = el('div', 'topbar-right', bar);
+    this.topbarRight = right;
 
-    // crew panel — lives in the LEFT column, directly under the resources, so
-    // the two control panels read as one management stack.
-    const crew = el('div', 'panel crew', left);
+    // crew panel
+    const crew = el('div', 'panel crew', right);
     const ch = el('h3', undefined, crew);
     ch.innerHTML = `<span>${t('hud.crew')}</span><span class="pop"></span>`;
     this.workerPop = ch.querySelector('.pop')!;
