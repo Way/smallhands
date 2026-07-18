@@ -945,6 +945,22 @@ export class Hud {
     this.positionHint(tip, clientX, clientY);
   }
 
+  // The ghost is red because the target is too dark to build (night, no lantern
+  // in reach). Reuses the placement-needs tooltip slot, so hidePlacementNeeds
+  // clears it just the same.
+  showDarkNeed(clientX: number, clientY: number): void {
+    if (!this.needs) {
+      this.needs = el('div', 'tooltip', this.root);
+      this.needsSig = '';
+    }
+    if (this.needsSig !== 'dark') {
+      this.needsSig = 'dark';
+      this.needs.innerHTML = '';
+      el('div', undefined, this.needs).textContent = t('hud.tooDark');
+    }
+    this.positionHint(this.needs, clientX, clientY);
+  }
+
   hidePlacementNeeds(): void {
     this.needs?.remove();
     this.needs = null;

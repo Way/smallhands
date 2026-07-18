@@ -159,10 +159,15 @@ const mark = (pred = () => true) => (g) => {
 {
   const def = LEVELS[8];
   const lanternAfford = (g) => g.stock.log >= 1 && g.stock.stone >= 1;
+  const lReady = (x, y) => (g) =>
+    g.buildings.some((b) => b.kind === 'lantern' && b.x === x && b.y === y && b.state === 'ready');
   const g = runLevel(
     def,
     [
       { name: 'mark everything', when: () => true, do: mark() },
+      // a second builder keeps the light-frontier climb moving: each ramp now
+      // waits on the lantern that lights its anchor (#41 — no ramps in the dark)
+      { name: 'a second builder', when: (g) => g.workers.length >= 6, do: (g) => g.setDesired('builder', 2) },
       // bank stone and planks for the town hall, ramps, lanterns and forge —
       // otherwise the caravan drains the stock the moment the ramps connect
       {
@@ -174,19 +179,36 @@ const mark = (pred = () => true) => (g) => {
         },
       },
       { name: 'lantern: base boulders', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 18, 25) },
-      { name: 'ramp to terrace 1', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(27, 21, 23, 25) === 5 },
+      // #41: light each ramp's anchor from the ground below before laying it —
+      // the light frontier climbs the terraces one ledge at a time.
+      { name: 'lantern: ramp-1 anchor', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 25, 25) },
+      {
+        name: 'ramp to terrace 1',
+        when: (g) => g.stock.plank >= 5 && lReady(25, 25)(g),
+        do: (g) => g.placeRampRun(27, 21, 23, 25) === 5,
+      },
       { name: 'sawmill', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 0, 24) },
       { name: 'lantern: terrace 1 west', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 34, 20) },
-      { name: 'lantern: terrace 1 east', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 43, 20) },
-      { name: 'ramp to terrace 2', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(49, 16, 45, 20) === 5 },
+      // doubles as the ramp-2 anchor light (reaches the terrace-2 edge at 49,16)
+      { name: 'lantern: ramp-2 anchor', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 47, 20) },
+      {
+        name: 'ramp to terrace 2',
+        when: (g) => g.stock.plank >= 5 && lReady(47, 20)(g),
+        do: (g) => g.placeRampRun(49, 16, 45, 20) === 5,
+      },
       {
         name: 'town hall 2',
         when: (g) => g.stock.plank >= 8 && g.stock.stone >= 6,
         do: (g) => g.startThUpgrade(),
       },
       { name: 'lantern: the iron, west', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 56, 15) },
-      { name: 'lantern: the iron, east', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 62, 15) },
-      { name: 'ramp to the summit', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(71, 11, 67, 15) === 5 },
+      // doubles as the ramp-3 anchor light (reaches the summit edge at 71,11)
+      { name: 'lantern: ramp-3 anchor', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 67, 15) },
+      {
+        name: 'ramp to the summit',
+        when: (g) => g.stock.plank >= 5 && lReady(67, 15)(g),
+        do: (g) => g.placeRampRun(71, 11, 67, 15) === 5,
+      },
       {
         name: 'forge at base camp',
         when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4,
@@ -201,7 +223,7 @@ const mark = (pred = () => true) => (g) => {
         },
       },
     ],
-    2400
+    3000
   );
   report(def, g);
 }

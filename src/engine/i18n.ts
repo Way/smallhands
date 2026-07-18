@@ -348,6 +348,7 @@ const D: Record<string, [string, string]> = {
   'tt.perBatch': ['⏱ {n}s per batch', '⏱ {n} s pro Durchgang'],
   'tt.requiresTh': ['Requires Town Hall level {n}', 'Benötigt Rathaus-Stufe {n}'],
   'hud.needs': ['<b>{label}</b> needs', '<b>{label}</b> braucht'],
+  'hud.tooDark': ['Too dark — light it with a lantern', 'Zu dunkel — erst mit einer Laterne beleuchten'],
   'th.status': ['<b>Town Hall</b> · Level {n} · {a}/{b} crew', '<b>Rathaus</b> · Stufe {n} · {a}/{b} im Trupp'],
   'th.upgradingBody': ['Upgrading… {p}% — a builder is on the way.', 'Ausbau… {p} % — ein Baumeister ist unterwegs.'],
   'th.maxBody': ['Fully upgraded — max crew reached.', 'Voll ausgebaut — maximale Truppgröße erreicht.'],

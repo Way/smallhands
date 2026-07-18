@@ -1403,13 +1403,15 @@ function refreshTouchUi(): void {
   const tp = touchPlace;
   if (tp.end) {
     const plan = game.runPlan(tp.tool, tp.aim.x, tp.aim.y, tp.end.x, tp.end.y);
+    // Anchored on an unlit cell at night, a dark-gated run can't be laid.
+    const dark = game.darkBlocks(tp.tool, tp.aim.x, tp.aim.y);
     hud.showConfirmBar({
       tool: tp.tool,
       cta: confirmCta(tp.tool),
-      hint: t('hud.tapExtend'),
+      hint: dark ? t('hud.tooDark') : t('hud.tapExtend'),
       rows: plan.rows,
       count: { a: plan.affordable, b: plan.cells.length },
-      confirmDisabled: plan.affordable === 0,
+      confirmDisabled: plan.affordable === 0 || dark,
       onConfirm: commitTouchPlace,
       onCancel: () => {
         audio.click();
@@ -1675,8 +1677,12 @@ canvas.addEventListener('pointermove', (e) => {
     hud?.hidePlacementNeeds();
   } else {
     hud?.hideRunCost();
-    if (!dragging && game && running) hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
-    else hud?.hidePlacementNeeds();
+    if (!dragging && game && running) {
+      // Darkness trumps the resource readout: if the ghost is red for being unlit,
+      // say so — otherwise spell out any shortfall.
+      if (game.darkBlocks(hover.tool, hover.tx, hover.ty)) hud?.showDarkNeed(e.clientX, e.clientY);
+      else hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
+    } else hud?.hidePlacementNeeds();
   }
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
@@ -1990,10 +1996,14 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
     return;
   }
   const plan = game.runPlan(tool, ax, ay, ex, ey);
-  // Dig has no tile sprite — preview each cell to be carved as an amber overlay.
+  // A dark-gated run anchored on an unlit cell can't be laid — paint the whole
+  // ghost red so the block reads at a glance (ladders stay exempt).
+  const dark = game.darkBlocks(tool, ax, ay);
+  // Dig has no tile sprite — preview each cell to be carved as an amber overlay
+  // (red when the run is blocked for being too dark).
   if (tool === 'dig') {
-    ctx.fillStyle = 'rgba(230,150,60,0.32)';
-    ctx.strokeStyle = 'rgba(255,170,80,0.9)';
+    ctx.fillStyle = dark ? 'rgba(255,122,107,0.32)' : 'rgba(230,150,60,0.32)';
+    ctx.strokeStyle = dark ? 'rgba(255,122,107,0.9)' : 'rgba(255,170,80,0.9)';
     ctx.lineWidth = 1;
     for (const c of plan.cells) {
       ctx.fillRect(c.x * TILE, c.y * TILE, TILE, TILE);
@@ -2005,7 +2015,7 @@ const runOverlay = (ctx: CanvasRenderingContext2D) => {
   if (!spriteName) return; // only the run tools have a ghost sprite
   const spr = sprite(spriteName).canvas;
   plan.cells.forEach((c, i) => {
-    const affordable = i < plan.affordable;
+    const affordable = !dark && i < plan.affordable;
     ctx.globalAlpha = affordable ? 0.6 : 0.35;
     ctx.drawImage(spr, c.x * TILE, c.y * TILE);
     if (!affordable) {

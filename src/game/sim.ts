@@ -127,6 +127,23 @@ export interface Particle {
   size: number;
 }
 
+// Placements refused on an unlit cell once night takes hold. Lanterns (the light
+// source) and ladders (vertical mobility — see docs/architecture.md) are
+// deliberately absent: both stay buildable in the dark so the player can always
+// push the light frontier and never deadlock a descent. Everything else needs a
+// lit site, so night forces you to run the light out before you can build.
+const NEEDS_LIGHT: ReadonlySet<Tool> = new Set<Tool>([
+  'ramp',
+  'platform',
+  'sawmill',
+  'forge',
+  'workshop',
+  'lift',
+  'rope',
+  'hoist',
+  'dig',
+]);
+
 // ---- the game -------------------------------------------------------------
 
 export class Game {
@@ -353,6 +370,20 @@ export class Game {
     return false;
   }
 
+  // Would placing `tool` aimed at (x, y) be refused right now for being too dark?
+  // Exempt tools (lantern, ladder) never are — see NEEDS_LIGHT. For the rest the
+  // deciding cell is a workshop's footprint bottom-centre, or the aimed/anchor
+  // cell for terrain runs and masts, so callers pass the raw aim and need not
+  // know footprints. Shared by placement, the ghost, and the cursor hints.
+  darkBlocks(tool: Tool, x: number, y: number): boolean {
+    if (!NEEDS_LIGHT.has(tool)) return false;
+    if (tool === 'sawmill' || tool === 'forge' || tool === 'workshop') {
+      const fp = FOOTPRINTS[tool];
+      return !this.isLit(x + Math.floor(fp.w / 2), y + fp.h - 1);
+    }
+    return !this.isLit(x, y);
+  }
+
   roleCount(role: Role): number {
     let n = 0;
     for (const w of this.workers) if (w.role === role) n++;
@@ -505,14 +536,25 @@ export class Game {
     return plan.affordable;
   }
 
+  // Ramps and platforms are horizontal spans — dark-gated at the drag anchor, so
+  // a run can only start from a lit cell at night (ladders stay exempt below).
   placeRampRun(ax: number, ay: number, tx: number, ty: number): number {
+    if (this.darkBlocks('ramp', ax, ay)) {
+      this.onEvent({ type: 'invalid' });
+      return 0;
+    }
     return this.placeRun(this.runPlan('ramp', ax, ay, tx, ty), T.RAMP);
   }
 
   placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
+    if (this.darkBlocks('platform', ax, ay)) {
+      this.onEvent({ type: 'invalid' });
+      return 0;
+    }
     return this.placeRun(this.runPlan('platform', ax, ay, tx, ty), T.PLATFORM);
   }
 
+  // Ladders are exempt from the dark gate (vertical mobility — docs/architecture.md).
   placeLadderRun(ax: number, ay: number, tx: number, ty: number): number {
     return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
   }
@@ -532,6 +574,11 @@ export class Game {
       this.digOrders.delete(anchorIdx);
       this.onEvent({ type: 'demolish' });
       return 1;
+    }
+    // No fresh dig orders in the dark — light the face first (erasing above is fine).
+    if (this.darkBlocks('dig', ax, ay)) {
+      this.onEvent({ type: 'invalid' });
+      return 0;
     }
     const cells = digRunCells(this.world, this.buildings, ax, ay, tx, ty);
     let added = 0;
@@ -560,7 +607,7 @@ export class Game {
     }
     // At night, workshops rise only in the light. Lanterns are the exception —
     // that is how the player pushes the frontier of light outward.
-    if (kind !== 'lantern' && !this.isLit(x + Math.floor(fp.w / 2), y + fp.h - 1)) {
+    if (this.darkBlocks(kind, x, y)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -579,6 +626,10 @@ export class Game {
     }
     // no two lifts sharing a base
     if (this.lifts.some((l) => l.x === x && l.y === y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    if (this.darkBlocks('lift', x, y)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -602,6 +653,10 @@ export class Game {
       this.onEvent({ type: 'invalid' });
       return false;
     }
+    if (this.darkBlocks('rope', x, y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
     this.payCost(def.cost!);
     const b = this.addBuilding('rope', x, y, false);
     b.ropeSide = drop.side;
@@ -620,6 +675,10 @@ export class Game {
       return false;
     }
     if (this.buildings.some((b) => (b.kind === 'rope' || b.kind === 'hoist') && b.x === x && b.y === y)) {
+      this.onEvent({ type: 'invalid' });
+      return false;
+    }
+    if (this.darkBlocks('hoist', x, y)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
