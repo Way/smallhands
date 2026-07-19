@@ -603,6 +603,30 @@ function islandShelf(g) {
   check('strandedItemAt misses an unrelated tile', g.strandedItemAt(gi.x + 5, gi.y) === undefined);
 }
 
+// ---- Producer pause hint reflects state (card #44 follow-up) ----------------
+// The hover hint must read as an action and match the producer's state — pause
+// while running, resume while already paused — and use the click/tap verb the
+// caller passes. The old copy always said "pause", even on a paused producer.
+{
+  const prev = getLang();
+  setLang('en');
+  const pauseEn = t('producer.hintPause', { verb: 'Click' });
+  const resumeEn = t('producer.hintResume', { verb: 'Click' });
+  check('EN pause hint: how to pause via Inspect',
+    pauseEn.includes('Inspect') && /to pause/i.test(pauseEn) && !/to resume/i.test(pauseEn));
+  check('EN resume hint: how to resume via Inspect',
+    resumeEn.includes('Inspect') && /to resume/i.test(resumeEn));
+  check('hint interpolates the click/tap verb',
+    pauseEn.startsWith('Click') && resumeEn.startsWith('Click'));
+  setLang('de');
+  const pauseDe = t('producer.hintPause', { verb: 'anklicken' });
+  const resumeDe = t('producer.hintResume', { verb: 'anklicken' });
+  check('DE pause hint: pausieren + Prüfen + verb',
+    /pausier/i.test(pauseDe) && pauseDe.includes('Prüfen') && pauseDe.includes('anklicken'));
+  check('DE resume hint: fortsetzen', /fortsetzen/i.test(resumeDe));
+  setLang(prev);
+}
+
 {
   // Pausing a producer mid-batch aborts the in-flight batch and refunds its
   // input, so pausing spends zero raw goods (card #44 follow-up: pause must
