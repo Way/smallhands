@@ -603,5 +603,34 @@ function islandShelf(g) {
   check('strandedItemAt misses an unrelated tile', g.strandedItemAt(gi.x + 5, gi.y) === undefined);
 }
 
+{
+  // Pausing a producer mid-batch aborts the in-flight batch and refunds its
+  // input, so pausing spends zero raw goods (card #44 follow-up: pause must
+  // halt IMMEDIATELY, not finish the batch it was already running).
+  const g = new Game(LEVELS[0]);
+  g.workers.length = 0; // isolate: no haulers moving goods in/out of the buffers
+  for (const k in g.stock) g.stock[k] = 0;
+  const saw = g.addBuilding('sawmill', 40, 16, true); // ready sawmill
+  saw.inputs = { log: 2 };
+
+  // start a batch and catch it mid-conversion (recipe time = 3.5s)
+  for (let i = 0; i < 60; i++) g.tick(1 / 60); // 1s
+  check('sawmill runs a batch: one log spent, processing',
+    saw.processing === true && (saw.inputs.log ?? 0) === 1);
+
+  g.toggleProducerPause(saw.id);
+  check('pause aborts the in-flight batch immediately', saw.processing === false);
+  check('pause refunds the in-flight log — 0 raw goods spent', (saw.inputs.log ?? 0) === 2);
+
+  for (let i = 0; i < 60 * 5; i++) g.tick(1 / 60); // 5s paused
+  check('paused: no planks produced and both logs held',
+    (saw.outputs.plank ?? 0) === 0 && (saw.inputs.log ?? 0) === 2);
+
+  g.toggleProducerPause(saw.id); // resume
+  for (let i = 0; i < 60 * 5; i++) g.tick(1 / 60); // 5s running
+  check('resume: conversion restarts (log consumed, planks made)',
+    (saw.inputs.log ?? 0) < 2 && (saw.outputs.plank ?? 0) >= 2);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
