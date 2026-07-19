@@ -140,15 +140,24 @@ In `src/game/sim.ts`, add these methods to the `Game` class (near the hauling he
     return this.groundItems.filter((gi) => gi.stranded);
   }
 
-  // Every sink that would take `item`: the stockpile (always), any ready+unpaused
-  // building whose recipe consumes it, and the caravan if an objective is open.
+  // Every place `item` could EVER be carried (route-existence — NOT the planner's
+  // transient buffer/keep gates; see the design doc's "Accepting sinks" note):
+  // the stockpile (always), any ready+unpaused building whose recipe consumes it,
+  // the caravan if an objective is open, and any ready hoist station (a hoist is
+  // a physical way in/out).
   private acceptingSinkCells(item: ItemType): Set<number> {
     const cells = new Set<number>();
     for (const k of this.thApproach()) cells.add(k);
     for (const b of this.buildings) {
-      if (b.state !== 'ready' || b.paused) continue;
-      if (RECIPES[b.kind]?.inputs[item]) {
+      if (b.state !== 'ready') continue;
+      if (!b.paused && RECIPES[b.kind]?.inputs[item]) {
         for (const k of this.buildingApproach(b)) cells.add(k);
+      }
+      if (b.kind === 'hoist') {
+        // only a car whose per-item route is configured is a real way out —
+        // matches tryAssignHaul (upper↔hoistSendDown, lower↔hoistSendUp)
+        if (b.hoistSendDown[item]) for (const k of this.sinkCells({ t: 'hoist', id: b.id, car: 'upper' }) ?? []) cells.add(k);
+        if (b.hoistSendUp[item]) for (const k of this.sinkCells({ t: 'hoist', id: b.id, car: 'lower' }) ?? []) cells.add(k);
       }
     }
     const goal = this.goal;

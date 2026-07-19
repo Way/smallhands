@@ -34,17 +34,20 @@ Rejected alternatives:
 A ground item is **stranded** iff a loaded hauler could never carry it to any accepting sink. Computed with existing sim primitives:
 
 1. **Pickup cells:** `sourceCells({ t: 'ground', id })` (already exists, `sim.ts:1026`) — the stand-cells from which a hauler grabs the item. Returns `null` when the item is walled in with no standable neighbour → **stranded**.
-2. **Accepting sinks:** the same set `tryAssignHaul` builds for this item (`sim.ts:1076`):
+2. **Accepting sinks:** every place the item could **ever** be carried to (route-existence, *not* the planner's transient here-and-now gates — see note below):
    - the town-hall **stockpile** (`{ t: 'stock' }`, universal fallback sink — every loose item can route to stock via route 3),
-   - any **ready building input** whose recipe consumes the item and isn't already buffered full,
-   - the **goal** if an objective still wants that item (respecting the `keep` floor / surplus rule).
+   - any **ready, unpaused building input** whose recipe consumes the item,
+   - the **goal** if an objective for that item is still open,
+   - a **ready hoist** landing, but only the car whose **per-item routing is configured** for that item — upper car if `hoistSendDown[item]`, lower car if `hoistSendUp[item]`. This matches what haulers actually do: `tryAssignHaul` only loads a car when its route flag is set, and a fresh hoist routes nothing until the player configures it. An unrouted hoist is therefore **not** a way out — an item that can only reach an unrouted hoist is correctly flagged stranded (the player must route the hoist or build a connection).
 
-   Union their cells via existing `sinkCells(...)`.
+   Union their cells via existing `sinkCells(...)` / `hoistStationCells(...)`.
+
+   Deliberately **excluded** are `tryAssignHaul`'s *transient* gates: the building-input buffer cap (`have < need*2`) and the goal `keep`-floor/surplus rule. Those describe whether the planner would route *right now*, not whether a route *exists*. Including them would flash a false "stranded!" on an item whose forge buffer is momentarily full. The one case this trades away — an item whose only reachable sink is a building whose recipe is **permanently** deadlocked (another input never arrives, so its buffer never drains) — is a *production-deadlock* diagnosis, a different feature, out of scope here. (Decision: card #47, route-existence semantics.)
 3. **Carry-leg test:** `findPath(world, transits, pickupCell, sinkCellsUnion, /*carrying*/ true)` from each pickup cell. If **no** carry-route reaches **any** accepting sink → **stranded**.
 
 Properties this gives us for free:
 - Iron next to a forge on its own ledge is **not** flagged (the local building-input sink is reachable).
-- Iron on a shelf with no ladder/ramp/lift out **is** flagged (no accepting sink reachable under a loaded carry) — the exact failure that motivated this.
+- Iron on a shelf with no ramp/lift/bridge out **is** flagged (no accepting sink reachable under a loaded carry) — the exact failure that motivated this. (A ladder would not clear it: loaded haulers can't climb ladders.)
 - Fully walled-in items (no pickup cell) are flagged.
 
 The check ignores hauler position (leg1) and reservations/cooldowns on purpose: strandedness is about whether a route *exists at all*, not whether a hauler is currently free. That's what distinguishes "stuck forever" from "just busy."
