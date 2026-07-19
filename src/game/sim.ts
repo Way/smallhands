@@ -1097,12 +1097,13 @@ export class Game {
     return cells;
   }
 
-  private computeStranded(gi: GroundItem): boolean {
+  // `sinks` is the accepting-sink set for gi.item, passed in so recomputeStranded
+  // can memoize it per ItemType across a pass (identical for all items of a type).
+  private computeStranded(gi: GroundItem, sinks: Set<number>): boolean {
     if (gi.reserved) return false;
+    if (sinks.size === 0) return true; // nothing would ever accept it
     const origins = this.sourceCells({ t: 'ground', id: gi.id });
     if (!origins || origins.size === 0) return true; // no standable pickup cell
-    const sinks = this.acceptingSinkCells(gi.item);
-    if (sinks.size === 0) return true; // nothing would ever accept it
     for (const okey of origins) {
       const ox = okey % this.world.w;
       const oy = (okey - ox) / this.world.w;
@@ -1112,8 +1113,21 @@ export class Game {
   }
 
   private recomputeStranded(): void {
+    // The accepting-sink set depends only on the item TYPE (and world/building
+    // state, which is fixed within a pass), so compute it once per type here
+    // instead of once per item inside computeStranded.
+    const sinkCache = new Map<ItemType, Set<number>>();
     for (const gi of this.groundItems) {
-      gi.stranded = gi.idleFor >= this.STRAND_GRACE && this.computeStranded(gi);
+      if (gi.idleFor < this.STRAND_GRACE) {
+        gi.stranded = false;
+        continue;
+      }
+      let sinks = sinkCache.get(gi.item);
+      if (!sinks) {
+        sinks = this.acceptingSinkCells(gi.item);
+        sinkCache.set(gi.item, sinks);
+      }
+      gi.stranded = this.computeStranded(gi, sinks);
     }
   }
 
