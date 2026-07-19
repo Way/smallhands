@@ -665,6 +665,10 @@ const D: Record<string, [string, string]> = {
   'inspect.idleNeeds': ['Idle · needs {name}', 'Leerlauf · braucht {name}'],
   'inspect.idleReady': ['Idle · ready', 'Leerlauf · bereit'],
   'inspect.paused': ['Paused · stockpiling', 'Pausiert · sammelt an'],
+  'inspect.stranded': [
+    'Stranded — no way to carry this out. Connect it with a ramp, bridge, or lift.',
+    'Gestrandet — kein Abtransport möglich. Verbinde es mit einer Rampe, Brücke oder einem Lift.',
+  ],
   'producer.hint': [
     'Tap with Inspect to pause — hold the conversion and stockpile raw goods.',
     'Mit Prüfen antippen zum Pausieren — Umwandlung anhalten und Rohstoffe sammeln.',

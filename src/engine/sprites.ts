@@ -1067,6 +1067,20 @@ export function buildAtlas(): void {
     'p.......',
   ]);
 
+  // stranded-goods warning glyph: amber disc with a crisp white exclamation
+  // mark — short stem (rows2-3), a 1-row gap (row4), then the dot (row5),
+  // both 2px wide and centered on the 8-wide disc (cols3-4).
+  makeSprite('warn', { a: '#ff9d2e', A: '#ffc061', k: '#5a2f06', w: '#fff4e0' }, [
+    '..AAAA..',
+    '.AaaaaA.',
+    'AaawwaaA',
+    'Aaawwaak',
+    'Aaaaaaak',
+    'Aaawwaak',
+    '.Aaaa.Ak',
+    '..kkkk..',
+  ]);
+
   // tool icons for the toolbar (14x14)
   makeSprite('icon_select', { w: '#e8eef7', k: '#9db0c9' }, [
     'w.............',

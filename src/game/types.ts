@@ -255,6 +255,8 @@ export interface GroundItem {
   y: number;
   reserved: boolean;
   bounce: number; // spawn animation timer
+  stranded: boolean; // cached: no loaded carry-route to any accepting sink
+  idleFor: number; // seconds settled & unreserved (drives the grace period)
 }
 
 export type WorkerState = 'idle' | 'walking' | 'working';

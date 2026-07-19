@@ -165,6 +165,7 @@ export class Renderer {
     ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.scale(cam.zoom, cam.zoom);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
+    this.drawStrandedMarkers(game, timeSec);
     overlay?.(ctx);
     ctx.restore();
   }
@@ -1474,6 +1475,20 @@ export class Renderer {
         ctx.fillStyle = `rgba(255,255,255,${glint * 0.25})`;
         ctx.fillRect(px + 1, py + 1, 6, 6);
       }
+    }
+  }
+
+  // A dropped item a loaded hauler could never carry out (see
+  // Game.strandedGroundItems) gets a pulsing amber "!" above it, drawn in the
+  // post-darkness pass (see draw()) so it still reads over the night veil.
+  private drawStrandedMarkers(game: Game, t: number): void {
+    const stranded = game.strandedGroundItems();
+    if (!stranded.length) return;
+    const { ctx } = this;
+    const spr = sprite('warn').canvas;
+    const bob = this.reduceMotion ? 0 : Math.sin(t * 4) * 1.5;
+    for (const gi of stranded) {
+      ctx.drawImage(spr, gi.x * TILE + 4, (gi.y - 1) * TILE - 2 + bob);
     }
   }
 

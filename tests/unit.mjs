@@ -497,5 +497,111 @@ function findLadderCells(g, count) {
   check('fmtClock wraps past midnight', fmtClock(25) === '01:00');
 }
 
+// ---- Stranded-goods detector ------------------------------------------------
+// A dropped item is "stranded" when a LOADED hauler could never carry it to any
+// accepting sink. We build a fully isolated shelf (an air moat on both sides) so
+// the geometry is deterministic and independent of Level 1's terrain.
+function islandShelf(g) {
+  const W = g.world;
+  const gy = 20; // floor row of the shelf
+  const L = g.townhall.x + 12;
+  const R = L + 6;
+  // air moat from the sky to just above the world floor across L-1..R+1
+  for (let x = L - 1; x <= R + 1; x++) for (let y = 0; y < W.h - 1; y++) W.set(x, y, T.AIR);
+  // a short solid floor for L..R only — nothing can walk or be carried on/off it
+  for (let x = L; x <= R; x++) W.set(x, gy, T.DIRT);
+  return { gy, L, R };
+}
+
+{
+  const g = new Game(LEVELS[0]); // objective is plank; stone is nobody's sink
+  const { gy, L } = islandShelf(g);
+  g.dropItem('stone', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('stone marooned on an island is flagged stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'stone'));
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const { gy, L } = islandShelf(g);
+  // a log with no consumer on the shelf is stranded...
+  g.dropItem('log', L + 4, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60);
+  check('a log with no reachable sink is stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'log'));
+  // ...a ready sawmill on the SAME shelf eats logs, so a local sink is now
+  // reachable without leaving the shelf → no longer stranded.
+  g.addBuilding('sawmill', L + 1, gy - 2, true);
+  for (let i = 0; i < 60 * 2; i++) g.tick(1 / 60);
+  check('a consuming building on the same shelf clears the stranded flag',
+    !g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  // a stone dropped by the town hall reaches the stockpile fine — never stranded
+  g.dropItem('stone', g.townhall.x + 3, g.townhall.y);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60);
+  check('a reachable drop is never flagged stranded',
+    !g.strandedGroundItems().some((gi) => gi.item === 'stone'));
+}
+
+{
+  // Level 10 has hoist unlocked (thLevel 2) with starting stock that already
+  // covers its cost, so no manual stock/thLevel hacking is needed.
+  const g = new Game(LEVELS[9]);
+  const { gy, L } = islandShelf(g);
+  // Anchor the hoist's upper post right on the shelf's edge. placeHoist runs the
+  // real rope-drop validation (a standable cliff edge with a clear >=3-tile fall),
+  // which the shelf's air moat satisfies on both sides — a genuine placement, not
+  // a hand-rolled one.
+  check('hoist placement succeeds on the shelf edge', g.placeHoist(L, gy - 1));
+  const hoist = g.buildings.find((b) => b.kind === 'hoist');
+  hoist.state = 'ready'; // skip the builder-construction step; only READY matters here
+  // The item sits on the shelf at the hoist's UPPER station (b.x, b.y), so
+  // routing the 'upper' car — which sets hoistSendDown, per tryAssignHaul's
+  // ['upper', b.hoistSendDown, ...] mapping — is the shelf's real way out.
+  // This is a genuine reachability flip via the real toggleHoistRoute API,
+  // not a forced/hand-set internal flag.
+  g.toggleHoistRoute(hoist.id, 'upper', 'log');
+  g.dropItem('log', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('an item reachable via a ROUTED ready hoist station is not flagged stranded',
+    !g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
+{
+  // Identical shelf + ready hoist, but never routed: tryAssignHaul would never
+  // load this car for 'log' (hoistSendDown['log'] stays false/undefined), so
+  // the detector must agree the item is genuinely stuck — this is what proves
+  // the routing gate actually gates (an unrouted hoist is not a real exit).
+  const g = new Game(LEVELS[9]);
+  const { gy, L } = islandShelf(g);
+  check('hoist placement succeeds on the shelf edge (unrouted case)', g.placeHoist(L, gy - 1));
+  const hoist = g.buildings.find((b) => b.kind === 'hoist');
+  hoist.state = 'ready'; // skip the builder-construction step; only READY matters here — no route configured
+  g.dropItem('log', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('an item at an UNROUTED ready hoist station is still flagged stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
+{
+  // The `!` glyph is drawn ONE tile ABOVE the item (render.ts drawStrandedMarkers
+  // draws at gi.y - 1), so the hover/tap hit-target must resolve on BOTH the
+  // item's own tile and the glyph's tile above it — otherwise hovering the
+  // visible warning shows no reason and the affordance is inert.
+  const g = new Game(LEVELS[0]);
+  const { gy, L } = islandShelf(g);
+  g.dropItem('stone', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  const gi = g.strandedGroundItems().find((item) => item.item === 'stone');
+  check('a stranded item exists before hit-target checks', !!gi);
+  check('strandedItemAt matches the item\'s own tile', g.strandedItemAt(gi.x, gi.y) === gi);
+  check('strandedItemAt matches the glyph tile one row above', g.strandedItemAt(gi.x, gi.y - 1) === gi);
+  check('strandedItemAt misses an unrelated tile', g.strandedItemAt(gi.x + 5, gi.y) === undefined);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
