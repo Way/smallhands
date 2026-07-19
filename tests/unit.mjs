@@ -587,5 +587,21 @@ function islandShelf(g) {
     g.strandedGroundItems().some((gi) => gi.item === 'log'));
 }
 
+{
+  // The `!` glyph is drawn ONE tile ABOVE the item (render.ts drawStrandedMarkers
+  // draws at gi.y - 1), so the hover/tap hit-target must resolve on BOTH the
+  // item's own tile and the glyph's tile above it — otherwise hovering the
+  // visible warning shows no reason and the affordance is inert.
+  const g = new Game(LEVELS[0]);
+  const { gy, L } = islandShelf(g);
+  g.dropItem('stone', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  const gi = g.strandedGroundItems().find((item) => item.item === 'stone');
+  check('a stranded item exists before hit-target checks', !!gi);
+  check('strandedItemAt matches the item\'s own tile', g.strandedItemAt(gi.x, gi.y) === gi);
+  check('strandedItemAt matches the glyph tile one row above', g.strandedItemAt(gi.x, gi.y - 1) === gi);
+  check('strandedItemAt misses an unrelated tile', g.strandedItemAt(gi.x + 5, gi.y) === undefined);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -842,7 +842,9 @@ export class Game {
   }
 
   strandedItemAt(x: number, y: number): GroundItem | undefined {
-    return this.groundItems.find((gi) => gi.stranded && gi.x === x && gi.y === y);
+    // match the item's own tile OR the tile above it, where the `!` glyph draws
+    // (render.ts drawStrandedMarkers draws the warning sprite at gi.y - 1)
+    return this.groundItems.find((gi) => gi.stranded && gi.x === x && (gi.y === y || gi.y === y + 1));
   }
 
   // ---- items -----------------------------------------------------------------
