@@ -1328,7 +1328,7 @@ interface TouchPlaceState {
 }
 let touchPlace: TouchPlaceState | null = null;
 // tap-to-inspect target, re-rendered each frame so progress/stock stay live
-let touchInspect: { kind: 'b' | 'n'; id: number; cx: number; cy: number } | null = null;
+let touchInspect: { kind: 'b' | 'n' | 'si'; id: number; cx: number; cy: number } | null = null;
 
 function clearTouchPlace(hideBar = true): void {
   touchPlace = null;
@@ -1469,7 +1469,8 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
   const g = game!;
   if (hover.tool === 'select') {
     // tap-to-inspect: everything hover gives mouse users, parked at the tap
-    const b = g.buildingAt(tx, ty);
+    const si = g.strandedItemAt(tx, ty);
+    const b = si ? undefined : g.buildingAt(tx, ty);
     if (b && b.kind === 'townhall') {
       hud!.hideBuildingHint();
       touchInspect = null;
@@ -1488,8 +1489,9 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
       hud!.showProducer(b.id);
       return;
     }
-    const n = b ? undefined : g.nodeAt(tx, ty);
-    if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
+    const n = si || b ? undefined : g.nodeAt(tx, ty);
+    if (si) touchInspect = { kind: 'si', id: si.id, cx: clientX, cy: clientY };
+    else if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
     else if (n) touchInspect = { kind: 'n', id: n.id, cx: clientX, cy: clientY };
     else {
       touchInspect = null;
@@ -1525,7 +1527,14 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
 // dismisses on the next empty tap or tool switch, or when its target vanishes.
 function refreshTouchInspect(): void {
   if (!touchInspect || !game || !hud || !running) return;
-  if (touchInspect.kind === 'b') {
+  if (touchInspect.kind === 'si') {
+    const si = game.groundItems.find((gi) => gi.id === touchInspect!.id);
+    if (si && si.stranded) hud.showStrandedHint(si, touchInspect.cx, touchInspect.cy);
+    else {
+      touchInspect = null;
+      hud.hideBuildingHint();
+    }
+  } else if (touchInspect.kind === 'b') {
     const b = game.buildings.find((bd) => bd.id === touchInspect!.id);
     if (b) hud.showBuildingHint(b, touchInspect.cx, touchInspect.cy);
     else {
@@ -1675,9 +1684,11 @@ canvas.addEventListener('pointermove', (e) => {
   // hover-to-inspect: a live tooltip for any building or resource node under
   // the cursor (Inspect tool only, and not while panning)
   if (!dragging && game && running && hover.tool === 'select') {
-    const b = game.buildingAt(t.x, t.y);
-    const n = b ? undefined : game.nodeAt(t.x, t.y);
-    if (b) hud?.showBuildingHint(b, e.clientX, e.clientY);
+    const si = game.strandedItemAt(t.x, t.y);
+    const b = si ? undefined : game.buildingAt(t.x, t.y);
+    const n = si || b ? undefined : game.nodeAt(t.x, t.y);
+    if (si) hud?.showStrandedHint(si, e.clientX, e.clientY);
+    else if (b) hud?.showBuildingHint(b, e.clientX, e.clientY);
     else if (n) hud?.showNodeHint(n, e.clientX, e.clientY);
     else hud?.hideBuildingHint();
   } else {

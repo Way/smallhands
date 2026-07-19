@@ -16,6 +16,7 @@ import {
 import type {
   Building,
   BuildingKind,
+  GroundItem,
   HoistCar,
   ItemType,
   Recipe,
@@ -807,6 +808,19 @@ export class Hud {
         const need = BUILD_TIME[b.kind] ?? 5;
         el('div', 'tt-desc', tip).textContent = t('inspect.buildingPct', { p: Math.floor((b.progress / need) * 100) });
       } else this.fillBuildingHint(tip, b);
+    }
+    this.positionHint(tip, clientX, clientY);
+  }
+
+  // Hover/tap-to-inspect for a stranded ground item — explains the warning glyph.
+  showStrandedHint(gi: GroundItem, clientX: number, clientY: number): void {
+    const sig = ['stranded', gi.id].join('|');
+    const tip = this.ensureHint();
+    if (sig !== this.hintSig) {
+      this.hintSig = sig;
+      tip.innerHTML = '';
+      el('div', undefined, tip).innerHTML = `<b>${t(`item.${gi.item}`)}</b>`;
+      el('div', 'tt-desc', tip).textContent = t('inspect.stranded');
     }
     this.positionHint(tip, clientX, clientY);
   }

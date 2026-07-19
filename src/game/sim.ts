@@ -841,6 +841,10 @@ export class Game {
     });
   }
 
+  strandedItemAt(x: number, y: number): GroundItem | undefined {
+    return this.groundItems.find((gi) => gi.stranded && gi.x === x && gi.y === y);
+  }
+
   // ---- items -----------------------------------------------------------------
 
   // `src` is a cosmetic hint only: where the item visually comes from (a tree's
