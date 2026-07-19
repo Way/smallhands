@@ -1470,25 +1470,26 @@ function touchTap(tx: number, ty: number, clientX: number, clientY: number): voi
   if (hover.tool === 'select') {
     // tap-to-inspect: everything hover gives mouse users, parked at the tap
     const si = g.strandedItemAt(tx, ty);
-    const b = si ? undefined : g.buildingAt(tx, ty);
-    if (b && b.kind === 'townhall') {
+    const bAny = g.buildingAt(tx, ty); // ungated — drives the direct-open shortcuts below
+    if (bAny && bAny.kind === 'townhall') {
       hud!.hideBuildingHint();
       touchInspect = null;
       hud!.showTownhall();
       return;
     }
-    if (b && b.kind === 'hoist' && b.state === 'ready') {
+    if (bAny && bAny.kind === 'hoist' && bAny.state === 'ready') {
       hud!.hideBuildingHint();
       touchInspect = null;
-      hud!.showHoist(b.id);
+      hud!.showHoist(bAny.id);
       return;
     }
-    if (b && isProducer(b) && b.state === 'ready') {
+    if (bAny && isProducer(bAny) && bAny.state === 'ready') {
       hud!.hideBuildingHint();
       touchInspect = null;
-      hud!.showProducer(b.id);
+      hud!.showProducer(bAny.id);
       return;
     }
+    const b = si ? undefined : bAny; // si-gated — only for the touchInspect hint fallback
     const n = si || b ? undefined : g.nodeAt(tx, ty);
     if (si) touchInspect = { kind: 'si', id: si.id, cx: clientX, cy: clientY };
     else if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
