@@ -1,7 +1,8 @@
 // Campaign 4 solvability proof: plays the new Shaft & Seam levels (14–16)
 // headlessly with a scripted player — sink shafts, carve tunnels, hang lifts
 // and hoists off the player's own excavations — and fails unless the
-// simulation reaches the win state. Level 13 is covered by digging.mjs.
+// simulation reaches the win state. Level 13 is covered by digging.mjs, and
+// Level 17 (the living-clock vale) rides along at the end of this file.
 import { bundleExports } from './bundle.mjs';
 
 const { Game, LEVELS, T, t } = await bundleExports(`
@@ -186,6 +187,22 @@ const lanternReady = (x, y) => (g) =>
       },
     ],
     1700
+  );
+  report(def, g);
+}
+
+// ---- Level 17: The Waning Light — harvest the near vale before dark ------------
+{
+  const def = byId(17);
+  const g = runLevel(
+    def,
+    [
+      // work the near + mid ground (west of the far shelf) — enough timber and
+      // stone to fill plank 6 / stone 4 without racing all the way east into dark
+      { name: 'mark the near vale', when: () => true, do: (g) => { for (const n of g.nodes) if (n.x < 48) n.marked = true; } },
+      { name: 'sawmill in the vale', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 16, 19) },
+    ],
+    900
   );
   report(def, g);
 }
