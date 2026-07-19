@@ -15,6 +15,7 @@
     "test:terrain": "node tests/terrain.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:hoist": "node tests/hoist.mjs",
+    "test:campaign1": "node tests/campaign1.mjs",
     "test:campaign2": "node tests/campaign2.mjs",
     "test:campaign3": "node tests/campaign3.mjs",
     "test:campaign4": "node tests/campaign4.mjs",

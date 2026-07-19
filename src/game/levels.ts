@@ -217,8 +217,8 @@ export const LEVELS: LevelDef[] = [
       { item: 'stone', amount: 8 },
     ],
     medals: { gold: 360, silver: 510, bronze: 720 },
-    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'lift', 'demolish'],
-    startStock: { log: 6, plank: 4, stone: 2 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
+    startStock: { log: 6, plank: 6, stone: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
     startThLevel: 1,
@@ -227,7 +227,7 @@ export const LEVELS: LevelDef[] = [
         g,
         runs([
           [9, 26],
-          [5, 12], // the deep pit (5 tiles down — a safe hop for empty hands)
+          [5, 12], // the deep pit (5 tiles down — ramp a way in, then carry the iron back up)
           [10, 8],
           [9, 14],
           [8, 12],
@@ -296,8 +296,7 @@ export const LEVELS: LevelDef[] = [
       terrain(
         g,
         runs([
-          [8, 18], // base camp
-          [9, 4],
+          [8, 22], // base camp — flat to the terrace wall so the mill sits by the stock
           [14, 16], // first terrace
           [15, 4],
           [20, 14], // second terrace
@@ -944,9 +943,9 @@ export const LEVELS: LevelDef[] = [
       // Level 13 taught digging where every haul ran flat or downhill. This one
       // inverts it: the seam is buried, the caravan loads on the SURFACE — so
       // the iron must ride UP. The trick: a Cargo Lift built on the shaft floor
-      // uses the player's own shaft as its mast. Empty hands hop down (4 tiles,
-      // a safe fall) until the finished lift's head-frame decks over the well —
-      // then a ladder run down the shaft, beside the mast, is the climb back.
+      // uses the player's own shaft as its mast — and a ladder run down the
+      // shaft, beside the mast, carries empty hands to the seam and back (no free
+      // fall down the well any more, #48); the lift rides the iron up.
       terrain(g, runs([[7, 56]])); // surface row 19; rock 22-24, bedrock 25
       townhall(g, 3);
       goal(g, 48);

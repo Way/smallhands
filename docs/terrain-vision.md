@@ -15,8 +15,9 @@ grammar of the whole game and the new terrain must be designed *around* them:
 | Move | Empty hands | Carrying cargo |
 | --- | --- | --- |
 | Step **up** 1 tile (the little hop) | ✅ | ✅ |
-| Step up ≥ 2 tiles | ❌ (ladder/lift) | ❌ (lift/ramp only) |
-| Drop down | ≤ 5 tiles | ≤ 2 tiles |
+| Step up ≥ 2 tiles | ❌ (ladder/ramp/lift) | ❌ (ramp/lift) |
+| Step **down** 1 tile | ✅ | ✅ |
+| Drop down ≥ 2 tiles | ❌ (ladder/ramp/rope) | ❌ (ramp/rope) |
 | Ladders | ✅ | ❌ (the ladder rule) |
 
 Two consequences that shape everything:
@@ -24,9 +25,11 @@ Two consequences that shape everything:
 1. **A 1-tile step is free, in both directions, for everyone.** It is not a
    puzzle element at all — which means we can use it *as terrain texture*
    without touching solvability.
-2. **The puzzle "wall" begins at exactly 2 tiles up** (cargo) and 2–5 down
-   (asymmetry). Any elevation change of ≥ 2 up is a deliberate design
-   statement, never decoration.
+2. **The puzzle "wall" begins at exactly 2 tiles, up _or_ down, for everyone**
+   (card #48 made descent symmetric with ascent — there is no more free
+   multi-tile fall). Any elevation change of ≥ 2 is a deliberate design
+   statement, never decoration. Cargo down a ≥ 2 drop rides a ramp or a rope;
+   empty hands can also take a ladder.
 
 There is a third, subtler contract: `liftTopFor` requires a **clean vertical
 solid face of ≥ 3 tiles** beside the mast column, and `ropeDropFor` requires a

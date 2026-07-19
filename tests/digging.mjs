@@ -143,6 +143,9 @@ const run = (g, secs, dt = 1 / 60) => { for (let i = 0; i < secs / dt; i++) g.ti
     { done: false, when: () => true, do: () => g.placeBuilding('workshop', 21, 14) },
     { done: false, when: () => g.stock.shovel >= 1 || g.equippedDiggers() >= 1, do: () => g.paintDigRun(30, 16, 30, 19) },
     { done: false, when: () => air(30, 19), do: () => g.paintDigRun(31, 19, 37, 19) },
+    // ladder the shaft so empty miners can climb down to the seam — no free hop
+    // down a 4-tile shaft any more (#48). The dug column reads as rock-walled air.
+    { done: false, when: () => air(30, 19), do: () => g.placeLadderRun(30, 16, 30, 19) },
     { done: false, when: () => air(34, 19), do: () => g.toggleMark(34, 19) },
   ];
   let t = 0; const dt = 1 / 30;

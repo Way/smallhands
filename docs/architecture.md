@@ -40,3 +40,11 @@ and gap-spanning ramps become chicken-and-egg, multiplying the vertical-level de
 (see the ladder-cost / plank-fallback rule). If labor cost on vertical mobility is ever
 desired, use the dig-order model (not blueprint) and gate only *horizontal* spans, keeping
 vertical ladders instant.
+
+**Descent is now a build problem too (card #48).** The free empty-hand "hop down up to 5
+tiles" is gone: `MAX_FALL` and `MAX_FALL_CARRY` are both `1`, so anyone steps down a single
+tile for free but a deeper drop needs a Ladder (empty), a Ramp (either) or a Rope (cargo
+down) — the mirror of the climb rules. This works *precisely because* ladders and ramps stay
+instant terrain (model 1): the player drags a descending ladder/ramp down from the rim, so
+there is no builder-reachability chicken-and-egg. See the movement contract table in
+`docs/terrain-vision.md`.

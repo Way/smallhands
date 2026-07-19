@@ -188,8 +188,8 @@ const D: Record<string, [string, string]> = {
     'In einer alten Grube wartet Eisen. Baue das Rathaus aus und schmiede Speere für die Garnison.',
   ],
   'lvl3.hint.pit': [
-    'Iron veins glitter in <b>the pit</b>. Empty-handed smallhands can hop down safely (up to 5 tiles) — but hauling iron out again is the real puzzle. Plan your lift money!',
-    'In <b>der Grube</b> glitzern Eisenadern. Mit leeren Händen springen Smallhands sicher hinab (bis zu 5 Felder) — aber das Eisen wieder herauszuschaffen ist das eigentliche Rätsel. Plane dein Aufzugs-Budget!',
+    'Iron veins glitter in <b>the pit</b>. Empty hands only step down one tile now — <b>ramp a way in</b>, and the same ramp carries the iron back up.',
+    'In <b>der Grube</b> glitzern Eisenadern. Leere Hände steigen nur noch ein Feld hinab — <b>baue eine Rampe hinein</b>, und dieselbe Rampe trägt das Eisen wieder heraus.',
   ],
   'lvl3.hint.reserve': [
     'Stone fills the order <b>and</b> builds your Cargo Lift and Forge. Click the <b>stone counter</b> up top to <b>keep some back</b> before it all ships out.',
@@ -392,8 +392,8 @@ const D: Record<string, [string, string]> = {
     'Tippe den Aufzug mit <b>Prüfen</b> an und wähle, was <b>hinabfahren</b> soll — ein beladener oberer Korb braucht kein Gegengewicht; abwärts ist frei.',
   ],
   'lvl10.hint.hop': [
-    'Empty-handed smallhands simply hop down short cliffs. Someone should wait below to carry the goods to the caravan.',
-    'Smallhands mit leeren Händen hüpfen kurze Klippen einfach hinab. Unten sollte jemand warten, der die Waren zur Karawane trägt.',
+    'A whole cliff is too far to leap now — run a <b>ladder</b> down beside the wheel so a hand can reach the valley and carry the goods to the caravan.',
+    'Eine ganze Klippe ist jetzt zu weit zum Springen — setze eine <b>Leiter</b> neben das Rad, damit eine Hand ins Tal gelangt und die Waren zur Karawane trägt.',
   ],
   'lvl11.name': ['Ballast Ridge', 'Ballastgrat'],
   'lvl11.desc': [
@@ -448,8 +448,8 @@ const D: Record<string, [string, string]> = {
     'Die Ader schläft tief unter der Wiese — und die Karawane lädt oben. Schick das Eisen deinen eigenen Schacht hinauf.',
   ],
   'lvl14.hint.well': [
-    'The veins run <b>deep below the meadow</b>. Drag the <b>Dig</b> tool straight down to sink a shaft, then sideways along the seam — empty hands hop down unharmed, and your digger already carries a shovel.',
-    'Die Adern liegen <b>tief unter der Wiese</b>. Ziehe das <b>Grab</b>-Werkzeug senkrecht hinab für einen Schacht, dann seitwärts der Ader entlang — leere Hände hüpfen unversehrt hinab, und dein Gräber trägt schon einen Spaten.',
+    'The veins run <b>deep below the meadow</b>. Drag the <b>Dig</b> tool straight down to sink a shaft, then sideways along the seam — your digger sinks with the shaft as it digs, and already carries a shovel.',
+    'Die Adern liegen <b>tief unter der Wiese</b>. Ziehe das <b>Grab</b>-Werkzeug senkrecht hinab für einen Schacht, dann seitwärts der Ader entlang — dein Gräber sinkt mit dem Schacht, während er gräbt, und trägt schon einen Spaten.',
   ],
   'lvl14.hint.liftup': [
     'Iron is piling up in the dark — and <b>loaded smallhands cannot climb ladders</b>. Build a <b>Cargo Lift</b> on the shaft floor: your shaft is its mast.',
