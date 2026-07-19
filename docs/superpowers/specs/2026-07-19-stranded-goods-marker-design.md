@@ -65,7 +65,8 @@ The check ignores hauler position (leg1) and reservations/cooldowns on purpose: 
 ## Interaction / the reason
 
 - Hover (desktop) or tap (touch) a stranded item's glyph → a one-line reason surfaced through the existing tooltip/tap-panel surface in `ui.ts`.
-- Copy: **EN** "Stranded — no way to carry this out. Add a ladder, ramp, or lift to connect it." / **DE** "Gestrandet — kein Weg, es abzutransportieren. Baue eine Leiter, Rampe oder einen Lift." (final DE wording to confirm during implementation).
+- Copy: **EN** "Stranded — no way to carry this out. Connect it with a ramp, bridge, or lift." / **DE** "Gestrandet — kein Abtransport möglich. Verbinde es mit einer Rampe, Brücke oder einem Lift."
+- Copy note: deliberately **not** "ladder" — a loaded hauler cannot climb a ladder (`nav.ts:138`); loads ascend only via ramp step-ups / a cargo lift, cross gaps via a bridge/platform, and descend via fall / rope anchor.
 - If the tooltip is driven by a signature string (the `buildingHintSig`/`producerSig` pattern), the stranded state must be part of that signature so an open tooltip refreshes when an item becomes/stops-being stranded.
 
 ## Testing
