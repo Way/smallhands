@@ -497,5 +497,55 @@ function findLadderCells(g, count) {
   check('fmtClock wraps past midnight', fmtClock(25) === '01:00');
 }
 
+// ---- Stranded-goods detector ------------------------------------------------
+// A dropped item is "stranded" when a LOADED hauler could never carry it to any
+// accepting sink. We build a fully isolated shelf (an air moat on both sides) so
+// the geometry is deterministic and independent of Level 1's terrain.
+function islandShelf(g) {
+  const W = g.world;
+  const gy = 20; // floor row of the shelf
+  const L = g.townhall.x + 12;
+  const R = L + 6;
+  // air moat from the sky to just above the world floor across L-1..R+1
+  for (let x = L - 1; x <= R + 1; x++) for (let y = 0; y < W.h - 1; y++) W.set(x, y, T.AIR);
+  // a short solid floor for L..R only — nothing can walk or be carried on/off it
+  for (let x = L; x <= R; x++) W.set(x, gy, T.DIRT);
+  return { gy, L, R };
+}
+
+{
+  const g = new Game(LEVELS[0]); // objective is plank; stone is nobody's sink
+  const { gy, L } = islandShelf(g);
+  g.dropItem('stone', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('stone marooned on an island is flagged stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'stone'));
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const { gy, L } = islandShelf(g);
+  // a log with no consumer on the shelf is stranded...
+  g.dropItem('log', L + 4, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60);
+  check('a log with no reachable sink is stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'log'));
+  // ...a ready sawmill on the SAME shelf eats logs, so a local sink is now
+  // reachable without leaving the shelf → no longer stranded.
+  g.addBuilding('sawmill', L + 1, gy - 2, true);
+  for (let i = 0; i < 60 * 2; i++) g.tick(1 / 60);
+  check('a consuming building on the same shelf clears the stranded flag',
+    !g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  // a stone dropped by the town hall reaches the stockpile fine — never stranded
+  g.dropItem('stone', g.townhall.x + 3, g.townhall.y);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60);
+  check('a reachable drop is never flagged stranded',
+    !g.strandedGroundItems().some((gi) => gi.item === 'stone'));
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -205,6 +205,7 @@ export class Game {
   private schedTimer = 0;
   private hintsShown = new Set<string>();
   private hintTimer = 0;
+  private strandTimer = 0;
 
   onEvent: (e: GameEvent) => void = () => {};
 
@@ -861,7 +862,7 @@ export class Game {
       }
       spot = { x, y };
     }
-    const gi: GroundItem = { id: this.id(), item, x: spot.x, y: spot.y, reserved: false, bounce: 0.4 };
+    const gi: GroundItem = { id: this.id(), item, x: spot.x, y: spot.y, reserved: false, bounce: 0.4, stranded: false, idleFor: 0 };
     this.groundItems.push(gi);
     this.lookEvents.push({
       kind: 'item-flight',
@@ -1045,6 +1046,56 @@ export class Game {
     if (!b) return null;
     if (s.t === 'hoist') return this.hoistStationCells(b, s.car);
     return this.buildingApproach(b);
+  }
+
+  // --- stranded-goods detection --------------------------------------------
+  // A dropped item is "stranded" when a LOADED hauler could never carry it to a
+  // sink that would accept it. Reuses the exact reachability the hauler planner
+  // uses (sourceCells / sinkCells / findPath carrying=true) so the marker can
+  // never disagree with what haulers actually do. Diagnosis only — see
+  // docs/superpowers/specs/2026-07-19-stranded-goods-marker-design.md.
+  private readonly STRAND_GRACE = 3; // seconds settled+unreserved before flagging
+
+  strandedGroundItems(): GroundItem[] {
+    return this.groundItems.filter((gi) => gi.stranded);
+  }
+
+  // Every sink that would take `item`: the stockpile (always), any ready+unpaused
+  // building whose recipe consumes it, and the caravan if an objective is open.
+  private acceptingSinkCells(item: ItemType): Set<number> {
+    const cells = new Set<number>();
+    for (const k of this.thApproach()) cells.add(k);
+    for (const b of this.buildings) {
+      if (b.state !== 'ready' || b.paused) continue;
+      if (RECIPES[b.kind]?.inputs[item]) {
+        for (const k of this.buildingApproach(b)) cells.add(k);
+      }
+    }
+    const goal = this.goal;
+    if (goal && this.objectives.some((o) => o.item === item && o.delivered + o.inbound < o.amount)) {
+      for (const k of this.sinkCells({ t: 'goal', id: goal.id }) ?? []) cells.add(k);
+    }
+    return cells;
+  }
+
+  private computeStranded(gi: GroundItem): boolean {
+    if (gi.reserved) return false;
+    const origins = this.sourceCells({ t: 'ground', id: gi.id });
+    if (!origins || origins.size === 0) return true; // no standable pickup cell
+    const sinks = this.acceptingSinkCells(gi.item);
+    if (sinks.size === 0) return true; // nothing would ever accept it
+    for (const okey of origins) {
+      const ox = okey % this.world.w;
+      const oy = (okey - ox) / this.world.w;
+      if (findPath(this.world, this.transits, ox, oy, sinks, true)) return false;
+    }
+    return true; // no loaded carry-route to any sink
+  }
+
+  private recomputeStranded(): void {
+    for (const gi of this.groundItems) {
+      gi.stranded = gi.idleFor >= this.STRAND_GRACE && this.computeStranded(gi);
+    }
   }
 
   // Where a worker can load a hoist car: the upper car is served from the
@@ -2056,6 +2107,14 @@ export class Game {
 
     for (const gi of this.groundItems) {
       if (gi.bounce > 0) gi.bounce -= dt;
+      if (gi.reserved || gi.bounce > 0) gi.idleFor = 0;
+      else gi.idleFor += dt;
+    }
+
+    this.strandTimer -= dt;
+    if (this.strandTimer <= 0) {
+      this.recomputeStranded();
+      this.strandTimer = 0.5;
     }
     for (const n of this.nodes) {
       if (n.wobble > 0) n.wobble -= dt;
