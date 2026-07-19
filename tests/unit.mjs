@@ -547,5 +547,25 @@ function islandShelf(g) {
     !g.strandedGroundItems().some((gi) => gi.item === 'stone'));
 }
 
+{
+  // Level 10 has hoist unlocked (thLevel 2) with starting stock that already
+  // covers its cost, so no manual stock/thLevel hacking is needed.
+  const g = new Game(LEVELS[9]);
+  const { gy, L } = islandShelf(g);
+  // Anchor the hoist's upper post right on the shelf's edge. placeHoist runs the
+  // real rope-drop validation (a standable cliff edge with a clear >=3-tile fall),
+  // which the shelf's air moat satisfies on both sides — a genuine placement, not
+  // a hand-rolled one.
+  check('hoist placement succeeds on the shelf edge', g.placeHoist(L, gy - 1));
+  const hoist = g.buildings.find((b) => b.kind === 'hoist');
+  hoist.state = 'ready'; // skip the builder-construction step; only READY matters here
+  // a log with no consumer AND no hoist would be stranded (see the earlier case) —
+  // here the shelf's only exit is the ready hoist's upper station.
+  g.dropItem('log', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('an item reachable only via a ready hoist station is not flagged stranded',
+    !g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
