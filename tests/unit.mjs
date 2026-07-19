@@ -603,5 +603,49 @@ function islandShelf(g) {
   check('strandedItemAt misses an unrelated tile', g.strandedItemAt(gi.x + 5, gi.y) === undefined);
 }
 
+// ---- Locate-on-map resolver -------------------------------------------------
+// A helper to build a ResourceNode literal (all fields required by the type).
+function node(id, kind, x, y) {
+  return { id, kind, x, y, yieldLeft: 4, marked: false, workerId: null, wobble: 0 };
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0; // deterministic: only the two veins we place
+  g.nodes.push(node(9001, 'vein', th.x + 3, th.y));
+  g.nodes.push(node(9002, 'vein', th.x + 12, th.y));
+  const r = g.locateItem('iron');
+  check('locateItem(iron) points at the nearest vein',
+    !!r && r.kind === 'node' && r.x === th.x + 3 && r.y === th.y);
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.addBuilding('forge', th.x + 5, th.y, true); // ready forge produces spear
+  const r = g.locateItem('spear');
+  check('locateItem(spear) points at the forge that makes it',
+    !!r && r.kind === 'building' && r.x === th.x + 5 && r.y === th.y);
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.buildings = g.buildings.filter((b) => b.kind !== 'sawmill'); // no plank producer
+  g.nodes.length = 0;
+  g.nodes.push(node(9101, 'tree', th.x + 4, th.y)); // logs come from here
+  const r = g.locateItem('plank');
+  check('locateItem(plank) with no sawmill points at a log source (input)',
+    !!r && r.kind === 'input' && r.x === th.x + 4 && r.y === th.y);
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  g.nodes.length = 0; // no veins; iron is not craftable
+  const r = g.locateItem('iron');
+  check('locateItem(iron) with no vein and no producer returns null', r === null);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
