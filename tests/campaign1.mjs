@@ -103,15 +103,16 @@ const mark = (pred = () => true) => (g) => {
     def,
     [
       { name: 'mark everything', when: () => true, do: mark() },
-      // bank plank + stone so the caravan can't drain the town-hall/forge/lift bill
-      { name: 'bank materials', when: () => true, do: (g) => { g.setKeep('plank', 16); g.setKeep('stone', 14); } },
+      // bank plank + stone so the caravan can't drain the town-hall/forge/ramp bill
+      { name: 'bank materials', when: () => true, do: (g) => { g.setKeep('plank', 12); g.setKeep('stone', 14); } },
+      // ramp down into the pit — empty miners walk in, and the iron rides back
+      // UP the same ramp (no more free hop down; #48)
+      { name: 'ramp into the pit', when: (g) => g.stock.plank >= 3, do: (g) => g.placeRampRun(26, 24, 28, 26) === 3 },
       { name: 'sawmill on the rim', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 11, 21) },
       { name: 'upgrade the town hall', when: (g) => g.stock.plank >= 8 && g.stock.stone >= 6, do: (g) => g.startThUpgrade() },
       { name: 'forge on the rim', when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4, do: (g) => g.placeBuilding('forge', 15, 21) },
-      // lift the mined iron up the pit's west wall to the rim
-      { name: 'lift out of the pit', when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 2, do: (g) => g.placeLift(26, 26) },
       // keep a small plank reserve to feed the forge, then release once spears flow
-      { name: 'trim the reserve', when: (g) => g.lifts.length > 0 && g.buildings.some((b) => b.kind === 'forge'), do: (g) => { g.setKeep('plank', 4); g.setKeep('stone', 0); } },
+      { name: 'trim the reserve', when: (g) => g.buildings.some((b) => b.kind === 'forge'), do: (g) => { g.setKeep('plank', 4); g.setKeep('stone', 0); } },
       { name: 'release the order', when: (g) => (g.objectives.find((o) => o.item === 'spear')?.delivered ?? 0) >= 4, do: (g) => g.setKeep('plank', 0) },
     ],
     1500
@@ -127,10 +128,10 @@ const mark = (pred = () => true) => (g) => {
     [
       { name: 'mark everything', when: () => true, do: mark() },
       { name: 'bank materials', when: () => true, do: (g) => { g.setKeep('plank', 20); g.setKeep('stone', 12); } },
-      { name: 'sawmill on the h9 strip', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 19, 25) },
-      { name: 'ramp: base -> terrace 1', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(21, 22, 17, 26) === 5 },
-      { name: 'ramp: terrace 1 -> terrace 2', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(41, 16, 37, 20) === 5 },
-      { name: 'ramp: terrace 2 -> summit', when: (g) => g.stock.plank >= 5, do: (g) => g.placeRampRun(59, 10, 55, 14) === 5 },
+      { name: 'sawmill by the stock', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 18, 26) },
+      { name: 'ramp: base -> terrace 1', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(21, 22, 16, 27) === 6 },
+      { name: 'ramp: terrace 1 -> terrace 2', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(41, 16, 36, 21) === 6 },
+      { name: 'ramp: terrace 2 -> summit', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(59, 10, 54, 15) === 6 },
       { name: 'upgrade the town hall', when: (g) => g.stock.plank >= 8 && g.stock.stone >= 6, do: (g) => g.startThUpgrade() },
       { name: 'forge on terrace 2', when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4, do: (g) => g.placeBuilding('forge', 42, 14) },
       { name: 'trim the reserve', when: (g) => g.buildings.some((b) => b.kind === 'forge'), do: (g) => { g.setKeep('plank', 4); g.setKeep('stone', 0); } },

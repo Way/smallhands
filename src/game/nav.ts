@@ -5,7 +5,7 @@ import type { World } from './world';
 // Movement graph search. The graph differs depending on whether the
 // smallhand is carrying goods:
 //   - carrying workers cannot climb ladders
-//   - carrying workers cannot drop off a ledge at all (MAX_FALL_CARRY = 0)
+//   - carrying workers only dare a single-tile drop (MAX_FALL_CARRY = 1)
 //   - cargo lifts move workers (and their cargo) upward only
 //   - rope anchors slide workers (and their cargo) downward only
 //
@@ -122,9 +122,9 @@ export function findPath(
       ) {
         consider(nx, y - 1, 'walk', 1.4);
       }
-      // Walk off the edge and fall, up to maxFall tiles. Empty hands manage a
-      // single step down (maxFall 1); a loaded hauler can't fall at all
-      // (maxFall 0) and must take a ramp or rope instead.
+      // Walk off the edge and fall, up to maxFall tiles — a single step for
+      // everyone now (maxFall 1, empty or loaded). A deeper drop needs a ladder
+      // (empty), a ramp (either) or a rope (cargo down).
       if (world.isPassable(nx, y) && !world.isStandable(nx, y)) {
         let fy = y;
         let ok = true;

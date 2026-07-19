@@ -442,8 +442,8 @@ function floodPassable(world: World, sx: number, sy: number): Set<number> {
 // builds whatever helps: platforms bridging any air corridor that starts at
 // a standable cell, cargo lifts on every valid cliff face, and rope anchors
 // on every valid cliff edge (cargo may slide DOWN ropes).
-// Carrying rules still apply: no ladders, and (card #48) no free drop at all —
-// every carried descent must ride a ramp, a rope or a platform.
+// Carrying rules still apply: no ladders, and (card #48) at most a single-tile
+// drop — every deeper carried descent must ride a ramp, a rope or a platform.
 function cargoReach(world: World, sx: number, sy: number): Set<number> {
   const start = settle(world, sx, sy);
   const seen = new Set<number>();

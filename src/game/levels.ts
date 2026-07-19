@@ -217,8 +217,8 @@ export const LEVELS: LevelDef[] = [
       { item: 'stone', amount: 8 },
     ],
     medals: { gold: 360, silver: 510, bronze: 720 },
-    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'lift', 'demolish'],
-    startStock: { log: 6, plank: 4, stone: 2 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
+    startStock: { log: 6, plank: 6, stone: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
     startThLevel: 1,
@@ -227,7 +227,7 @@ export const LEVELS: LevelDef[] = [
         g,
         runs([
           [9, 26],
-          [5, 12], // the deep pit (5 tiles down — a safe hop for empty hands)
+          [5, 12], // the deep pit (5 tiles down — ramp a way in, then carry the iron back up)
           [10, 8],
           [9, 14],
           [8, 12],
@@ -296,8 +296,7 @@ export const LEVELS: LevelDef[] = [
       terrain(
         g,
         runs([
-          [8, 18], // base camp
-          [9, 4],
+          [8, 22], // base camp — flat to the terrace wall so the mill sits by the stock
           [14, 16], // first terrace
           [15, 4],
           [20, 14], // second terrace
