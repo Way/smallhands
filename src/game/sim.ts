@@ -1063,9 +1063,11 @@ export class Game {
   // Every place `item` could EVER be carried (route-existence — NOT the planner's
   // transient buffer/keep gates; see the design doc's "Accepting sinks" note):
   // the stockpile (always), any ready+unpaused building whose recipe consumes it,
-  // the caravan if an objective is open, and any ready hoist station (a hoist is
-  // a physical way in/out). Deliberately excluded: a building-input buffer being
-  // full, and the goal's keep-floor — both are transient/planner-side gates, not
+  // the caravan if an objective is open, and a ready hoist's car — but ONLY the
+  // car whose per-item route is actually configured (a hoist is a physical way
+  // in/out only for the item(s) it's been told to move; an unrouted car is not
+  // a real exit). Deliberately excluded: a building-input buffer being full,
+  // and the goal's keep-floor — both are transient/planner-side gates, not
   // evidence the item can never leave, so including them would false-positive.
   private acceptingSinkCells(item: ItemType): Set<number> {
     const cells = new Set<number>();
@@ -1076,9 +1078,10 @@ export class Game {
         for (const k of this.buildingApproach(b)) cells.add(k);
       }
       if (b.kind === 'hoist') {
-        for (const car of ['upper', 'lower'] as const) {
-          for (const k of this.sinkCells({ t: 'hoist', id: b.id, car }) ?? []) cells.add(k);
-        }
+        // only a car whose per-item route is configured is a real way out —
+        // matches tryAssignHaul (upper↔hoistSendDown, lower↔hoistSendUp)
+        if (b.hoistSendDown[item]) for (const k of this.sinkCells({ t: 'hoist', id: b.id, car: 'upper' }) ?? []) cells.add(k);
+        if (b.hoistSendUp[item]) for (const k of this.sinkCells({ t: 'hoist', id: b.id, car: 'lower' }) ?? []) cells.add(k);
       }
     }
     const goal = this.goal;

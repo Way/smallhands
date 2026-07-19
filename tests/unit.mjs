@@ -559,12 +559,32 @@ function islandShelf(g) {
   check('hoist placement succeeds on the shelf edge', g.placeHoist(L, gy - 1));
   const hoist = g.buildings.find((b) => b.kind === 'hoist');
   hoist.state = 'ready'; // skip the builder-construction step; only READY matters here
-  // a log with no consumer AND no hoist would be stranded (see the earlier case) —
-  // here the shelf's only exit is the ready hoist's upper station.
+  // The item sits on the shelf at the hoist's UPPER station (b.x, b.y), so
+  // routing the 'upper' car — which sets hoistSendDown, per tryAssignHaul's
+  // ['upper', b.hoistSendDown, ...] mapping — is the shelf's real way out.
+  // This is a genuine reachability flip via the real toggleHoistRoute API,
+  // not a forced/hand-set internal flag.
+  g.toggleHoistRoute(hoist.id, 'upper', 'log');
   g.dropItem('log', L + 3, gy - 1);
   for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
-  check('an item reachable only via a ready hoist station is not flagged stranded',
+  check('an item reachable via a ROUTED ready hoist station is not flagged stranded',
     !g.strandedGroundItems().some((gi) => gi.item === 'log'));
+}
+
+{
+  // Identical shelf + ready hoist, but never routed: tryAssignHaul would never
+  // load this car for 'log' (hoistSendDown['log'] stays false/undefined), so
+  // the detector must agree the item is genuinely stuck — this is what proves
+  // the routing gate actually gates (an unrouted hoist is not a real exit).
+  const g = new Game(LEVELS[9]);
+  const { gy, L } = islandShelf(g);
+  check('hoist placement succeeds on the shelf edge (unrouted case)', g.placeHoist(L, gy - 1));
+  const hoist = g.buildings.find((b) => b.kind === 'hoist');
+  hoist.state = 'ready'; // skip the builder-construction step; only READY matters here — no route configured
+  g.dropItem('log', L + 3, gy - 1);
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s grace
+  check('an item at an UNROUTED ready hoist station is still flagged stranded',
+    g.strandedGroundItems().some((gi) => gi.item === 'log'));
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
