@@ -1056,7 +1056,7 @@ function attachHud(): void {
       const tx = (r.x + 0.5) * TILE * cam.zoom - avw / 2;
       const ty = (r.y + 0.5) * TILE * cam.zoom - renderer.viewH / 2;
       renderer.locateRing = { x: r.x, y: r.y, bornAt: performance.now() / 1000 };
-      if (reduceMotion()) {
+      if (reduceMotion() || renderer.effectsReduced) {
         cam.x = tx; cam.y = ty;
         cam.clamp(game, renderer.viewW, renderer.viewH);
         panTarget = null;
@@ -1111,6 +1111,7 @@ function startGame(def: LevelDef): void {
   cam.y = c.y * TILE * cam.zoom - renderer.viewH / 2;
   cam.clamp(game, renderer.viewW, renderer.viewH);
   cancelPan();
+  renderer.locateRing = null;
 
   attachHud();
   setTool('select');
