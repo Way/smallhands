@@ -161,7 +161,8 @@ function planTerrain(rng: Rng, d: number): Plan {
       }
       case 'canyon': {
         // the mesa's inverse: two facing walls with real estate between them.
-        // Depth caps at 5 so empty hands can still hop in (MAX_FALL).
+        // Depth caps at 5: a ramp or ladder gets empty hands in (no free hop
+        // any more, #48) and a single lift brings the cargo back out.
         const depth = rng.int(4, Math.min(5, h - 6));
         h -= depth;
         pits++; // budgets like a pit: cargo needs a lift back out
@@ -184,7 +185,7 @@ function planTerrain(rng: Rng, d: number): Plan {
         break;
       }
       default: {
-        // a pit: down 3..5 and back up — empty hands hop in, cargo needs a lift
+        // a pit: down 3..5 and back up — ramp/ladder the empties in, cargo needs a lift
         const depth = rng.int(3, Math.min(5, 2 + d));
         h -= depth;
         pits++;
