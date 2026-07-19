@@ -1110,6 +1110,7 @@ function startGame(def: LevelDef): void {
   cam.x = c.x * TILE * cam.zoom - renderer.viewW / 3;
   cam.y = c.y * TILE * cam.zoom - renderer.viewH / 2;
   cam.clamp(game, renderer.viewW, renderer.viewH);
+  cancelPan();
 
   attachHud();
   setTool('select');
