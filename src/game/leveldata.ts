@@ -1,7 +1,7 @@
 // Serializable custom-level format: created by the in-game editor or the
 // procedural generator, stored in localStorage and shareable as a text code.
 
-import { FOOTPRINTS, ITEM_TYPES, ROLES, T, TOOL_DEFS } from './types';
+import { FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, ROLES, T, TOOL_DEFS } from './types';
 import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
 import { BIOMES } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
@@ -405,8 +405,12 @@ function approachKeys(world: World, x: number, y: number, w: number, h: number):
 }
 
 // All passable cells connected to (sx, sy) through air/ladders (4-neighbour).
-// Empty-handed workers can in principle reach any of these with enough
-// ladders and platforms, so a node OUTSIDE this set is definitely sealed off.
+// Empty-handed workers can in principle reach any of these with enough ladders
+// and platforms — that holds even now that free descent is capped at one tile
+// (card #48), because a descending ladder is instant terrain the player drags
+// down from the rim. So this stays a POSSIBILITY test: a node OUTSIDE the set is
+// definitely sealed off; one inside is reachable only once the player builds the
+// vertical infrastructure to get there.
 function floodPassable(world: World, sx: number, sy: number): Set<number> {
   const seen = new Set<number>();
   const queue: number[] = [world.key(sx, sy)];
@@ -438,7 +442,8 @@ function floodPassable(world: World, sx: number, sy: number): Set<number> {
 // builds whatever helps: platforms bridging any air corridor that starts at
 // a standable cell, cargo lifts on every valid cliff face, and rope anchors
 // on every valid cliff edge (cargo may slide DOWN ropes).
-// Carrying rules still apply: no ladders, falls of at most 2 tiles.
+// Carrying rules still apply: no ladders, and (card #48) no free drop at all —
+// every carried descent must ride a ramp, a rope or a platform.
 function cargoReach(world: World, sx: number, sy: number): Set<number> {
   const start = settle(world, sx, sy);
   const seen = new Set<number>();
@@ -452,7 +457,7 @@ function cargoReach(world: World, sx: number, sy: number): Set<number> {
       queue.push(k);
     }
   };
-  const maxFall = 2; // MAX_FALL_CARRY
+  const maxFall = MAX_FALL_CARRY;
   while (queue.length) {
     const key = queue.pop()!;
     const x = key % world.w;

@@ -5,12 +5,15 @@ import type { World } from './world';
 // Movement graph search. The graph differs depending on whether the
 // smallhand is carrying goods:
 //   - carrying workers cannot climb ladders
-//   - carrying workers only dare small drops
+//   - carrying workers cannot drop off a ledge at all (MAX_FALL_CARRY = 0)
 //   - cargo lifts move workers (and their cargo) upward only
 //   - rope anchors slide workers (and their cargo) downward only
 //
-// Falls make the graph directional: walking off a ledge is easy,
-// getting back up needs a ladder (empty-handed) or a lift.
+// Vertical travel is symmetric infrastructure (card #48): a smallhand steps
+// down a single tile for free (MAX_FALL = 1) and hops up a single tile for
+// free, but anything deeper — up OR down — needs a ladder (empty-handed),
+// a ramp (either), a lift (up, cargo) or a rope (down, cargo). Descent is no
+// longer the free direction it used to be.
 
 interface SearchResult {
   steps: PathStep[]; // excludes the start cell
@@ -119,7 +122,9 @@ export function findPath(
       ) {
         consider(nx, y - 1, 'walk', 1.4);
       }
-      // Walk off the edge and fall.
+      // Walk off the edge and fall, up to maxFall tiles. Empty hands manage a
+      // single step down (maxFall 1); a loaded hauler can't fall at all
+      // (maxFall 0) and must take a ramp or rope instead.
       if (world.isPassable(nx, y) && !world.isStandable(nx, y)) {
         let fy = y;
         let ok = true;
