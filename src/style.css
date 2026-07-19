@@ -844,6 +844,7 @@ body.in-game #frontdoor { display: none; }
 .tooltip .insufficient { color: var(--danger); }
 .tooltip .delivered { color: var(--accent2); }
 .tooltip .tt-desc { color: var(--text-dim); }
+.tooltip .tt-action { color: var(--accent); margin-top: 2px; }
 .tooltip .tt-recipe {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   margin-top: 6px; padding: 6px 8px;

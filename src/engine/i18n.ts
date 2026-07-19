@@ -669,10 +669,19 @@ const D: Record<string, [string, string]> = {
     'Stranded — no way to carry this out. Connect it with a ramp, bridge, or lift.',
     'Gestrandet — kein Abtransport möglich. Verbinde es mit einer Rampe, Brücke oder einem Lift.',
   ],
-  'producer.hint': [
-    'Tap with Inspect to pause — hold the conversion and stockpile raw goods.',
-    'Mit Prüfen antippen zum Pausieren — Umwandlung anhalten und Rohstoffe sammeln.',
+  // {verb} = producer.verbClick / producer.verbTap, chosen by input mode so the
+  // hint reads "Click…" on desktop and "Tap…" on touch. The hint also flips with
+  // state: pause while running, resume once already paused.
+  'producer.hintPause': [
+    '{verb} with Inspect to pause — hold the conversion and stockpile raw goods.',
+    'Mit Prüfen {verb} zum Pausieren — Umwandlung anhalten und Rohstoffe sammeln.',
   ],
+  'producer.hintResume': [
+    '{verb} with Inspect to resume — start converting again.',
+    'Mit Prüfen {verb} zum Fortsetzen — Umwandlung wieder aufnehmen.',
+  ],
+  'producer.verbClick': ['Click', 'anklicken'],
+  'producer.verbTap': ['Tap', 'antippen'],
   'producer.pause': ['⏸ Pause', '⏸ Pause'],
   'producer.resume': ['▶ Resume', '▶ Fortsetzen'],
   'inspect.lift': ['Lifts crew up {n} tiles · up only', 'Hebt Trupp {n} Felder hoch · nur aufwärts'],
