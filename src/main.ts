@@ -66,6 +66,10 @@ const cam = new Camera();
 
 let game: Game | null = null;
 let hud: Hud | null = null;
+// Locate-on-map (card #49): a pending camera target the frame loop eases toward.
+// Cleared the moment the player pans manually (they've taken over).
+let panTarget: { x: number; y: number } | null = null;
+function cancelPan(): void { panTarget = null; }
 let currentLevelIdx = 0;
 // context of the running level: campaign index or custom data (+ playtest flag)
 let currentCustom: CustomLevelData | null = null;
@@ -1041,6 +1045,26 @@ function attachHud(): void {
     onSpeed: (s) => setSpeed(s),
     onTogglePause: () => togglePause(),
     onZoom: (dir) => zoomStep(dir),
+    onLocate: (item) => {
+      if (!game || !running) return;
+      const r = game.locateItem(item);
+      if (!r) {
+        hud?.toast(t('locate.none', { name: t(`item.${item}`) }));
+        return;
+      }
+      const avw = renderer.viewW - cam.rightInset;
+      const tx = (r.x + 0.5) * TILE * cam.zoom - avw / 2;
+      const ty = (r.y + 0.5) * TILE * cam.zoom - renderer.viewH / 2;
+      renderer.locateRing = { x: r.x, y: r.y, bornAt: performance.now() / 1000 };
+      if (reduceMotion()) {
+        cam.x = tx; cam.y = ty;
+        cam.clamp(game, renderer.viewW, renderer.viewH);
+        panTarget = null;
+      } else {
+        panTarget = { x: tx, y: ty };
+      }
+      audio.click();
+    },
     onRole: (r, d) => {
       game!.setDesired(r, game!.desiredRoles[r] + d);
       audio.click();
@@ -1636,6 +1660,7 @@ canvas.addEventListener('pointermove', (e) => {
     const g = editor.active ? editor.game : running ? game : null;
     const now = pinchGeom();
     if (g) {
+      cancelPan();
       cam.x -= (now.x - pinch.x) * dpr;
       cam.y -= (now.y - pinch.y) * dpr;
       const ratio = now.dist / pinch.dist;
@@ -1662,6 +1687,7 @@ canvas.addEventListener('pointermove', (e) => {
     if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > slack) dragMoved = true;
     if (dragMoved) {
       // pan with any non-painting drag; taps still place
+      cancelPan();
       canvas.style.cursor = 'grabbing';
       cam.x -= dx * dpr;
       cam.y -= dy * dpr;
@@ -1821,6 +1847,7 @@ canvas.addEventListener(
     e.preventDefault();
     const g = editor.active ? editor.game : running ? game : null;
     if (!g) return;
+    cancelPan();
     const dpr = canvas.width / canvas.clientWidth;
 
     // pinch-to-zoom (ctrl+wheel): one step per gesture, aimed at the cursor
@@ -2076,6 +2103,8 @@ function frame(now: number): void {
 
   // keyboard camera pan
   if ((game && running) || editor.active) {
+    if (keys.has('a') || keys.has('d') || keys.has('w') || keys.has('s') ||
+        keys.has('arrowleft') || keys.has('arrowright') || keys.has('arrowup') || keys.has('arrowdown')) cancelPan();
     const panSpeed = 700 * dtReal;
     if (keys.has('a') || keys.has('arrowleft')) cam.x -= panSpeed;
     if (keys.has('d') || keys.has('arrowright')) cam.x += panSpeed;
@@ -2083,6 +2112,17 @@ function frame(now: number): void {
     if (keys.has('s') || keys.has('arrowdown')) cam.y += panSpeed;
     const g = editor.active ? editor.game : game;
     if (g) cam.clamp(g, renderer.viewW, renderer.viewH);
+  }
+
+  // locate-on-map: ease the camera toward a pending target, then clamp
+  if (panTarget && game && running) {
+    const k = 1 - Math.pow(0.0002, dtReal); // frame-rate-independent ease (~0.35s)
+    cam.x += (panTarget.x - cam.x) * k;
+    cam.y += (panTarget.y - cam.y) * k;
+    if (Math.abs(panTarget.x - cam.x) < 0.5 && Math.abs(panTarget.y - cam.y) < 0.5) {
+      cam.x = panTarget.x; cam.y = panTarget.y; panTarget = null;
+    }
+    cam.clamp(game, renderer.viewW, renderer.viewH);
   }
 
   if (editor.active) {
