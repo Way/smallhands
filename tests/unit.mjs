@@ -7,13 +7,13 @@ const mod = await bundleExports(`
   export { Game } from './src/game/sim.ts';
   export { LEVELS } from './src/game/levels.ts';
   export { canPlaceLadder } from './src/game/world.ts';
-  export { findPath } from './src/game/nav.ts';
+  export { findPath, nodeApproachCells } from './src/game/nav.ts';
   export { T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, nightAmountAt, NIGHT_WORK_DARK } from './src/game/types.ts';
   export { t, setLang, getLang } from './src/engine/i18n.ts';
   export { exportAllData, importAllData } from './src/engine/save.ts';
   export { blankLevelData } from './src/game/leveldata.ts';
 `);
-const { Game, LEVELS, canPlaceLadder, findPath, T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, nightAmountAt, NIGHT_WORK_DARK, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
+const { Game, LEVELS, canPlaceLadder, findPath, nodeApproachCells, T, fmtTime, fmtClock, DAY_HOUR, NIGHT_HOUR, nightAmountAt, NIGHT_WORK_DARK, t, setLang, getLang, exportAllData, importAllData, blankLevelData } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -645,6 +645,60 @@ function node(id, kind, x, y) {
   g.nodes.length = 0; // no veins; iron is not craftable
   const r = g.locateItem('iron');
   check('locateItem(iron) with no vein and no producer returns null', r === null);
+}
+
+{
+  // The four tests above all place their vein at th.y — above the surface,
+  // where nodeApproachCells is always empty — so every one of them resolves
+  // through the straight-line FALLBACK branch of nearestNodeOfKind, never the
+  // reachable/path-cost branch. This test builds a case only the reachable
+  // branch can pass: the straight-line-nearest vein is unreachable (embedded
+  // in solid rock, no approach cell at all) while a farther vein sits on real
+  // open ground and is genuinely path-reachable. If locateItem instead used
+  // (or fell back to) straight-line distance, it would return the nearer,
+  // unreachable vein — so a correct answer here proves the path-cost search
+  // ran and ranked correctly.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+
+  // Unreachable vein: buried in solid rock straight down from the town hall.
+  // Scan down from th.y (which is above the surface) to the first solid row,
+  // then a few tiles deeper to land comfortably inside rock rather than the
+  // thin dirt band — solid on every side, so nodeApproachCells is empty and
+  // this vein can never be a path-cost candidate.
+  let ry = th.y;
+  while (ry < g.world.h - 1 && g.world.isPassable(th.x, ry)) ry++; // first solid (surface) row
+  ry = Math.min(ry + 3, g.world.h - 2); // a few tiles deeper into solid rock
+  const buried = node(9201, 'vein', th.x, ry);
+  check('reachable-branch setup: the buried vein has no approach cells',
+    nodeApproachCells(g.world, buried.x, buried.y).size === 0);
+
+  // Reachable vein: real open ground, farther away in a straight line. Scan
+  // down from th.y for the first standable row at this column.
+  const col = th.x + 8;
+  let gy = th.y;
+  while (gy < g.world.h - 1 && !g.world.isStandable(col, gy)) gy++;
+  const grounded = node(9202, 'vein', col, gy);
+
+  const dBuried = (buried.x - th.x) ** 2 + (buried.y - th.y) ** 2;
+  const dGrounded = (grounded.x - th.x) ** 2 + (grounded.y - th.y) ** 2;
+  check('reachable-branch setup: the grounded vein is farther away in a straight line',
+    dGrounded > dBuried);
+
+  g.nodes.push(buried, grounded);
+  const r = g.locateItem('iron');
+  check('locateItem(iron) picks the farther REACHABLE vein over the nearer buried one',
+    !!r && r.kind === 'node' && r.x === grounded.x && r.y === grounded.y);
+
+  // Prove the setup genuinely distinguishes the branches: remove the
+  // reachable vein and the straight-line fallback takes over, returning the
+  // nearer buried vein instead — showing the assertion above could only have
+  // passed because the reachable/path-cost branch ran and picked correctly.
+  g.nodes = g.nodes.filter((n) => n.id !== grounded.id);
+  const r2 = g.locateItem('iron');
+  check('removing the reachable vein falls back to the nearer buried one',
+    !!r2 && r2.kind === 'node' && r2.x === buried.x && r2.y === buried.y);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
