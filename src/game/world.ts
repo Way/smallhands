@@ -153,6 +153,41 @@ export function rampRunCells(
   return cells;
 }
 
+// A ramp tile has no stored orientation — it is a single T.RAMP kind — so its
+// facing (which way the 45deg slope leans) is derived here and consumed only by
+// the renderer. Returns true when the tile climbs LEFT (mirror the art), false
+// when it climbs RIGHT (the default sprite). A run is one continuous slope face,
+// so a tile in a chain follows its diagonal neighbours; a standalone tile has no
+// chain to read, so it leans toward whichever side the terrain edge (the ledge
+// it climbs against) is on — the card's "rotate depending on which side the edge
+// is located". Ambiguous cases (a chain-less tile with an edge on both sides or
+// neither) keep the default right-climbing art.
+export function rampFacesLeft(world: World, x: number, y: number): boolean {
+  // "\" chain (top-left → bottom-right): the slope climbs left.
+  if (world.get(x - 1, y - 1) === T.RAMP || world.get(x + 1, y + 1) === T.RAMP) return true;
+  // "/" chain (bottom-left → top-right): the slope climbs right.
+  if (world.get(x + 1, y - 1) === T.RAMP || world.get(x - 1, y + 1) === T.RAMP) return false;
+  // Standalone: lean toward the adjacent solid ledge it climbs against.
+  const edgeL = world.isSolid(x - 1, y) || world.isSolid(x - 1, y - 1);
+  const edgeR = world.isSolid(x + 1, y) || world.isSolid(x + 1, y - 1);
+  return edgeL && !edgeR;
+}
+
+// Facing for a drag-run preview, before any tile is laid. Read off the run's
+// ACTUAL cells (from rampRunCells) rather than the raw drag vector: a diagonal
+// drag can truncate to a single tile when the next cell fails placement (e.g.
+// dragging into a wall), and that lone tile settles by the standalone terrain
+// edge rule — which the drag direction alone can contradict, flipping the art on
+// release. Deferring to rampFacesLeft for a 1-cell run keeps preview and settle
+// in lockstep; a multi-cell run is one slope face read from its first step
+// (which matches the per-tile chain rule the renderer applies once laid).
+export function rampCellsFaceLeft(world: World, cells: { x: number; y: number }[]): boolean {
+  if (cells.length === 0) return false; // nothing drawn — value unused
+  if (cells.length === 1) return rampFacesLeft(world, cells[0].x, cells[0].y);
+  const [a, b] = cells;
+  return Math.sign(b.x - a.x) === Math.sign(b.y - a.y); // down-right / up-left "\" climbs left
+}
+
 // The buildable horizontal bridge run at row ay from ax toward tx. The anchor
 // must satisfy the platform rule; each later tile just extends the deck we are
 // laying (a bridge spans a gap), so it only needs clear air — canPlacePlatform

@@ -7,14 +7,14 @@ const mod = await bundleExports(`
   export { World } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
   export { T } from './src/game/types.ts';
-  export { canPlaceRamp, rampRunCells, bridgeRunCells } from './src/game/world.ts';
+  export { canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft } from './src/game/world.ts';
   export { Game } from './src/game/sim.ts';
   export { LEVELS } from './src/game/levels.ts';
   export { TOOL_DEFS } from './src/game/types.ts';
   export { t } from './src/engine/i18n.ts';
   export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
 `);
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -245,6 +245,82 @@ function stepWorld() {
   const roundTrip = decodeTiles(data.tiles, data.width * data.height);
   check('ramp byte round-trips through encode/decode', roundTrip[airIdx] === T.RAMP);
   check('stray ramp adds no solvability problem', report.problems.length === 0);
+}
+
+// --- Auto-rotate: a ramp's facing follows its chain, and a standalone ramp
+// leans toward whichever side the terrain edge is on (card #46). facing is
+// render-only: true = climbs LEFT (mirrored art), false = climbs RIGHT. ---
+{
+  // Standalone tile against a ledge on one side, air on the other.
+  const wl = new World(20, 20);
+  wl.set(5, 10, T.ROCK); // wall on the LEFT of the ramp cell (6,10)
+  check('standalone ramp with edge on the left climbs left',
+    rampFacesLeft(wl, 6, 10) === true);
+
+  const wr = new World(20, 20);
+  wr.set(7, 10, T.ROCK); // wall on the RIGHT of the ramp cell (6,10)
+  check('standalone ramp with edge on the right climbs right',
+    rampFacesLeft(wr, 6, 10) === false);
+
+  // A higher ledge (edge diagonally above) counts too — a +1 step up-left.
+  const wd = new World(20, 20);
+  wd.set(5, 9, T.ROCK); // ledge top-left of (6,10)
+  check('standalone ramp leans toward a raised left ledge',
+    rampFacesLeft(wd, 6, 10) === true);
+
+  // Chains win over terrain: a "/" run climbs right even with a wall on its left.
+  const ws = new World(20, 20);
+  ws.set(5, 12, T.RAMP); ws.set(6, 11, T.RAMP); ws.set(7, 10, T.RAMP); // "/" up-right
+  ws.set(5, 11, T.ROCK); // a left wall that must NOT flip the chain tile
+  check('"/" chain climbs right despite a wall on the left',
+    rampFacesLeft(ws, 6, 11) === false);
+
+  // A "\" run (up-left / down-right) climbs left along the whole face.
+  const wb = new World(20, 20);
+  wb.set(5, 10, T.RAMP); wb.set(6, 11, T.RAMP); wb.set(7, 12, T.RAMP); // "\" down-right
+  check('"\\" chain climbs left', rampFacesLeft(wb, 6, 11) === true);
+
+  // Ambiguous standalone (edge on both sides) keeps the default right art.
+  const wa = new World(20, 20);
+  wa.set(5, 10, T.ROCK); wa.set(7, 10, T.ROCK);
+  check('standalone ramp with edges on both sides defaults to climb right',
+    rampFacesLeft(wa, 6, 10) === false);
+
+  // Drag-preview facing reads the run's actual laid-out cells (one slope face).
+  const wp = new World(20, 20);
+  const up = [{ x: 6, y: 12 }, { x: 7, y: 11 }, { x: 8, y: 10 }]; // "/" up-right
+  const dn = [{ x: 6, y: 10 }, { x: 7, y: 11 }, { x: 8, y: 12 }]; // "\" down-right
+  check('drag preview: "/" run climbs right', rampCellsFaceLeft(wp, up) === false);
+  check('drag preview: "\\" run climbs left', rampCellsFaceLeft(wp, dn) === true);
+
+  // A run that truncates to a single tile settles by the same standalone
+  // terrain-edge rule the renderer uses — so the preview must NOT read the drag
+  // direction (which would flip the lone tile on release). Regression for the
+  // diagonal-drag-into-a-wall collapse.
+  const wc = new World(20, 20);
+  const surfaceY = 14;
+  for (let x = 0; x < wc.w; x++)
+    for (let y = 0; y < wc.h; y++) wc.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+  wc.set(5, surfaceY - 1, T.ROCK); // a wall directly left of the anchor at (6, surfaceY-1)
+  // Drag down-right into the ground: the next cell hits solid, so the run is 1 tile.
+  const clipped = rampRunCells(wc, 6, surfaceY - 1, 9, surfaceY + 2);
+  check('diagonal drag into terrain truncates to one tile', clipped.length === 1);
+  // dx===dy for that drag would say "climb left"; the lone tile actually settles
+  // by the edge rule (wall on the left → also climb left here, but via the same
+  // path the renderer takes), so preview and settle agree.
+  check('truncated 1-tile preview matches the settled facing',
+    rampCellsFaceLeft(wc, clipped) === rampFacesLeft(wc, clipped[0].x, clipped[0].y));
+
+  // And when the edge rule disagrees with the drag vector, the preview follows
+  // the edge rule (settle), not the vector: wall on the RIGHT, drag down-right.
+  const wc2 = new World(20, 20);
+  for (let x = 0; x < wc2.w; x++)
+    for (let y = 0; y < wc2.h; y++) wc2.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+  wc2.set(7, surfaceY - 1, T.ROCK); // wall up-right of the anchor at (6, surfaceY-1)
+  const clip2 = rampRunCells(wc2, 6, surfaceY - 1, 9, surfaceY + 2);
+  check('drag-into-right-wall truncates to one tile', clip2.length === 1);
+  check('truncated tile climbs right (edge rule wins over the "\\" drag vector)',
+    rampCellsFaceLeft(wc2, clip2) === false);
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
