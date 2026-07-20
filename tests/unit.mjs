@@ -754,5 +754,60 @@ function node(id, kind, x, y) {
     (saw.inputs.log ?? 0) < 2 && (saw.outputs.plank ?? 0) >= 2);
 }
 
+// ---- Producer idle status names its own cause (card #51) -------------------
+// The reported confusion: a sawmill showing a bare "Idle · ready" while no logs
+// turn into planks. Game.producerStatus is the shared policy behind the inspect
+// panel + hover tooltip; it must distinguish WHY a ready producer isn't running,
+// and a full output buffer must actually stall the line (matching tickBuildings).
+{
+  const g = new Game(LEVELS[0]);
+  g.workers.length = 0; // isolate: no haulers moving goods in/out of the buffers
+  for (const k in g.stock) g.stock[k] = 0;
+  const saw = g.addBuilding('sawmill', 40, 16, true); // ready sawmill
+  saw.inputs = {};
+  saw.inbound = {};
+  saw.outputs = {};
+
+  check('producerStatus: empty buffer → needs log (not delivering)', (() => {
+    const s = g.producerStatus(saw);
+    return s.kind === 'needs' && s.item === 'log' && s.delivering === false;
+  })());
+
+  saw.inbound = { log: 1 };
+  check('producerStatus: a log inbound → needs log, delivering', (() => {
+    const s = g.producerStatus(saw);
+    return s.kind === 'needs' && s.item === 'log' && s.delivering === true;
+  })());
+
+  saw.inbound = {};
+  saw.inputs = { log: 1 };
+  check('producerStatus: input buffered, output empty → ready',
+    g.producerStatus(saw).kind === 'ready');
+
+  saw.outputs = { plank: 6 }; // at PRODUCER_OUTPUT_CAP
+  check('producerStatus: output buffer full → output-full (takes precedence over ready)',
+    g.producerStatus(saw).kind === 'output-full');
+
+  saw.paused = true;
+  check('producerStatus: paused wins over everything', g.producerStatus(saw).kind === 'paused');
+  saw.paused = false;
+
+  // and the cap actually gates the sim: a full output buffer stops new batches,
+  // then clearing it lets conversion resume (this is why logs "stopped" becoming
+  // planks — the line had backed up, not broken).
+  saw.processing = false;
+  saw.processT = 0;
+  saw.inputs = { log: 2 };
+  saw.outputs = { plank: 6 };
+  for (let i = 0; i < 60; i++) g.tick(1 / 60); // 1s
+  check('output full stalls the line: no batch starts, no log spent',
+    saw.processing === false && (saw.inputs.log ?? 0) === 2);
+
+  saw.outputs = { plank: 0 }; // haulers carried the planks off
+  for (let i = 0; i < 60; i++) g.tick(1 / 60); // 1s
+  check('clearing the output resumes conversion (log consumed)',
+    (saw.inputs.log ?? 0) < 2 && (saw.processing === true || (saw.outputs.plank ?? 0) >= 2));
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

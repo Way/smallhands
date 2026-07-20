@@ -112,6 +112,11 @@ export const RECIPES: Partial<Record<BuildingKind, Recipe>> = {
   workshop: { inputs: { plank: 1, iron: 1 }, outputs: { shovel: 1 }, time: 4 },
 };
 
+// A producer stops starting new batches once this many finished goods sit in its
+// output buffer unhauled — the line backs up until a hauler carries them off, so
+// it won't keep consuming raw inputs it can't turn into shippable stock.
+export const PRODUCER_OUTPUT_CAP = 6;
+
 export interface Footprint {
   w: number;
   h: number;

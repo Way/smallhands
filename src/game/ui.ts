@@ -693,14 +693,25 @@ export class Hud {
       const head = el('div', undefined, box);
       head.innerHTML = `<b>${t(`tool.${b.kind}.label`)}</b>`;
       this.renderRecipe(box, recipe);
+      const ps = g.producerStatus(b);
       let status: string;
-      if (b.paused) status = t('inspect.paused');
-      else if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
-      else {
-        const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
-          (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
-        );
-        status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
+      switch (ps.kind) {
+        case 'paused':
+          status = t('inspect.paused');
+          break;
+        case 'working':
+          status = t('inspect.working', { p: Math.floor(ps.progress * 100) });
+          break;
+        case 'output-full':
+          status = t('inspect.idleOutputFull');
+          break;
+        case 'needs':
+          status = t(ps.delivering ? 'inspect.idleDelivering' : 'inspect.idleNeeds', {
+            name: t(`item.${ps.item}`),
+          });
+          break;
+        default:
+          status = t('inspect.idleReady');
       }
       el('div', 'th-toast-body', box).textContent = status;
       const btn = el('button', 'th-mini', box);
@@ -721,8 +732,9 @@ export class Hud {
   }
 
   // Signature for the tapped-open producer panel: paused flag, work progress, and
-  // buffered inputs/outputs — so update() re-renders when any of them change while
-  // the panel stays open (status text goes live, pause button label stays honest).
+  // buffered inputs/inbound/outputs — so update() re-renders when any of them change
+  // while the panel stays open (status text goes live — including the needs→delivering
+  // and ready→output-full flips — and the pause button label stays honest).
   private producerSig(id: number): string {
     const b = this.game.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
     const recipe = b && RECIPES[b.kind];
@@ -732,6 +744,7 @@ export class Hud {
       b.paused ? 1 : 0,
       b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'x',
       ITEM_TYPES.map((i) => b.inputs[i] ?? 0).join(','),
+      ITEM_TYPES.map((i) => b.inbound[i] ?? 0).join(','),
       ITEM_TYPES.map((i) => b.outputs[i] ?? 0).join(','),
     ].join('|');
   }
@@ -890,7 +903,10 @@ export class Hud {
       // paused flips the rendered status (fillBuildingHint reads b.paused first),
       // so the hover tooltip must re-render on it even when nothing else changes
       parts.push(b.paused ? 'P' : '-');
-      for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0);
+      // inputs + inbound (needs↔delivering) and outputs (ready↔output-full) all
+      // change the status text — include every driver or the open tooltip goes stale
+      for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0, b.inbound[it] ?? 0);
+      for (const it of Object.keys(recipe.outputs) as ItemType[]) parts.push(b.outputs[it] ?? 0);
     }
     if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
     if (b.kind === 'rope') parts.push(b.ropeBottomY - b.y);
@@ -927,15 +943,26 @@ export class Hud {
     const recipe = RECIPES[b.kind];
     if (recipe) {
       this.renderRecipe(tip, recipe);
-      // live status
+      // live status — shares one policy with the tap panel (Game.producerStatus)
+      const ps = g.producerStatus(b);
       let status: string;
-      if (b.paused) status = t('inspect.paused');
-      else if (b.processing) status = t('inspect.working', { p: Math.floor((b.processT / recipe.time) * 100) });
-      else {
-        const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
-          (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
-        );
-        status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
+      switch (ps.kind) {
+        case 'paused':
+          status = t('inspect.paused');
+          break;
+        case 'working':
+          status = t('inspect.working', { p: Math.floor(ps.progress * 100) });
+          break;
+        case 'output-full':
+          status = t('inspect.idleOutputFull');
+          break;
+        case 'needs':
+          status = t(ps.delivering ? 'inspect.idleDelivering' : 'inspect.idleNeeds', {
+            name: t(`item.${ps.item}`),
+          });
+          break;
+        default:
+          status = t('inspect.idleReady');
       }
       el('div', 'tt-desc', tip).textContent = status;
       if (b.state === 'ready') {

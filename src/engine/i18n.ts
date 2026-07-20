@@ -665,6 +665,8 @@ const D: Record<string, [string, string]> = {
   'inspect.buildingPct': ['Building… {p}%', 'Bau… {p} %'],
   'inspect.working': ['Working {p}%', 'Arbeitet {p} %'],
   'inspect.idleNeeds': ['Idle · needs {name}', 'Leerlauf · braucht {name}'],
+  'inspect.idleDelivering': ['Idle · {name} on the way', 'Leerlauf · {name} unterwegs'],
+  'inspect.idleOutputFull': ['Idle · output full — needs hauling', 'Leerlauf · Lager voll — abtransportieren'],
   'inspect.idleReady': ['Idle · ready', 'Leerlauf · bereit'],
   'inspect.paused': ['Paused · stockpiling', 'Pausiert · sammelt an'],
   'inspect.stranded': [
