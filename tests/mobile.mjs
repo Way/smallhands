@@ -310,6 +310,14 @@ check('town-hall Upgrade button enables once affordable', await page.evaluate(()
   return btn && !btn.disabled;
 }));
 
+// ---- tapping again replaces the panel, never stacks a duplicate (card #50) ---
+// Re-tapping the same building used to append a second identical panel box (the
+// toast cap of 2 let two coexist). Opening must now REPLACE the open panel.
+await page.touchscreen.tap(thPos.x, thPos.y);
+await page.waitForTimeout(120);
+check('re-tapping the town hall keeps a single panel (no duplicate)',
+  (await page.locator('.th-toast').count()) === 1);
+
 // ---- inspect-hint build % counts in 1% steps, not coarse 5% jumps (#33) ------
 // The hint's signature used to quantize progress to 1/20, so the % it renders
 // (1/100) froze between 5% buckets. Prove a sub-5% change now updates the text.
