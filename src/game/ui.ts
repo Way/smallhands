@@ -27,7 +27,7 @@ import type {
   WeatherKind,
 } from './types';
 import { drawIconTo } from '../engine/sprites';
-import { t } from '../engine/i18n';
+import { t, tOr } from '../engine/i18n';
 import type { Game } from './sim';
 
 // DOM-based HUD. Rebuilt per level; light incremental updates each frame.
@@ -313,7 +313,10 @@ export class Hud {
       const key = el('span', 'tool-key', btn);
       key.textContent = def.key;
       const label = el('span', 'tool-label', btn);
-      label.textContent = t(`tool.${def.id}.label`);
+      // Prefer a short chip label where one is defined (e.g. hoist) — the full
+      // name is too wide for the 52px button. The tooltip/confirm bar below
+      // still carry the full `tool.<id>.label`.
+      label.textContent = tOr(`tool.${def.id}.short`, `tool.${def.id}.label`);
       btn.onclick = () => this.cbs.onTool(def.id);
       // hover tooltips only where hover exists; on touch the confirm bar
       // carries the tool's name and costs instead
