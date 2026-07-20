@@ -604,15 +604,15 @@ export class Renderer {
             name = 'tile_ladder';
             break;
           case T.RAMP:
-            name = 'tile_ramp';
+            name = `tile_ramp${sfx}`;
             break;
         }
-        if (name === 'tile_ramp') {
+        if (t === T.RAMP) {
           // Face the slope the right way: along its diagonal chain, or — for a
           // standalone tile — toward the terrain ledge it climbs against (see
           // rampFacesLeft). Default art climbs right, so only left-climbers flip.
           const facesLeft = rampFacesLeft(world, x, y);
-          const spr = sprite('tile_ramp').canvas;
+          const spr = sprite(name!).canvas;
           if (facesLeft) {
             ctx.save();
             ctx.translate(px + TILE, py);
@@ -1938,8 +1938,10 @@ export class Renderer {
           game.canAfford({ plank: 1 }) &&
           !game.darkBlocks('ramp', tx, ty);
         ctx.globalAlpha = 0.6;
-        // preview the same facing the laid tile will take (toward the ledge)
-        const spr = sprite('tile_ramp').canvas;
+        // preview the same facing the laid tile will take (toward the ledge),
+        // in this level's biome earth so it matches the terrain it lands in
+        const sfx = biomeSuffix((game.level.biome ?? 'meadow') as Biome);
+        const spr = sprite(`tile_ramp${sfx}`).canvas;
         if (rampFacesLeft(game.world, tx, ty)) {
           ctx.save();
           ctx.translate(px + TILE, py);

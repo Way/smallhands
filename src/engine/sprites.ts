@@ -176,6 +176,27 @@ function wedgeRows(): string[] {
   return rows;
 }
 
+// A ramp: a solid earthen slope tile, drawn as one continuous piece of the
+// terrain rather than a wooden wedge. Art rises to the right (the renderer
+// mirrors it for left-climbers). The diagonal walking surface wears grass
+// blades (lit tip G, blade g, dark root k); everything below-right of it is
+// the same cobbled clod field as the dirt tile — sampled at the matching
+// (x,y) so a dirt tile placed under the ramp continues the pattern seamlessly.
+// The upper-left triangle above the slope stays transparent (air).
+function rampRows(): string[] {
+  const dirt = DIRT_ROWS; // per-position clod chars, wrap-tiled at 16
+  const rows: string[] = [];
+  for (let y = 0; y < 16; y++) {
+    let r = '';
+    for (let x = 0; x < 16; x++) {
+      const d = x - (15 - y); // distance from the slope edge; <0 is air
+      r += d < 0 ? '.' : d === 0 ? 'G' : d === 1 ? 'g' : d === 2 ? 'k' : dirt[y][x];
+    }
+    rows.push(r);
+  }
+  return rows;
+}
+
 // Grass strands drooping over a cliff lip into the neighbouring air cell
 // (art hangs from the cell's left edge; mirrored for the other side).
 const FRINGE_ROWS = [
@@ -288,6 +309,7 @@ function buildBiomeSet(b: Biome): void {
   }
   makeSprite(`tile_dirt${sfx}`, look.earth, DIRT_ROWS);
   makeSprite(`tile_rock${sfx}`, look.stone, ROCK_ROWS);
+  makeSprite(`tile_ramp${sfx}`, grassPal, rampRows());
   makeSprite(`wedge${sfx}`, grassPal, wedgeRows());
   makeSprite(`fringe${sfx}`, look.blades, FRINGE_ROWS);
   if (look.snowcaps) {
@@ -428,24 +450,6 @@ export function buildAtlas(): void {
     '................',
     '................',
     '................',
-  ]);
-  makeSprite('tile_ramp', platPal, [
-    '...............P',
-    '..............PP',
-    '.............Ppp',
-    '............Ppkp',
-    '...........Ppksk',
-    '..........Ppksk.',
-    '.........Ppkskk.',
-    '........Ppkskks.',
-    '.......Ppkskkskk',
-    '......Ppkskkskks',
-    '.....Ppkskkskksk',
-    '....Ppkskkskkskk',
-    '...Ppkskkskkskks',
-    '..Ppkskkskkskksk',
-    '.Ppkskkskkskkskk',
-    'Ppkskkskkskkskks',
   ]);
   const ladPal = { l: '#c89858', L: '#e0b070', k: '#8f6a38' };
   makeSprite('tile_ladder', ladPal, [
