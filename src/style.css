@@ -164,6 +164,7 @@ body.in-game #frontdoor { display: none; }
 }
 .res-act:hover { border-color: var(--accent); }
 .res-pop-note { margin-top: 6px; color: var(--text-dim); font-size: 11px; }
+.res-locate { width: 100%; margin-top: 8px; height: 26px; }
 
 /* ---- level clock (the island's centre zone) ---- */
 .clock {
@@ -205,12 +206,14 @@ body.in-game #frontdoor { display: none; }
   gap: 7px;
   font-size: 13px;
   padding: 2px 0;
+  cursor: pointer;
 }
 .obj-row canvas { width: 18px; height: 18px; image-rendering: pixelated; }
 .obj-row .obj-name { flex: 1; color: var(--text-dim); }
 .obj-row .obj-cnt { font-weight: 700; font-variant-numeric: tabular-nums; }
 .obj-row.done .obj-cnt { color: var(--accent2); }
 .obj-row.done .obj-name { text-decoration: line-through; opacity: 0.6; }
+.obj-row:hover .obj-name { color: var(--text); }
 
 /* ---- weather forecast (lives in the island's weather-pop) ---- */
 .wx-flood {

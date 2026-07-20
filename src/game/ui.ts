@@ -109,6 +109,7 @@ export interface HudCallbacks {
   onSpeed: (s: number) => void;
   onTogglePause: () => void;
   onZoom: (dir: number) => void;
+  onLocate: (item: ItemType) => void;
   onRole: (r: Role, delta: number) => void;
   onUpgrade: () => void;
   onMenu: () => void;
@@ -247,6 +248,8 @@ export class Hud {
       const name = el('span', 'obj-name', row);
       name.textContent = t(`item.${o.item}`);
       const cnt = el('span', 'obj-cnt', row);
+      row.title = t('hud.findOnMap');
+      row.onclick = () => this.cbs.onLocate(o.item);
       this.objRows.set(o.item, { row, cnt });
     }
     this.collapsible(obj, h);
@@ -563,6 +566,12 @@ export class Hud {
     const resetBtn = el('button', 'res-act', acts);
     resetBtn.textContent = t('hud.keepReset');
     el('div', 'res-pop-note', pop).textContent = t('hud.keepNote');
+    const locateBtn = el('button', 'res-act res-locate', pop);
+    locateBtn.textContent = t('hud.findOnMap');
+    locateBtn.onclick = () => {
+      this.closeReservePopover();
+      this.cbs.onLocate(item);
+    };
     // "All" pins keep at the cap so every unit stays in store (haulers ship
     // nothing); setKeep clamps, so a large value resolves to the max.
     const setKeepTo = (n: number): void => {

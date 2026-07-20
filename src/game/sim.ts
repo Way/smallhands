@@ -38,7 +38,9 @@ import type {
   GroundItem,
   HoistCar,
   ItemType,
+  LocateResult,
   LookEvent,
+  NodeKind,
   ObjectiveReq,
   PathStep,
   ResourceNode,
@@ -1065,6 +1067,108 @@ export class Game {
     if (!b) return null;
     if (s.t === 'hoist') return this.hoistStationCells(b, s.car);
     return this.buildingApproach(b);
+  }
+
+  // --- locate-on-map (card #49) --------------------------------------------
+  // Pure, read-only "where do I get <item>?" resolver. Raw items resolve to the
+  // nearest source node; crafted items to their producing building, else (no
+  // producer built) to the scarcest recipe input's source. "Nearest" is measured
+  // from the town hall so the query is camera-independent and headless-testable.
+  // See docs/superpowers/specs/2026-07-19-locate-on-map-design.md.
+
+  // The node kind that yields `item` (tree→log, boulder→stone, vein→iron).
+  private nodeKindFor(item: ItemType): NodeKind | undefined {
+    for (const k of Object.keys(NODE_YIELD) as NodeKind[]) {
+      if (NODE_YIELD[k].item === item) return k;
+    }
+    return undefined;
+  }
+
+  // The building kind whose recipe outputs `item` (sawmill→plank, forge→spear,
+  // workshop→shovel), or undefined for raw / never-produced items.
+  private producerKind(item: ItemType): BuildingKind | undefined {
+    for (const k of Object.keys(RECIPES) as BuildingKind[]) {
+      if (RECIPES[k]?.outputs[item]) return k;
+    }
+    return undefined;
+  }
+
+  // Nearest live node of `kind`: prefer one a worker can actually path to (from a
+  // town-hall approach cell, unloaded — the same reachability tryAssignHarvest
+  // uses), ranked by path cost; else fall back to the nearest by straight-line
+  // from the town hall, so a walled-off node is still pointed at.
+  private nearestNodeOfKind(kind: NodeKind): ResourceNode | undefined {
+    const live = this.nodes.filter((n) => n.kind === kind && n.yieldLeft > 0);
+    if (live.length === 0) return undefined;
+
+    const originKey = this.thApproach().values().next().value as number | undefined;
+    if (originKey !== undefined) {
+      const ox = originKey % this.world.w;
+      const oy = (originKey - ox) / this.world.w;
+      let best: { node: ResourceNode; cost: number } | null = null;
+      for (const n of live) {
+        const cells = nodeApproachCells(this.world, n.x, n.y);
+        if (cells.size === 0) continue;
+        const path = findPath(this.world, this.transits, ox, oy, cells, false);
+        if (path && (!best || path.cost < best.cost)) best = { node: n, cost: path.cost };
+      }
+      if (best) return best.node;
+    }
+
+    const th = this.townhall;
+    let near: ResourceNode | undefined;
+    let nd = Infinity;
+    for (const n of live) {
+      const d = (n.x - th.x) ** 2 + (n.y - th.y) ** 2;
+      if (d < nd) { nd = d; near = n; }
+    }
+    return near;
+  }
+
+  // Nearest building of `kind` (by straight-line from the town hall). `ready`
+  // selects finished producers; `!ready` selects blueprints/under-construction.
+  private nearestBuildingOfKind(kind: BuildingKind, ready: boolean): Building | undefined {
+    const th = this.townhall;
+    let best: Building | undefined;
+    let nd = Infinity;
+    for (const b of this.buildings) {
+      if (b.kind !== kind) continue;
+      if (ready ? b.state !== 'ready' : b.state === 'ready') continue;
+      const d = (b.x - th.x) ** 2 + (b.y - th.y) ** 2;
+      if (d < nd) { nd = d; best = b; }
+    }
+    return best;
+  }
+
+  locateItem(item: ItemType, seen: Set<ItemType> = new Set()): LocateResult | null {
+    if (seen.has(item)) return null; // recipe DAG is acyclic; guard is belt-and-braces
+    seen.add(item);
+
+    const nodeKind = this.nodeKindFor(item);
+    if (nodeKind) {
+      const n = this.nearestNodeOfKind(nodeKind);
+      if (n) return { x: n.x, y: n.y, kind: 'node' };
+    }
+
+    const pk = this.producerKind(item);
+    if (pk) {
+      const ready = this.nearestBuildingOfKind(pk, true);
+      if (ready) return { x: ready.x, y: ready.y, kind: 'building' };
+      const bp = this.nearestBuildingOfKind(pk, false);
+      if (bp) return { x: bp.x, y: bp.y, kind: 'building' };
+      // no producer on the map → point at the scarcest input's source
+      const inputs = Object.keys(RECIPES[pk]!.inputs) as ItemType[];
+      let target: ItemType | undefined;
+      let low = Infinity;
+      for (const inp of inputs) {
+        if (this.stock[inp] < low) { low = this.stock[inp]; target = inp; }
+      }
+      if (target) {
+        const r = this.locateItem(target, seen);
+        if (r) return { x: r.x, y: r.y, kind: 'input' };
+      }
+    }
+    return null;
   }
 
   // --- stranded-goods detection --------------------------------------------

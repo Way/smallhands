@@ -71,6 +71,11 @@ export class Renderer {
   // effects can be dialed down via the options menu; the OS-level
   // reduced-motion preference is always respected on top of that
   effectsReduced = false;
+  // A one-shot "locate" ping set by main.ts's onLocate handler: a pulsing ring
+  // over a world tile that fades out after LOCATE_RING_DUR. bornAt is in the
+  // renderer's own seconds clock (the `timeSec` passed to draw()).
+  locateRing: { x: number; y: number; bornAt: number } | null = null;
+  private readonly LOCATE_RING_DUR = 1.6;
   private readonly reduceMotionPref =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -166,8 +171,12 @@ export class Renderer {
     ctx.scale(cam.zoom, cam.zoom);
     if (hover.visible) this.drawGhost(game, hover, timeSec);
     this.drawStrandedMarkers(game, timeSec);
+    this.drawLocateRing(timeSec);
     overlay?.(ctx);
     ctx.restore();
+
+    // screen-space: arrows toward off-screen stranded goods (on top of everything)
+    this.drawStrandedEdgeArrows(game, cam, W, H, timeSec);
   }
 
   // ---- sky & parallax -------------------------------------------------------
@@ -1490,6 +1499,62 @@ export class Renderer {
     for (const gi of stranded) {
       ctx.drawImage(spr, gi.x * TILE + 4, (gi.y - 1) * TILE - 2 + bob);
     }
+  }
+
+  private drawLocateRing(t: number): void {
+    const ring = this.locateRing;
+    if (!ring) return;
+    const age = t - ring.bornAt;
+    if (age < 0 || age >= this.LOCATE_RING_DUR) { this.locateRing = null; return; }
+    const { ctx } = this;
+    const cx = (ring.x + 0.5) * TILE;
+    const cy = (ring.y + 0.5) * TILE;
+    const fade = 1 - age / this.LOCATE_RING_DUR; // 1 → 0 over the lifetime
+    const wob = this.reduceMotion ? 0 : (0.5 + Math.sin(t * 6) * 0.5) * 0.9;
+    const r = TILE * (2.2 + wob);
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffd66a';
+    ctx.globalAlpha = 0.9 * fade;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.5 * fade;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Screen-edge arrows pointing at stranded ground items that are scrolled out of
+  // view (closes the #47 off-screen deferral). On-screen items are already
+  // covered by the #47 warning glyph, so those are skipped.
+  private drawStrandedEdgeArrows(game: Game, cam: Camera, W: number, H: number, t: number): void {
+    const stranded = game.strandedGroundItems();
+    if (!stranded.length) return;
+    const { ctx } = this;
+    const scale = TILE * cam.zoom;
+    const pad = 18;
+    const topInset = 96;              // clear the topbar HUD band
+    const minX = pad, maxX = W - cam.rightInset - pad;
+    const minY = topInset, maxY = H - pad;
+    const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+    const bob = this.reduceMotion ? 0 : Math.sin(t * 4) * 2;
+    ctx.save();
+    for (const gi of stranded) {
+      const sx = (gi.x + 0.5) * scale - cam.x;
+      const sy = (gi.y + 0.5) * scale - cam.y;
+      if (sx >= 0 && sx <= W - cam.rightInset && sy >= 0 && sy <= H) continue; // on-screen
+      const ex = Math.max(minX, Math.min(maxX, sx));
+      const ey = Math.max(minY, Math.min(maxY, sy));
+      const ang = Math.atan2(sy - midY, sx - midX);
+      ctx.save();
+      ctx.translate(ex, ey + bob);
+      ctx.rotate(ang);
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = '#ff9d2e';
+      ctx.beginPath();
+      ctx.moveTo(9, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   // Water is drawn OVER terrain, nodes and loose items so anything the flood

@@ -278,6 +278,15 @@ export interface ObjectiveReq {
   amount: number;
 }
 
+// Where the camera should go when the player asks "where do I get <item>?"
+// kind: 'node' = a raw source node, 'building' = a producer, 'input' = the
+// source of a producer's missing input (the recipe had no built producer).
+export interface LocateResult {
+  x: number; // tile
+  y: number; // tile
+  kind: 'node' | 'building' | 'input';
+}
+
 // ---- medals & feats ---------------------------------------------------------
 
 // Level times as M:SS (H:MM:SS past an hour). Shared by the live HUD clock, the
