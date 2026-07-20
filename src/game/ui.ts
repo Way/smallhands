@@ -614,10 +614,21 @@ export class Hud {
     this.livePanel = null;
   }
 
+  // Tear down the currently-open interactive tap-panel (producer/hoist/townhall)
+  // before opening another. Without this, a second tap/click just appends a new
+  // panel box while the old one lingers — the toast cap of 2 alone let two
+  // identical panels (e.g. two Sawmill readouts) coexist. Opening now *replaces*
+  // rather than *stacks*, so at most one interactive panel is ever visible.
+  private closeLivePanel(): void {
+    this.livePanel?.box.remove();
+    this.livePanel = null;
+  }
+
   // Interactive hoist panel shown when a hoist is tapped with Select: live car
   // weights plus per-item routing toggles (send down / send up — exclusive).
   showHoist(id: number): void {
     const g = this.game;
+    this.closeLivePanel();
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
     const box = el('div', 'toast th-toast', this.toastWrap);
     const build = (): void => {
@@ -679,6 +690,7 @@ export class Hud {
   // instead of letting the sawmill turn them all into planks).
   showProducer(id: number): void {
     const g = this.game;
+    this.closeLivePanel();
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
     const box = el('div', 'toast th-toast', this.toastWrap);
     const build = (): void => {
@@ -739,6 +751,7 @@ export class Hud {
   // Interactive town-hall panel shown when the building is tapped with Select.
   showTownhall(): void {
     const g = this.game;
+    this.closeLivePanel();
     while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
     const box = el('div', 'toast th-toast', this.toastWrap);
     const build = (): void => {
