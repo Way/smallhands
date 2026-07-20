@@ -35,6 +35,13 @@ export function t(key: string, vars?: Record<string, string | number>): string {
   return s;
 }
 
+// Optional key with a fallback: use `key` if the dictionary has it, else
+// `fallbackKey`. Lets a control render a shorter variant (e.g. a compact
+// toolbar chip) only where one is defined, without a per-string entry.
+export function tOr(key: string, fallbackKey: string, vars?: Record<string, string | number>): string {
+  return t(key in D ? key : fallbackKey, vars);
+}
+
 // ---- the dictionary: [english, german] ---------------------------------------
 
 const D: Record<string, [string, string]> = {
@@ -70,6 +77,7 @@ const D: Record<string, [string, string]> = {
   'building.workshop': ['Workshop', 'Werkstatt'],
   'building.lift': ['Cargo Lift', 'Lastenaufzug'],
   'building.rope': ['Rope Anchor', 'Seilanker'],
+  'building.hoist': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
   'building.lantern': ['Lantern', 'Laterne'],
   'building.goal': ['Delivery target', 'Lieferziel'],
 
@@ -115,6 +123,9 @@ const D: Record<string, [string, string]> = {
     'Verankert ein Seil an einer Klippenkante. Smallhands rutschen daran HINAB — samt Fracht. Nur abwärts!',
   ],
   'tool.hoist.label': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
+  // Short chip label — the toolbar button is a 52px square, too small for the
+  // full two-word name. The full label still shows in the tooltip/confirm bar.
+  'tool.hoist.short': ['Hoist', 'Aufzug'],
   'tool.hoist.desc': [
     'Two cargo cars on a pulley at a cliff edge — the heavier side sinks. Send ballast down to raise goods up. Stone counts double!',
     'Zwei Lastenkörbe an einer Seilrolle über der Klippe — die schwerere Seite sinkt. Schicke Ballast hinab, um Waren hinaufzuheben. Stein zählt doppelt!',
