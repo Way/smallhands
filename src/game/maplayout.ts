@@ -78,13 +78,19 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
       'M 700 760 C 715 680 815 645 915 657 C 1015 669 1075 715 1060 792 C 1045 866 945 892 850 882 C 755 872 685 838 700 760 Z',
     label: { x: 880, y: 618 },
     badge: { x: 880, y: 762 },
+    // Play order threads a right-opening arc: level 13 sits at the top-right,
+    // the corner nearest campaign 3 (whose journey ends up-right at ~1380,720),
+    // so the incoming trail lands on the near shore instead of cutting once
+    // straight across the island. From 13 the path sweeps left along the top
+    // (14), down the left side (15), along the bottom (16) and back right (17)
+    // — a simple C that never crosses itself. The 6th slot is unused headroom.
     nodes: [
-      { x: 760, y: 782 },
-      { x: 838, y: 720 },
-      { x: 918, y: 778 },
-      { x: 992, y: 720 },
-      { x: 965, y: 820 },
-      { x: 852, y: 828 },
+      { x: 985, y: 715 },
+      { x: 880, y: 700 },
+      { x: 772, y: 745 },
+      { x: 800, y: 828 },
+      { x: 915, y: 838 },
+      { x: 985, y: 808 },
     ],
   },
 ];
