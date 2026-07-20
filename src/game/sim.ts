@@ -711,10 +711,23 @@ export class Game {
   // Pause/resume a producer (sawmill/forge/workshop). While paused it starts no
   // new batch and pulls in no fresh inputs, so raw goods pile up in stock instead
   // of being converted — e.g. keep logs as logs rather than sawing them to planks.
+  // Pausing halts IMMEDIATELY: an in-flight batch is aborted and its already-spent
+  // inputs are refunded to the buffer, so hitting pause spends zero raw goods (the
+  // player's intent is to hold the inputs, not sink one more into a cancelled batch).
   toggleProducerPause(id: number): void {
     const b = this.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
     if (!b) return;
     b.paused = !b.paused;
+    if (b.paused && b.processing) {
+      const recipe = RECIPES[b.kind];
+      if (recipe) {
+        for (const [k, v] of Object.entries(recipe.inputs)) {
+          b.inputs[k as ItemType] = (b.inputs[k as ItemType] ?? 0) + (v as number);
+        }
+      }
+      b.processing = false;
+      b.processT = 0;
+    }
   }
 
   demolish(x: number, y: number): boolean {

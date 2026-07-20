@@ -938,7 +938,14 @@ export class Hud {
         status = missing ? t('inspect.idleNeeds', { name: t(`item.${missing}`) }) : t('inspect.idleReady');
       }
       el('div', 'tt-desc', tip).textContent = status;
-      if (b.state === 'ready') el('div', 'tt-desc', tip).textContent = t('producer.hint');
+      if (b.state === 'ready') {
+        // actionable hint: flips pause↔resume with state, and reads "Click…" on
+        // desktop / "Tap…" on touch so it points at the real gesture (the pause
+        // control lives in the Inspect click/tap panel, not on this tooltip).
+        const verb = t(this.hoverOk ? 'producer.verbClick' : 'producer.verbTap');
+        const key = b.paused ? 'producer.hintResume' : 'producer.hintPause';
+        el('div', 'tt-desc tt-action', tip).textContent = `▸ ${t(key, { verb })}`;
+      }
     } else if (b.kind === 'lift') {
       el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
       el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');

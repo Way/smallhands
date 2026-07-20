@@ -233,8 +233,12 @@ export const CLIMB_SPEED = 1.7;
 export const FALL_SPEED = 7.5;
 export const LIFT_SPEED = 2.2;
 export const SLIDE_SPEED = 5.5; // rope descent — gravity does the work
-export const MAX_FALL = 5; // tiles a smallhand may drop when not carrying
-export const MAX_FALL_CARRY = 2; // tiles a smallhand may drop while carrying
+// Vertical descent is a build problem, just like climbing up (card #48).
+// Everyone — empty-handed or loaded — takes a single step down for free;
+// anything deeper needs a Ladder (empty), a Ramp (either) or a Rope (cargo
+// down). No more free multi-tile "hop" off a cliff in either state.
+export const MAX_FALL = 1; // tiles a smallhand may drop when not carrying
+export const MAX_FALL_CARRY = 1; // tiles a smallhand may drop while carrying
 
 export const WORKER_SPAWN_INTERVAL = 2.5; // seconds between new smallhands
 export const BUILDER_SPEED = 1; // progress per second

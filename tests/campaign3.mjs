@@ -74,6 +74,10 @@ const route = (car, ...items) => (g) => {
       { name: 'mark everything', when: () => true, do: mark() },
       { name: 'hoist at the shelf edge', when: () => true, do: (g) => g.placeHoist(27, 16) },
       { name: 'sawmill', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 22, 15) },
+      // a ladder down the cliff so an empty relay hand can reach the valley — no
+      // more free 5-tile hop (#48). Wait for the mill's wood, or the hoist's
+      // build cost leaves too little to reach the valley floor.
+      { name: 'ladder down to the valley', when: (g) => g.stock.log + g.stock.plank >= 4, do: (g) => g.placeLadderRun(28, 17, 28, 20) === 4 },
       { name: 'route planks + stone down', when: hoistReady, do: route('upper', 'plank', 'stone') },
     ],
     700

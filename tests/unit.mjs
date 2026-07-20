@@ -701,5 +701,58 @@ function node(id, kind, x, y) {
     !!r2 && r2.kind === 'node' && r2.x === buried.x && r2.y === buried.y);
 }
 
+// ---- Producer pause hint reflects state (card #44 follow-up) ----------------
+// The hover hint must read as an action and match the producer's state — pause
+// while running, resume while already paused — and use the click/tap verb the
+// caller passes. The old copy always said "pause", even on a paused producer.
+{
+  const prev = getLang();
+  setLang('en');
+  const pauseEn = t('producer.hintPause', { verb: 'Click' });
+  const resumeEn = t('producer.hintResume', { verb: 'Click' });
+  check('EN pause hint: how to pause via Inspect',
+    pauseEn.includes('Inspect') && /to pause/i.test(pauseEn) && !/to resume/i.test(pauseEn));
+  check('EN resume hint: how to resume via Inspect',
+    resumeEn.includes('Inspect') && /to resume/i.test(resumeEn));
+  check('hint interpolates the click/tap verb',
+    pauseEn.startsWith('Click') && resumeEn.startsWith('Click'));
+  setLang('de');
+  const pauseDe = t('producer.hintPause', { verb: 'anklicken' });
+  const resumeDe = t('producer.hintResume', { verb: 'anklicken' });
+  check('DE pause hint: pausieren + Prüfen + verb',
+    /pausier/i.test(pauseDe) && pauseDe.includes('Prüfen') && pauseDe.includes('anklicken'));
+  check('DE resume hint: fortsetzen', /fortsetzen/i.test(resumeDe));
+  setLang(prev);
+}
+
+{
+  // Pausing a producer mid-batch aborts the in-flight batch and refunds its
+  // input, so pausing spends zero raw goods (card #44 follow-up: pause must
+  // halt IMMEDIATELY, not finish the batch it was already running).
+  const g = new Game(LEVELS[0]);
+  g.workers.length = 0; // isolate: no haulers moving goods in/out of the buffers
+  for (const k in g.stock) g.stock[k] = 0;
+  const saw = g.addBuilding('sawmill', 40, 16, true); // ready sawmill
+  saw.inputs = { log: 2 };
+
+  // start a batch and catch it mid-conversion (recipe time = 3.5s)
+  for (let i = 0; i < 60; i++) g.tick(1 / 60); // 1s
+  check('sawmill runs a batch: one log spent, processing',
+    saw.processing === true && (saw.inputs.log ?? 0) === 1);
+
+  g.toggleProducerPause(saw.id);
+  check('pause aborts the in-flight batch immediately', saw.processing === false);
+  check('pause refunds the in-flight log — 0 raw goods spent', (saw.inputs.log ?? 0) === 2);
+
+  for (let i = 0; i < 60 * 5; i++) g.tick(1 / 60); // 5s paused
+  check('paused: no planks produced and both logs held',
+    (saw.outputs.plank ?? 0) === 0 && (saw.inputs.log ?? 0) === 2);
+
+  g.toggleProducerPause(saw.id); // resume
+  for (let i = 0; i < 60 * 5; i++) g.tick(1 / 60); // 5s running
+  check('resume: conversion restarts (log consumed, planks made)',
+    (saw.inputs.log ?? 0) < 2 && (saw.outputs.plank ?? 0) >= 2);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
