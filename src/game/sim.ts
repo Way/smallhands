@@ -20,6 +20,7 @@ import {
   nightAmountAt,
   NODE_ROLE,
   NODE_YIELD,
+  PRODUCER_OUTPUT_CAP,
   RECIPES,
   ROLES,
   SLIDE_SPEED,
@@ -411,6 +412,35 @@ export class Game {
 
   available(item: ItemType): number {
     return this.stock[item] - this.stockReserved[item];
+  }
+
+  // Why a ready producer (sawmill/forge/workshop) is or isn't converting right
+  // now — the single source of truth for the inspect panel's status line, so
+  // "idle" always names its own cause instead of a bare "ready". The order is
+  // the order the sim itself gates a batch in tickBuildings: an in-flight batch
+  // (working) and a hold (paused) short-circuit; then a FULL OUTPUT BUFFER is
+  // what stalls an otherwise-fed line — it won't pull more inputs until a hauler
+  // carries the finished goods off — then a genuinely missing input (still on
+  // its way if a delivery is inbound), else it's truly ready to start.
+  producerStatus(
+    b: Building
+  ):
+    | { kind: 'paused' }
+    | { kind: 'working'; progress: number }
+    | { kind: 'output-full' }
+    | { kind: 'needs'; item: ItemType; delivering: boolean }
+    | { kind: 'ready' } {
+    const recipe = RECIPES[b.kind];
+    if (!recipe) return { kind: 'ready' };
+    if (b.paused) return { kind: 'paused' };
+    if (b.processing) return { kind: 'working', progress: b.processT / recipe.time };
+    const outTotal = Object.values(b.outputs).reduce((s, v) => s + (v ?? 0), 0);
+    if (outTotal >= PRODUCER_OUTPUT_CAP) return { kind: 'output-full' };
+    const missing = (Object.keys(recipe.inputs) as ItemType[]).find(
+      (it) => (b.inputs[it] ?? 0) < (recipe.inputs[it] as number)
+    );
+    if (missing) return { kind: 'needs', item: missing, delivering: (b.inbound[missing] ?? 0) > 0 };
+    return { kind: 'ready' };
   }
 
   setKeep(item: ItemType, n: number): void {
@@ -1991,7 +2021,7 @@ export class Game {
           ([k, v]) => (b.inputs[k as ItemType] ?? 0) >= (v as number)
         );
         const outTotal = Object.values(b.outputs).reduce((s, v) => s + (v ?? 0), 0);
-        if (canStart && outTotal < 6) {
+        if (canStart && outTotal < PRODUCER_OUTPUT_CAP) {
           for (const [k, v] of Object.entries(recipe.inputs)) {
             b.inputs[k as ItemType]! -= v as number;
           }
