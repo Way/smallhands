@@ -680,6 +680,9 @@ const D: Record<string, [string, string]> = {
   'inspect.idleOutputFull': ['Idle · output full — needs hauling', 'Leerlauf · Lager voll — abtransportieren'],
   'inspect.idleReady': ['Idle · ready', 'Leerlauf · bereit'],
   'inspect.paused': ['Paused · stockpiling', 'Pausiert · sammelt an'],
+  // producer storage readout: raw inputs it is holding, and the output buffer
+  'inspect.stored': ['Stored', 'Lager'],
+  'inspect.output': ['Output', 'Ausgabe'],
   'inspect.stranded': [
     'Stranded — no way to carry this out. Connect it with a ramp, bridge, or lift.',
     'Gestrandet — kein Abtransport möglich. Verbinde es mit einer Rampe, Brücke oder einem Lift.',

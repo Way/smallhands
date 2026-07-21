@@ -297,26 +297,28 @@ await page.evaluate(() => { const g = window.__smallhands.game; for (const k in 
 const thPos = await tileToScreen(thTile.x, thTile.y);
 await page.touchscreen.tap(thPos.x, thPos.y);
 await page.waitForTimeout(120);
-check('tapping the town hall opens its panel', (await page.locator('.th-toast').count()) > 0);
+// the docked toast is gone (card #55): a tap now PINS the inspector — the same
+// live tooltip, made sticky and clickable, carrying the upgrade control.
+check('tapping the town hall pins its inspector', (await page.locator('.tooltip.pinned').count()) === 1);
 check('town-hall cost shows red when unaffordable', await page.evaluate(() =>
-  document.querySelector('.th-toast')?.querySelectorAll('.insufficient').length > 0));
-// flood resources — a LIVE panel clears the red and enables the Upgrade button
+  document.querySelector('.tooltip.pinned')?.querySelectorAll('.insufficient').length > 0));
+// flood resources — a LIVE pinned panel clears the red and enables the Upgrade button
 await page.evaluate(() => { const g = window.__smallhands.game; for (const k in g.stock) g.stock[k] = 999; });
 await page.waitForTimeout(200);
 check('town-hall cost refreshes (no stale red) once affordable', await page.evaluate(() =>
-  document.querySelector('.th-toast')?.querySelectorAll('.insufficient').length === 0));
+  document.querySelector('.tooltip.pinned')?.querySelectorAll('.insufficient').length === 0));
 check('town-hall Upgrade button enables once affordable', await page.evaluate(() => {
-  const btn = document.querySelector('.th-toast .th-mini');
+  const btn = document.querySelector('.tooltip.pinned .tt-btn');
   return btn && !btn.disabled;
 }));
 
-// ---- tapping again replaces the panel, never stacks a duplicate (card #50) ---
-// Re-tapping the same building used to append a second identical panel box (the
-// toast cap of 2 let two coexist). Opening must now REPLACE the open panel.
+// ---- re-tapping the same building toggles the pin closed (card #55) ----------
+// A single livePanel slot means a pin can never stack a duplicate; tapping the
+// pinned building again dismisses it (click-to-open, click-to-close).
 await page.touchscreen.tap(thPos.x, thPos.y);
 await page.waitForTimeout(120);
-check('re-tapping the town hall keeps a single panel (no duplicate)',
-  (await page.locator('.th-toast').count()) === 1);
+check('re-tapping the town hall closes the pinned inspector',
+  (await page.locator('.tooltip.pinned').count()) === 0);
 
 // ---- inspect-hint build % counts in 1% steps, not coarse 5% jumps (#33) ------
 // The hint's signature used to quantize progress to 1/20, so the % it renders
