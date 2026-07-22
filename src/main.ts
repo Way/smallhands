@@ -1303,9 +1303,11 @@ function setTool(tool: Tool): void {
   hover.tool = tool;
   hud.setActiveTool(tool);
   runAnchor = null;
-  // switching tools drops any parked touch aim + inspect tooltip, re-arms the hint
+  // switching tools drops any parked touch aim + inspect tooltip + pinned
+  // inspector, re-arms the hint (Escape routes here too, so it dismisses a pin)
   touchInspect = null;
   hud.hideBuildingHint();
+  hud.unpinInspector();
   if (COARSE) {
     clearTouchPlace(false);
     armTouchTool(tool);
@@ -1353,8 +1355,10 @@ interface TouchPlaceState {
   end: { x: number; y: number } | null; // run tools: the run's current end
 }
 let touchPlace: TouchPlaceState | null = null;
-// tap-to-inspect target, re-rendered each frame so progress/stock stay live
-let touchInspect: { kind: 'b' | 'n' | 'si'; id: number; cx: number; cy: number } | null = null;
+// tap-to-inspect target for controls-less things (resource node / stranded
+// item), re-rendered each frame so its readout stays live. Buildings don't go
+// here — a building tap pins the interactive inspector instead (see touchTap).
+let touchInspect: { kind: 'n' | 'si'; id: number; cx: number; cy: number } | null = null;
 
 function clearTouchPlace(hideBar = true): void {
   touchPlace = null;
@@ -1494,37 +1498,26 @@ function commitTouchPlace(): void {
 function touchTap(tx: number, ty: number, clientX: number, clientY: number): void {
   const g = game!;
   if (hover.tool === 'select') {
-    // tap-to-inspect: everything hover gives mouse users, parked at the tap
+    // tap-to-inspect. A building pins the interactive inspector (storage +
+    // controls, sticky) right where it was tapped; tapping it again closes it.
+    // Stranded items and resource nodes have no controls, so they keep the
+    // lightweight parked hover hint.
     const si = g.strandedItemAt(tx, ty);
-    const bAny = g.buildingAt(tx, ty); // ungated — drives the direct-open shortcuts below
-    if (bAny && bAny.kind === 'townhall') {
-      hud!.hideBuildingHint();
+    const b = si ? undefined : g.buildingAt(tx, ty);
+    if (b) {
       touchInspect = null;
-      hud!.showTownhall();
+      hud!.pinInspector(b, clientX, clientY);
       return;
     }
-    if (bAny && bAny.kind === 'hoist' && bAny.state === 'ready') {
-      hud!.hideBuildingHint();
-      touchInspect = null;
-      hud!.showHoist(bAny.id);
-      return;
-    }
-    if (bAny && isProducer(bAny) && bAny.state === 'ready') {
-      hud!.hideBuildingHint();
-      touchInspect = null;
-      hud!.showProducer(bAny.id);
-      return;
-    }
-    const b = si ? undefined : bAny; // si-gated — only for the touchInspect hint fallback
-    const n = si || b ? undefined : g.nodeAt(tx, ty);
+    const n = si ? undefined : g.nodeAt(tx, ty);
     if (si) touchInspect = { kind: 'si', id: si.id, cx: clientX, cy: clientY };
-    else if (b) touchInspect = { kind: 'b', id: b.id, cx: clientX, cy: clientY };
     else if (n) touchInspect = { kind: 'n', id: n.id, cx: clientX, cy: clientY };
     else {
       touchInspect = null;
       hud!.hideBuildingHint();
+      hud!.unpinInspector(); // tapping empty ground dismisses a pinned inspector
     }
-    refreshTouchInspect();
+    if (touchInspect) refreshTouchInspect();
     return;
   }
   audio.click();
@@ -1561,13 +1554,6 @@ function refreshTouchInspect(): void {
       touchInspect = null;
       hud.hideBuildingHint();
     }
-  } else if (touchInspect.kind === 'b') {
-    const b = game.buildings.find((bd) => bd.id === touchInspect!.id);
-    if (b) hud.showBuildingHint(b, touchInspect.cx, touchInspect.cy);
-    else {
-      touchInspect = null;
-      hud.hideBuildingHint();
-    }
   } else {
     const n = game.nodes.find((nd) => nd.id === touchInspect!.id);
     if (n) hud.showNodeHint(n, touchInspect.cx, touchInspect.cy);
@@ -1590,9 +1576,6 @@ let downY = 0; // with a wider tolerance for wobbly fingers than for mice
 const keys = new Set<string>();
 let runAnchor: { x: number; y: number; tool: Tool } | null = null; // build-run start tile
 const isRunTool = (t: Tool) => t === 'ramp' || t === 'platform' || t === 'ladder' || t === 'dig';
-// recipe producers carry a pause toggle (tap/click with Select opens the panel)
-const isProducer = (b: { kind: string }): boolean =>
-  b.kind === 'sawmill' || b.kind === 'forge' || b.kind === 'workshop';
 
 function canvasDpr(): number {
   return canvas.width / canvas.clientWidth || 1;
@@ -1799,7 +1782,7 @@ canvas.addEventListener('pointerup', (e) => {
     touchTap(t.x, t.y, e.clientX, e.clientY);
     return;
   }
-  applyTool(t.x, t.y);
+  applyTool(t.x, t.y, e.clientX, e.clientY);
 });
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1936,17 +1919,16 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
-function applyTool(tx: number, ty: number): void {
+function applyTool(tx: number, ty: number, clientX = 0, clientY = 0): void {
   const g = game!;
   switch (hover.tool) {
     case 'select': {
-      // Hover shows the live tooltip for everything now; the click actions
-      // left in Inspect are the town hall's upgrade panel and the hoist's
-      // routing panel.
+      // Hover shows the live tooltip; a click pins the interactive inspector
+      // (storage + pause/upgrade/routing controls) to the building. Clicking
+      // the same building again toggles it off; clicking empty ground dismisses.
       const b = g.buildingAt(tx, ty);
-      if (b && b.kind === 'townhall') hud!.showTownhall();
-      else if (b && b.kind === 'hoist' && b.state === 'ready') hud!.showHoist(b.id);
-      else if (b && isProducer(b) && b.state === 'ready') hud!.showProducer(b.id);
+      if (b) hud!.pinInspector(b, clientX, clientY);
+      else hud!.unpinInspector();
       break;
     }
     case 'harvest': {

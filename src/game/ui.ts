@@ -7,6 +7,7 @@ import {
   fmtTime,
   ITEM_ICON,
   ITEM_TYPES,
+  PRODUCER_OUTPUT_CAP,
   RECIPES,
   ROLE_COLORS,
   ROLES,
@@ -614,7 +615,7 @@ export class Hud {
   // over to a full-screen overlay (world map) that the toasts would float over.
   clearToasts(): void {
     this.toastWrap.innerHTML = '';
-    this.livePanel = null;
+    this.unpinInspector();
   }
 
   // Tear down the currently-open interactive tap-panel (producer/hoist/townhall)
@@ -627,225 +628,89 @@ export class Hud {
     this.livePanel = null;
   }
 
-  // Interactive hoist panel shown when a hoist is tapped with Select: live car
-  // weights plus per-item routing toggles (send down / send up — exclusive).
-  showHoist(id: number): void {
-    const g = this.game;
+  // ---- building inspector ---------------------------------------------------
+  // One readout, two presentations. HOVER (a desktop pointer over a building in
+  // Inspect) floats a cursor-following, non-interactive tooltip. An Inspect
+  // CLICK/TAP PINS that same readout open as an interactive panel carrying the
+  // controls (pause / upgrade / hoist routing) — this replaces the old docked
+  // toast. Both draw from renderBuildingBody() so a building reads identically
+  // floated or pinned; the pin re-renders live via update()'s livePanel slot.
+
+  // The building the pinned inspector is open for (null = none) — used to toggle
+  // the pin off on a repeat click and to suppress a duplicate hover tooltip over
+  // the pinned building.
+  private pinnedId: number | null = null;
+
+  // Pin the interactive inspector to a building. Clicking the same building again
+  // toggles it closed. Positioned once at the click point (it does not trail the
+  // cursor) and kept live by update() through the livePanel slot.
+  pinInspector(b: Building, clientX: number, clientY: number): void {
+    if (this.pinnedId === b.id) {
+      this.unpinInspector();
+      return;
+    }
     this.closeLivePanel();
-    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
-    const box = el('div', 'toast th-toast', this.toastWrap);
+    this.hideBuildingHint(); // no floating hover copy behind the pin
+    const id = b.id;
+    const box = el('div', 'tooltip pinned', this.root);
     const build = (): void => {
-      const b = g.buildings.find((bd) => bd.id === id && bd.kind === 'hoist');
-      if (!b) {
-        box.remove();
+      const bd = this.game.buildings.find((x) => x.id === id);
+      if (!bd) {
+        this.unpinInspector(); // demolished out from under us — tear the pin down
         return;
       }
       box.innerHTML = '';
-      const head = el('div', undefined, box);
-      head.innerHTML = `<b>${t('tool.hoist.label')}</b>`;
-      const cars = el('div', 'th-toast-body', box);
-      cars.textContent =
-        `${t('hoist.top')}: ${t('hoist.weight', { n: carWeight(b.hoistUpper) })} · ` +
-        `${t('hoist.bottom')}: ${t('hoist.weight', { n: carWeight(b.hoistLower) })}`;
-      const routeRow = (label: string, car: HoistCar, routes: Partial<Record<ItemType, boolean>>): void => {
-        const row = el('div', 'hoist-route-row', box);
-        el('span', 'hoist-route-label', row).textContent = label;
-        for (const item of ITEM_TYPES) {
-          const chip = el('button', routes[item] ? 'hoist-chip on' : 'hoist-chip', row);
-          chip.title = t(`item.${item}`);
-          icon(ITEM_ICON[item], 16, chip);
-          chip.onclick = () => {
-            g.toggleHoistRoute(id, car, item);
-            build(); // re-render both rows (directions are exclusive per item)
-          };
-        }
-      };
-      routeRow(t('hoist.sendDown'), 'upper', b.hoistSendDown);
-      routeRow(t('hoist.sendUp'), 'lower', b.hoistSendUp);
-      const d = el('span', 'dismiss', box);
-      d.textContent = t('ui.dismiss');
-      d.onclick = () => {
-        this.livePanel = null;
-        box.remove();
-      };
+      this.renderBuildingBody(box, bd, true);
+      const close = el('button', 'tt-close', box);
+      close.textContent = '✕';
+      close.title = t('ui.dismiss');
+      close.onclick = () => this.unpinInspector();
     };
     build();
-    this.livePanel = { box, render: build, sig: () => this.hoistSig(id), last: this.hoistSig(id) };
+    this.pinnedId = id;
+    this.positionPin(box, clientX, clientY);
+    this.livePanel = { box, render: build, sig: () => this.inspectSig(id), last: this.inspectSig(id) };
   }
 
-  // Signature for the tapped-open hoist panel: car weights and per-item routing.
-  // Cargo shifting between cars must keep the readout live; 'gone' lets update()
-  // notice a demolished hoist and let build() tear the panel down.
-  private hoistSig(id: number): string {
-    const b = this.game.buildings.find((bd) => bd.id === id && bd.kind === 'hoist');
-    if (!b) return 'gone';
-    return [
-      'h',
-      carWeight(b.hoistUpper),
-      carWeight(b.hoistLower),
-      ITEM_TYPES.map((i) => (b.hoistSendDown[i] ? 'd' : '') + (b.hoistSendUp[i] ? 'u' : '')).join(','),
-    ].join('|');
-  }
-
-  // Interactive producer panel (sawmill/forge/workshop) shown when the building
-  // is tapped/clicked with Select: the recipe, live status, and a pause toggle so
-  // the player can hold the conversion and stockpile raw inputs (e.g. keep logs
-  // instead of letting the sawmill turn them all into planks).
-  showProducer(id: number): void {
-    const g = this.game;
+  // Dismiss the pinned inspector, if any.
+  unpinInspector(): void {
+    this.pinnedId = null;
     this.closeLivePanel();
-    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
-    const box = el('div', 'toast th-toast', this.toastWrap);
-    const build = (): void => {
-      const b = g.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
-      const recipe = b && RECIPES[b.kind];
-      if (!b || !recipe || b.state !== 'ready') {
-        this.livePanel = null;
-        box.remove();
-        return;
-      }
-      box.innerHTML = '';
-      const head = el('div', undefined, box);
-      head.innerHTML = `<b>${t(`tool.${b.kind}.label`)}</b>`;
-      this.renderRecipe(box, recipe);
-      const ps = g.producerStatus(b);
-      let status: string;
-      switch (ps.kind) {
-        case 'paused':
-          status = t('inspect.paused');
-          break;
-        case 'working':
-          status = t('inspect.working', { p: Math.floor(ps.progress * 100) });
-          break;
-        case 'output-full':
-          status = t('inspect.idleOutputFull');
-          break;
-        case 'needs':
-          status = t(ps.delivering ? 'inspect.idleDelivering' : 'inspect.idleNeeds', {
-            name: t(`item.${ps.item}`),
-          });
-          break;
-        default:
-          status = t('inspect.idleReady');
-      }
-      el('div', 'th-toast-body', box).textContent = status;
-      const btn = el('button', 'th-mini', box);
-      btn.textContent = b.paused ? t('producer.resume') : t('producer.pause');
-      btn.onclick = () => {
-        g.toggleProducerPause(id);
-        build(); // reflect the flip immediately (label + status)
-      };
-      const d = el('span', 'dismiss', box);
-      d.textContent = t('ui.dismiss');
-      d.onclick = () => {
-        this.livePanel = null;
-        box.remove();
-      };
-    };
-    build();
-    this.livePanel = { box, render: build, sig: () => this.producerSig(id), last: this.producerSig(id) };
   }
 
-  // Signature for the tapped-open producer panel: paused flag, work progress, and
-  // buffered inputs/inbound/outputs — so update() re-renders when any of them change
-  // while the panel stays open (status text goes live — including the needs→delivering
-  // and ready→output-full flips — and the pause button label stays honest).
-  private producerSig(id: number): string {
-    const b = this.game.buildings.find((bd) => bd.id === id && !!RECIPES[bd.kind]);
-    const recipe = b && RECIPES[b.kind];
-    if (!b || !recipe || b.state !== 'ready') return 'gone';
-    return [
-      'p',
-      b.paused ? 1 : 0,
-      b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'x',
-      ITEM_TYPES.map((i) => b.inputs[i] ?? 0).join(','),
-      ITEM_TYPES.map((i) => b.inbound[i] ?? 0).join(','),
-      ITEM_TYPES.map((i) => b.outputs[i] ?? 0).join(','),
-    ].join('|');
+  // livePanel signature for the pin: 'gone' once the building is demolished (so
+  // update() re-runs build(), which tears the pin down), else the same content
+  // signature the hover tooltip dedups on — every rendered field.
+  private inspectSig(id: number): string {
+    const b = this.game.buildings.find((x) => x.id === id);
+    return b ? this.buildingHintSig(b) : 'gone';
   }
 
-  // Interactive town-hall panel shown when the building is tapped with Select.
-  showTownhall(): void {
-    const g = this.game;
-    this.closeLivePanel();
-    while (this.toastWrap.children.length >= 2) this.toastWrap.firstChild?.remove();
-    const box = el('div', 'toast th-toast', this.toastWrap);
-    const build = (): void => {
-      // recomputed each render: an upgrade completing while the panel is open
-      // bumps thLevel, and the cost/crew must follow it, not the opening snapshot
-      const lvl = TH_LEVELS[g.thLevel - 1];
-      box.innerHTML = '';
-      const head = el('div', undefined, box);
-      head.innerHTML = t('th.status', { n: g.thLevel, a: g.workers.length, b: g.maxWorkers });
-      if (g.thUpgrade) {
-        el('div', 'th-toast-body', box).textContent = t('th.upgradingBody', {
-          p: Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100),
-        });
-      } else if (!lvl.upgradeCost) {
-        el('div', 'th-toast-body', box).textContent = t('th.maxBody');
-      } else {
-        el('div', 'th-toast-body', box).textContent = t('th.upgradeTo', {
-          n: g.thLevel + 1,
-          m: TH_LEVELS[g.thLevel].maxWorkers,
-        });
-        const cost = el('div', 'th-toast-cost', box);
-        for (const [k, v] of Object.entries(lvl.upgradeCost)) {
-          const s = el('span', 'cost-item', cost);
-          icon(ITEM_ICON[k as ItemType], 16, s);
-          const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
-          n.textContent = String(v);
-        }
-        const btn = el('button', 'th-mini', box);
-        btn.textContent = t('th.upgradeShort');
-        btn.disabled = !g.canAfford(lvl.upgradeCost);
-        btn.onclick = () => {
-          this.cbs.onUpgrade();
-          build(); // re-render to reflect the in-progress state
-        };
-      }
-      const d = el('span', 'dismiss', box);
-      d.textContent = t('ui.dismiss');
-      d.onclick = () => {
-        this.livePanel = null;
-        box.remove();
-      };
-    };
-    build();
-    this.livePanel = { box, render: build, sig: () => this.townhallSig(), last: this.townhallSig() };
-  }
-
-  // Signature for the tapped-open town-hall panel — everything it renders, so
-  // update() rebuilds only when it actually changes: level/crew, upgrade
-  // progress (1% steps for a smooth "build time"), and stock (missing resources).
-  private townhallSig(): string {
-    const g = this.game;
-    const lvl = TH_LEVELS[g.thLevel - 1];
-    return [
-      g.thLevel,
-      g.workers.length,
-      g.maxWorkers,
-      g.thUpgrade ? Math.floor((g.thUpgrade.progress / g.thUpgrade.time) * 100) : 'x',
-      lvl.upgradeCost ? ITEM_TYPES.map((i) => g.stock[i]).join(',') : 'max',
-    ].join('|');
+  // Park the pinned panel at the click point, clamped fully on-screen (it carries
+  // buttons, so unlike the hover tip it must not spill off the bottom edge).
+  private positionPin(box: HTMLElement, clientX: number, clientY: number): void {
+    const w = 260;
+    const h = box.offsetHeight || 180;
+    box.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, clientX + 14))}px`;
+    box.style.top = `${Math.max(8, Math.min(window.innerHeight - h - 8, clientY + 16))}px`;
+    box.style.bottom = 'auto';
   }
 
   // Hover-to-inspect: a tiny live tooltip for whatever building sits under the
   // cursor in Inspect mode. The town hall keeps its richer, actionable hint
   // (crew + click-to-upgrade); the rest report what they make, move, or need.
   showBuildingHint(b: Building, clientX: number, clientY: number): void {
-    const g = this.game;
+    // the pinned inspector already shows this building — don't float a copy too
+    if (this.pinnedId === b.id) {
+      this.hideBuildingHint();
+      return;
+    }
     const sig = this.buildingHintSig(b);
     const tip = this.ensureHint();
     if (sig !== this.hintSig) {
       this.hintSig = sig;
       tip.innerHTML = '';
-      el('div', undefined, tip).innerHTML =
-        b.kind === 'townhall' ? t('th.hover', { n: g.thLevel }) : `<b>${t(`building.${b.kind}`)}</b>`;
-      if (b.kind === 'townhall') this.fillTownhallHint(tip);
-      else if (b.state === 'blueprint') {
-        const need = BUILD_TIME[b.kind] ?? 5;
-        el('div', 'tt-desc', tip).textContent = t('inspect.buildingPct', { p: Math.floor((b.progress / need) * 100) });
-      } else this.fillBuildingHint(tip, b);
+      this.renderBuildingBody(tip, b, false);
     }
     this.positionHint(tip, clientX, clientY);
   }
@@ -916,8 +781,8 @@ export class Hud {
     const recipe = RECIPES[b.kind];
     if (recipe) {
       parts.push(b.processing ? Math.floor((b.processT / recipe.time) * 100) : 'idle');
-      // paused flips the rendered status (fillBuildingHint reads b.paused first),
-      // so the hover tooltip must re-render on it even when nothing else changes
+      // paused flips both the status text and the pause/resume control label, so
+      // the tooltip/pinned panel must re-render on it even when nothing else changes
       parts.push(b.paused ? 'P' : '-');
       // inputs + inbound (needs↔delivering) and outputs (ready↔output-full) all
       // change the status text — include every driver or the open tooltip goes stale
@@ -926,100 +791,220 @@ export class Hud {
     }
     if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
     if (b.kind === 'rope') parts.push(b.ropeBottomY - b.y);
+    // hoist: car weights, cycle/storm lock, and routing all drive the rendered
+    // contents + status + chips — include them or the pinned/hover readout freezes
+    if (b.kind === 'hoist')
+      parts.push(
+        carWeight(b.hoistUpper),
+        carWeight(b.hoistLower),
+        b.hoistBusy ? 'busy' : '-',
+        g.weather === 'storm' ? 'storm' : '-',
+        ITEM_TYPES.map((i) => (b.hoistSendDown[i] ? 'd' : '') + (b.hoistSendUp[i] ? 'u' : '')).join(',')
+      );
     if (b.kind === 'goal') for (const o of g.objectives) parts.push(o.delivered, o.amount);
     return parts.join('|');
   }
 
-  private fillTownhallHint(tip: HTMLElement): void {
+  // Shared inspector body — the header plus whatever the building has to show.
+  // `interactive` picks the presentation: a pinned panel gets real control
+  // buttons (pause / upgrade / hoist routing); the hover tooltip gets a "▸ Click…"
+  // hint pointing at them. Everything else (recipe, storage, status) is common.
+  private renderBuildingBody(tip: HTMLElement, b: Building, interactive: boolean): void {
+    const g = this.game;
+    el('div', undefined, tip).innerHTML =
+      b.kind === 'townhall' ? t('th.hover', { n: g.thLevel }) : `<b>${t(`building.${b.kind}`)}</b>`;
+    if (b.kind === 'townhall') {
+      this.renderTownhallBody(tip, interactive);
+      return;
+    }
+    if (b.state === 'blueprint') {
+      const need = BUILD_TIME[b.kind] ?? 5;
+      el('div', 'tt-desc', tip).textContent = t('inspect.buildingPct', { p: Math.floor((b.progress / need) * 100) });
+      return;
+    }
+    const recipe = RECIPES[b.kind];
+    if (recipe) {
+      this.renderProducerBody(tip, b, recipe, interactive);
+      return;
+    }
+    if (b.kind === 'hoist') {
+      this.renderHoistBody(tip, b, interactive);
+      return;
+    }
+    this.renderMiscBody(tip, b);
+  }
+
+  // Producer (sawmill/forge/workshop): recipe, what it is holding right now, live
+  // status, and — pinned — the pause/resume toggle.
+  private renderProducerBody(tip: HTMLElement, b: Building, recipe: Recipe, interactive: boolean): void {
+    const g = this.game;
+    this.renderRecipe(tip, recipe);
+    this.renderStorage(tip, b, recipe);
+    // live status — shares one policy with placement (Game.producerStatus)
+    const ps = g.producerStatus(b);
+    let status: string;
+    switch (ps.kind) {
+      case 'paused':
+        status = t('inspect.paused');
+        break;
+      case 'working':
+        status = t('inspect.working', { p: Math.floor(ps.progress * 100) });
+        break;
+      case 'output-full':
+        status = t('inspect.idleOutputFull');
+        break;
+      case 'needs':
+        status = t(ps.delivering ? 'inspect.idleDelivering' : 'inspect.idleNeeds', {
+          name: t(`item.${ps.item}`),
+        });
+        break;
+      default:
+        status = t('inspect.idleReady');
+    }
+    el('div', 'tt-desc', tip).textContent = status;
+    if (b.state !== 'ready') return;
+    if (interactive) {
+      // the real control — hold the conversion so raw inputs stockpile
+      const btn = el('button', 'tt-btn', tip);
+      btn.textContent = b.paused ? t('producer.resume') : t('producer.pause');
+      btn.onclick = () => {
+        g.toggleProducerPause(b.id);
+        this.livePanel?.render(); // reflect the flip immediately (label + status)
+      };
+    } else {
+      // hover copy: point at the control, which lives on the pinned panel. Reads
+      // "Click…" on desktop / "Tap…" on touch, and flips pause↔resume with state.
+      const verb = t(this.hoverOk ? 'producer.verbClick' : 'producer.verbTap');
+      const key = b.paused ? 'producer.hintResume' : 'producer.hintPause';
+      el('div', 'tt-desc tt-action', tip).textContent = `▸ ${t(key, { verb })}`;
+    }
+  }
+
+  // The producer's live buffers: raw inputs it is holding (with any inbound haul
+  // shown as +n), and the output buffer against its cap — so the player can see
+  // how much a Sawmill/Forge is sitting on and how close it is to jamming on a
+  // full output. buildingHintSig already tracks inputs/inbound/outputs, so this
+  // stays live in both the hover tooltip and the pinned panel.
+  private renderStorage(tip: HTMLElement, b: Building, recipe: Recipe): void {
+    const wrap = el('div', 'tt-store', tip);
+    const inRow = el('div', 'tt-store-row', wrap);
+    el('span', 'tt-store-label', inRow).textContent = t('inspect.stored');
+    for (const it of Object.keys(recipe.inputs) as ItemType[]) {
+      const s = el('span', 'tt-store-item', inRow);
+      icon(ITEM_ICON[it], 14, s);
+      el('b', undefined, s).textContent = String(b.inputs[it] ?? 0);
+      const inb = b.inbound[it] ?? 0;
+      if (inb > 0) el('small', 'tt-inbound', s).textContent = `+${inb}`;
+    }
+    const outRow = el('div', 'tt-store-row', wrap);
+    el('span', 'tt-store-label', outRow).textContent = t('inspect.output');
+    let outTotal = 0;
+    for (const it of Object.keys(recipe.outputs) as ItemType[]) {
+      const held = b.outputs[it] ?? 0;
+      outTotal += held;
+      const s = el('span', 'tt-store-item', outRow);
+      icon(ITEM_ICON[it], 14, s);
+      el('b', undefined, s).textContent = String(held);
+    }
+    el('small', 'tt-cap', outRow).textContent = `${outTotal}/${PRODUCER_OUTPUT_CAP}`;
+  }
+
+  // Counterweight hoist: the drop it spans, each car's contents + weight, live
+  // status, and — pinned — the per-item send-down / send-up routing chips.
+  private renderHoistBody(tip: HTMLElement, b: Building, interactive: boolean): void {
+    const g = this.game;
+    el('div', 'tt-desc', tip).textContent = t('inspect.hoist', { n: b.ropeBottomY - b.y });
+    const carRow = (label: string, contents: Partial<Record<ItemType, number>>): void => {
+      const row = el('div', 'tt-cost', tip);
+      el('span', undefined, row).textContent = `${label} ·`;
+      let any = false;
+      for (const [k, v] of Object.entries(contents)) {
+        if (!v) continue;
+        any = true;
+        const s = el('span', undefined, row);
+        icon(ITEM_ICON[k as ItemType], 14, s);
+        el('b', undefined, s).textContent = String(v);
+      }
+      el('span', undefined, row).textContent = `(${t('hoist.weight', { n: carWeight(contents) })})`;
+      if (!any) row.classList.add('hoist-empty');
+    };
+    carRow(t('hoist.top'), b.hoistUpper);
+    carRow(t('hoist.bottom'), b.hoistLower);
+    let status: string;
+    if (b.hoistBusy) status = t('hoist.cycling');
+    else if (g.weather === 'storm') status = t('hoist.stormLocked');
+    else if (carCount(b.hoistLower) > 0 && carWeight(b.hoistUpper) <= carWeight(b.hoistLower))
+      status = t('hoist.needsBallast');
+    else status = t('inspect.idle');
+    el('div', 'tt-desc', tip).textContent = status;
+    if (interactive) {
+      // per-item routing — directions are exclusive per item (toggling one clears
+      // the other), so re-render both rows on every change.
+      const routeRow = (label: string, car: HoistCar, routes: Partial<Record<ItemType, boolean>>): void => {
+        const row = el('div', 'hoist-route-row', tip);
+        el('span', 'hoist-route-label', row).textContent = label;
+        for (const item of ITEM_TYPES) {
+          const chip = el('button', routes[item] ? 'hoist-chip on' : 'hoist-chip', row);
+          chip.title = t(`item.${item}`);
+          icon(ITEM_ICON[item], 16, chip);
+          chip.onclick = () => {
+            g.toggleHoistRoute(b.id, car, item);
+            this.livePanel?.render();
+          };
+        }
+      };
+      routeRow(t('hoist.sendDown'), 'upper', b.hoistSendDown);
+      routeRow(t('hoist.sendUp'), 'lower', b.hoistSendUp);
+    } else {
+      el('div', 'tt-desc', tip).textContent = t('hoist.hint');
+    }
+  }
+
+  // Town hall: crew, and the upgrade — pinned gets the Upgrade button, hover gets
+  // the "Click: upgrade →" hint that points at it.
+  private renderTownhallBody(tip: HTMLElement, interactive: boolean): void {
     const g = this.game;
     const lvl = TH_LEVELS[g.thLevel - 1];
     const up = g.thUpgrade;
     el('div', 'tt-desc', tip).textContent = t('th.hoverCrew', { a: g.workers.length, b: g.maxWorkers });
     if (up) {
       el('div', 'tt-desc', tip).textContent = t('hud.upgrading', { p: Math.floor((up.progress / up.time) * 100) });
-    } else if (lvl.upgradeCost) {
-      el('div', undefined, tip).textContent = t('th.hoverClick', {
-        n: g.thLevel + 1,
-        m: TH_LEVELS[g.thLevel].maxWorkers,
-      });
-      const cost = el('div', 'tt-cost', tip);
-      for (const [k, v] of Object.entries(lvl.upgradeCost)) {
-        const s = el('span', undefined, cost);
-        icon(ITEM_ICON[k as ItemType], 14, s);
-        const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
-        n.textContent = String(v);
-      }
-    } else {
+      return;
+    }
+    if (!lvl.upgradeCost) {
       el('div', 'tt-desc', tip).textContent = t('th.hoverMax');
+      return;
+    }
+    const nextCrew = TH_LEVELS[g.thLevel].maxWorkers;
+    el('div', undefined, tip).textContent = interactive
+      ? t('th.upgradeTo', { n: g.thLevel + 1, m: nextCrew })
+      : t('th.hoverClick', { n: g.thLevel + 1, m: nextCrew });
+    const cost = el('div', 'tt-cost', tip);
+    for (const [k, v] of Object.entries(lvl.upgradeCost)) {
+      const s = el('span', undefined, cost);
+      icon(ITEM_ICON[k as ItemType], 14, s);
+      const n = el('b', g.stock[k as ItemType] < (v as number) ? 'insufficient' : '', s);
+      n.textContent = String(v);
+    }
+    if (interactive) {
+      const btn = el('button', 'tt-btn', tip);
+      btn.textContent = t('th.upgradeShort');
+      btn.disabled = !g.canAfford(lvl.upgradeCost);
+      btn.onclick = () => {
+        this.cbs.onUpgrade();
+        this.livePanel?.render();
+      };
     }
   }
 
-  private fillBuildingHint(tip: HTMLElement, b: Building): void {
+  // Lift / rope / goal — live readouts, no controls (same in hover and pinned).
+  private renderMiscBody(tip: HTMLElement, b: Building): void {
     const g = this.game;
-    const recipe = RECIPES[b.kind];
-    if (recipe) {
-      this.renderRecipe(tip, recipe);
-      // live status — shares one policy with the tap panel (Game.producerStatus)
-      const ps = g.producerStatus(b);
-      let status: string;
-      switch (ps.kind) {
-        case 'paused':
-          status = t('inspect.paused');
-          break;
-        case 'working':
-          status = t('inspect.working', { p: Math.floor(ps.progress * 100) });
-          break;
-        case 'output-full':
-          status = t('inspect.idleOutputFull');
-          break;
-        case 'needs':
-          status = t(ps.delivering ? 'inspect.idleDelivering' : 'inspect.idleNeeds', {
-            name: t(`item.${ps.item}`),
-          });
-          break;
-        default:
-          status = t('inspect.idleReady');
-      }
-      el('div', 'tt-desc', tip).textContent = status;
-      if (b.state === 'ready') {
-        // actionable hint: flips pause↔resume with state, and reads "Click…" on
-        // desktop / "Tap…" on touch so it points at the real gesture (the pause
-        // control lives in the Inspect click/tap panel, not on this tooltip).
-        const verb = t(this.hoverOk ? 'producer.verbClick' : 'producer.verbTap');
-        const key = b.paused ? 'producer.hintResume' : 'producer.hintPause';
-        el('div', 'tt-desc tt-action', tip).textContent = `▸ ${t(key, { verb })}`;
-      }
-    } else if (b.kind === 'lift') {
+    if (b.kind === 'lift') {
       el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
       el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');
     } else if (b.kind === 'rope') {
       el('div', 'tt-desc', tip).textContent = t('inspect.rope', { n: b.ropeBottomY - b.y });
-    } else if (b.kind === 'hoist') {
-      el('div', 'tt-desc', tip).textContent = t('inspect.hoist', { n: b.ropeBottomY - b.y });
-      const carRow = (label: string, contents: Partial<Record<ItemType, number>>): void => {
-        const row = el('div', 'tt-cost', tip);
-        el('span', undefined, row).textContent = `${label} ·`;
-        let any = false;
-        for (const [k, v] of Object.entries(contents)) {
-          if (!v) continue;
-          any = true;
-          const s = el('span', undefined, row);
-          icon(ITEM_ICON[k as ItemType], 14, s);
-          el('b', undefined, s).textContent = String(v);
-        }
-        el('span', undefined, row).textContent = `(${t('hoist.weight', { n: carWeight(contents) })})`;
-        if (!any) row.classList.add('hoist-empty');
-      };
-      carRow(t('hoist.top'), b.hoistUpper);
-      carRow(t('hoist.bottom'), b.hoistLower);
-      let status: string;
-      if (b.hoistBusy) status = t('hoist.cycling');
-      else if (this.game.weather === 'storm') status = t('hoist.stormLocked');
-      else if (carCount(b.hoistLower) > 0 && carWeight(b.hoistUpper) <= carWeight(b.hoistLower))
-        status = t('hoist.needsBallast');
-      else status = t('inspect.idle');
-      el('div', 'tt-desc', tip).textContent = status;
-      el('div', 'tt-desc', tip).textContent = t('hoist.hint');
     } else if (b.kind === 'goal') {
       const row = el('div', 'tt-cost', tip);
       for (const o of g.objectives) {
