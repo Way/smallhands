@@ -86,12 +86,12 @@ export class Renderer {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 6; i++) {
       this.cloudSeeds.push({
         x: Math.random() * 2400,
         y: 20 + Math.random() * 160,
         s: 0.7 + Math.random() * 1.6,
-        v: 2.5 + Math.random() * 5,
+        v: 2 + Math.random() * 3,
       });
     }
   }
@@ -1670,10 +1670,10 @@ export class Renderer {
       // gusts screaming past horizontally, fading in with the storm
       ctx.strokeStyle = `rgba(220,230,245,${(0.14 * stormy).toFixed(3)})`;
       ctx.beginPath();
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 5; i++) {
         const h = tileHash(i, 41);
         const y = h * H;
-        const x = mod(h * W - t * (600 + h * 300), W + 260) - 130;
+        const x = mod(h * W - t * (380 + h * 160), W + 260) - 130;
         ctx.moveTo(x, y);
         ctx.lineTo(x + 46 + h * 30, y - 2);
       }
