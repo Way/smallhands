@@ -1052,6 +1052,10 @@ function attachHud(): void {
         hud?.toast(t('locate.none', { name: t(`item.${item}`) }));
         return;
       }
+      // A spent node still gets the ring and the pan — it says WHERE the source
+      // was — but the toast has to admit it is mined out, or "no source on this
+      // map" reads as a broken level (card #57).
+      if (r.kind === 'spent') hud?.toast(t('locate.spent', { name: t(`item.${item}`) }));
       const avw = renderer.viewW - cam.rightInset;
       const tx = (r.x + 0.5) * TILE * cam.zoom - avw / 2;
       const ty = (r.y + 0.5) * TILE * cam.zoom - renderer.viewH / 2;

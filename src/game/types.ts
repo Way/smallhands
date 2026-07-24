@@ -284,12 +284,16 @@ export interface ObjectiveReq {
 }
 
 // Where the camera should go when the player asks "where do I get <item>?"
-// kind: 'node' = a raw source node, 'building' = a producer, 'input' = the
-// source of a producer's missing input (the recipe had no built producer).
+// kind: 'node' = a live raw source node, 'building' = a producer, 'input' = the
+// source of a producer's missing input (the recipe had no built producer),
+// 'item' = units of the item that already exist somewhere on the map (dropped,
+// in a hauler's hands, in a building's buffer, or in the store), 'spent' = a
+// harvested-out source node — the map DID have one, it is used up, which is a
+// different answer from "this map has none" (card #57).
 export interface LocateResult {
   x: number; // tile
   y: number; // tile
-  kind: 'node' | 'building' | 'input';
+  kind: 'node' | 'building' | 'input' | 'item' | 'spent';
 }
 
 // ---- medals & feats ---------------------------------------------------------
