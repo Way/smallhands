@@ -742,20 +742,30 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   // ---- daily logbook ----
   // One row per solved daily — the only place a past day's time, medal and feat
   // pins are readable (the lighthouse itself only ever knows today's seed).
-  const logRow = (e: DailyLogEntry): HTMLElement => {
+  const logRow = (entry: DailyLogEntry): HTMLElement => {
     const row = document.createElement('div');
     row.className = 'level-card daily-row';
     row.innerHTML = `
-      <div class="lv-num">📅</div>
+      <div class="lv-num cal-mini"></div>
       <div class="lv-name"></div>
       <div class="lv-desc"></div>
       <div class="lv-foot"><div class="lv-status done">${t('status.done')}</div></div>
     `;
-    (row.querySelector('.lv-name') as HTMLElement).textContent = e.label;
-    (row.querySelector('.lv-desc') as HTMLElement).textContent = `${diffStars(e.difficulty)} ${diffLabel(e.difficulty)}`;
+    // a tear-off calendar showing THAT day, like the lighthouse pin — a plain 📅
+    // emoji always draws a frozen "17", which reads as wrong data on a dated row
+    const cal = row.querySelector('.lv-num') as HTMLElement;
+    const calTop = document.createElement('span');
+    calTop.className = 'cal-top';
+    const calDay = document.createElement('span');
+    calDay.className = 'cal-day';
+    calDay.textContent = entry.label.slice(-2);
+    cal.append(calTop, calDay);
+    (row.querySelector('.lv-name') as HTMLElement).textContent = entry.label;
+    (row.querySelector('.lv-desc') as HTMLElement).textContent =
+      `${diffStars(entry.difficulty)} ${diffLabel(entry.difficulty)}`;
     // same best-time line + medal/feat slots the level cards use, so a logged day
     // reads exactly like a level card
-    deps.addMedalBits(row, e.seed, null);
+    deps.addMedalBits(row, entry.seed, null);
     const actions = document.createElement('div');
     actions.className = 'lv-actions';
     const replay = document.createElement('button');
@@ -764,11 +774,12 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     replay.title = t('daily.log.replay');
     replay.setAttribute('aria-label', t('daily.log.replay'));
     // the seed is the day, so an old daily regenerates identically — beating the
-    // old time updates the same record
+    // old time updates the same record. The logbook is NOT closed here: booting a
+    // level clears the whole overlay anyway, and cancelling the abandon confirm
+    // must leave the player where they were (same as the my-levels drawer).
     replay.onclick = () => {
       deps.click();
-      closeLogbook();
-      deps.onPlayPastDaily(e);
+      deps.onPlayPastDaily(entry);
     };
     actions.appendChild(replay);
     row.appendChild(actions);
@@ -824,14 +835,21 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     // what makes a broken streak legible (a missed day leaves no record at all)
     const strip = document.createElement('div');
     strip.className = 'log-strip';
+    // role=list/listitem: without a role, an aria-label on a plain div is not
+    // reliably exposed, and a `title` on a non-interactive span is not announced
+    // at all — so each day carries its own label
+    strip.setAttribute('role', 'list');
     strip.setAttribute('aria-label', t('daily.log.stripAria', { n: deps.dailyStrip.length }));
     for (const day of deps.dailyStrip) {
       const dot = document.createElement('span');
       dot.className =
         'log-dot' + (day.solved ? ` solved ${day.medal ?? 'none'}` : '') + (day.today ? ' today' : '');
-      dot.title = t(day.today ? 'daily.log.dayToday' : day.solved ? 'daily.log.dayDone' : 'daily.log.dayMissed', {
+      const label = t(day.today ? 'daily.log.dayToday' : day.solved ? 'daily.log.dayDone' : 'daily.log.dayMissed', {
         label: day.label,
       });
+      dot.title = label;
+      dot.setAttribute('role', 'listitem');
+      dot.setAttribute('aria-label', label);
       dot.textContent = day.label.slice(-2);
       strip.appendChild(dot);
     }

@@ -159,7 +159,7 @@ check(
 );
 
 // ---- logbook with a seeded daily history (today + the two days before) ----
-await page.evaluate(() => {
+const todayLabel = await page.evaluate(() => {
   const lbl = (offsetDays) => {
     const d = new Date();
     d.setDate(d.getDate() - offsetDays);
@@ -178,7 +178,7 @@ await page.evaluate(() => {
     music: false,
   };
   localStorage.setItem('smallhands-save-v1', JSON.stringify(save));
-  window.__todayLabel = lbl(0);
+  return lbl(0);
 });
 await page.goto(BASE_URL);
 await page.waitForTimeout(800);
@@ -196,10 +196,11 @@ check(
   'rows are newest first',
   rowNames.length === 3 && rowNames[0] > rowNames[1] && rowNames[1] > rowNames[2]
 );
-check('newest row is today', rowNames[0] === (await page.evaluate(() => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-})));
+check('newest row is today', rowNames[0] === todayLabel);
+check(
+  'rows show their own day on a tear-off calendar (not a frozen emoji)',
+  (await page.textContent('.daily-drawer .daily-row .cal-day')) === todayLabel.slice(-2)
+);
 check('rows carry the best time', ((await page.textContent('.daily-drawer .daily-row .lv-best')) ?? '').includes('3:34'));
 check('rows carry medal slots', (await page.$$('.daily-drawer .daily-row .medal-row')).length === 3);
 check('a filled medal slot is shown', (await page.$$('.daily-drawer .daily-row .mslot.filled')).length >= 2);
@@ -214,6 +215,24 @@ await page.click('.daily-drawer .daily-row .lv-action-btn');
 await page.waitForFunction(() => window.__smallhands?.game, { timeout: 15000 });
 const replayed = await page.evaluate(() => window.__smallhands.game.level.name);
 check('replay boots the logged day', /\d{4}-\d{2}-\d{2}/.test(replayed));
+
+// ...and with that run in progress, cancelling the abandon confirm must leave the
+// logbook where it was instead of dropping the player on a bare map.
+// `gameInProgress()` needs game.time > 3, so let the run breathe first.
+await page.waitForFunction(() => window.__smallhands.game.time > 3.2, { timeout: 15000 });
+await page.click('.island .menu-trigger');
+await page.click('.menu-pop .speed-btn:has-text("Levels")');
+await page.waitForTimeout(400);
+await page.click('.map-daily');
+await page.waitForTimeout(150);
+await page.click('.map-popover .pop-log');
+await page.waitForTimeout(200);
+await page.click('.daily-drawer .daily-row .lv-action-btn');
+await page.waitForTimeout(250);
+check('replay during a run asks before abandoning', !!(await page.$('.confirm-overlay')));
+await page.click('.confirm-overlay .big-btn.secondary');
+await page.waitForTimeout(200);
+check('cancelling the abandon keeps the logbook open', !!(await page.$('.daily-drawer')));
 
 await browser.close();
 if (failures) {
