@@ -118,7 +118,7 @@ export function showReportOverlay(opts: ReportOptions): void {
   const status = el('div', 'report-status', box);
   const row = el('div', 'btn-row', box);
 
-  const copyBtn = el('button', 'seg-btn', row);
+  const copyBtn = el('button', 'seg-btn report-copy', row);
   copyBtn.textContent = t('report.copy');
   copyBtn.onclick = async () => {
     audio.click();
@@ -127,29 +127,53 @@ export function showReportOverlay(opts: ReportOptions): void {
     if (!ok) selectAll(preview);
   };
 
-  const dlBtn = el('button', 'seg-btn', row);
+  const dlBtn = el('button', 'seg-btn report-download', row);
   dlBtn.textContent = t('report.download');
-  dlBtn.onclick = async () => {
+  dlBtn.onclick = () => {
     audio.click();
-    status.textContent = t('report.rendering');
-    // Yield a frame so the status paints before the map render blocks.
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    if (!CAN_DOWNLOAD) {
+      // Some mobile browsers (iOS Safari in particular) will not take a blob:
+      // download. Saying "saved" there would be a straight lie.
+      status.textContent = t('report.downloadUnsupported');
+      selectAll(preview);
+      return;
+    }
+    // Everything below stays synchronous, inside the click, so the anchors keep
+    // the user activation browsers require before saving a file. That costs the
+    // "rendering…" status a paint, which is a fair trade for the download
+    // actually happening.
     if (mapPng === null) mapPng = renderWholeMap(game);
     const stem = fileStem(data);
     const files: { name: string; body: string | Blob }[] = [{ name: `${stem}.md`, body: markdown }];
     if (viewportPng) files.push({ name: `${stem}-viewport.png`, body: dataUrlToBlob(viewportPng) });
     if (mapPng) files.push({ name: `${stem}-map.png`, body: dataUrlToBlob(mapPng) });
     downloadAll(files);
-    status.textContent = t('report.downloaded', { n: files.length });
+    // "Sent", not "saved": the page issues the downloads and cannot observe
+    // whether the browser accepted them, and a screenshot may be missing if the
+    // canvas refused to export.
+    status.textContent =
+      files.length === 3 ? t('report.downloaded', { n: files.length }) : t('report.downloadedPartial', { n: files.length });
   };
 
-  const closeBtn = el('button', 'seg-btn', row);
+  const closeBtn = el('button', 'seg-btn report-close', row);
   closeBtn.textContent = t('report.close');
-  closeBtn.onclick = () => {
-    audio.click();
+  const close = (): void => {
     ov.remove();
     opts.onClose();
   };
+  closeBtn.onclick = () => {
+    audio.click();
+    close();
+  };
+  // Escape closes, even from inside the textarea. The global handler bails on
+  // TEXTAREA targets — correctly, so typing never triggers a game shortcut —
+  // which would otherwise leave this overlay as the one you cannot dismiss with
+  // the key every other overlay uses. Listening here keeps both behaviours.
+  ov.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    close();
+  });
 
   let markdown = '';
   function refresh(): void {
@@ -233,21 +257,26 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: /:(.*?);/.exec(head)?.[1] ?? 'application/octet-stream' });
 }
 
-// Browsers rate-limit a burst of downloads from one gesture, so space them out.
+// Whether this browser can save a generated file at all. iOS Safari historically
+// cannot, and telling the player "saved" when nothing happened is worse than
+// telling them to use Copy instead.
+const CAN_DOWNLOAD = typeof HTMLAnchorElement !== 'undefined' && 'download' in HTMLAnchorElement.prototype;
+
+// All clicks fire synchronously: deferring them past the gesture is what gets a
+// multi-file download blocked. Chrome asks once per site before allowing the
+// second and third file; that prompt is the browser's call, not ours.
 function downloadAll(files: { name: string; body: string | Blob }[]): void {
-  files.forEach((f, i) => {
-    setTimeout(() => {
-      const blob = typeof f.body === 'string' ? new Blob([f.body], { type: 'text/markdown' }) : f.body;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = f.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    }, i * 300);
-  });
+  for (const f of files) {
+    const blob = typeof f.body === 'string' ? new Blob([f.body], { type: 'text/markdown' }) : f.body;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 }
 
 function fileStem(d: ReportData): string {

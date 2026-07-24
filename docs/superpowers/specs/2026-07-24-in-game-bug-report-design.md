@@ -36,8 +36,29 @@ The extension is **optional fields only, and `v` stays `1`**:
 
 ```ts
 nodes: { kind; x; y; yieldLeft?: number }[]
-buildings?: { kind; x; y; ready: boolean; progress?: number; paused?: boolean }[]
+buildings?: { kind; x; y; ready; progress?; paused?; inputs?; outputs? }[]
+world?: {                      // level *type* + loose run state
+  night?; startHour?; dayNightRate?; flood?; weather?; weatherIdx?;
+  waterRow?; keep?; digOrders?; groundItems?;
+}
 ```
+
+The `world` block was added after review: `night`, `dayNight`, `weather` and
+`flood` live on `LevelDef`, not in the tile grid, so without it a snapshot of a
+flood level reloaded as a calm day map and the reported bug could not happen
+again. It also carries the loose state a report is most often *about* — producer
+buffers, dig orders, stranded ground items, keep floors.
+
+Two things the sanitizer must get right, both found in review:
+
+- **`yieldLeft: 0` has to survive.** Depleted nodes are never removed from
+  `game.nodes`; they stay on as stumps. Clamping 0 up to 1 hands back a live
+  tree and silently changes the level's resource budget.
+- **The building-kind check must be an own-key allowlist.** `BUILD_TIME[kind] !==
+  undefined` looks like one and is not — every object inherits `constructor`,
+  `toString` and `__proto__`, so those kinds would pass, get persisted to
+  `localStorage` by the importer (which never runs `verifyLevel`), and place a
+  building whose footprint lookup resolves to an inherited function.
 
 No version bump, for two reasons: custom levels already in `localStorage` are
 `v: 1` and must keep decoding, and a new code opened by a stale cached bundle
@@ -152,3 +173,18 @@ key when one is missing, so without this a missing translation ships silently.
    game's shortcut handler.
 2. Firing several `<a download>` clicks in a row can trip Chrome's
    multiple-downloads prompt. If it does, fall back to one button per file.
+
+**Resolved:** the global handler already bails on `TEXTAREA` targets, so (1)
+needed no change — a test presses `-`, a zoom key, to keep it that way. For (2)
+all three clicks fire synchronously inside the gesture; deferring them was what
+risked losing the user activation a download needs. Chrome may still ask once
+per site before the second and third file, which is the browser's call to make.
+
+## Honesty about what a snapshot is
+
+The page cannot observe whether a download was accepted, so the status line says
+"sent", not "saved", and falls back to Copy on browsers that cannot save files
+at all. Likewise the report names what the code does *not* bring back — worker
+positions and tasks, objective progress, in-flight reservations, lift car and
+hoist cycle positions, elapsed time. A snapshot is the world, not the instant,
+and saying so beats letting a reader chase a phantom difference.

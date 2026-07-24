@@ -453,7 +453,7 @@ export class Hud {
     opts.onclick = () => this.cbs.onOptions();
     // In-level only, and deliberately so: the report carries a snapshot of the
     // live map, which means nothing on the front door or the world map.
-    const report = el('button', 'speed-btn', menuPop);
+    const report = el('button', 'speed-btn report-open', menuPop);
     report.textContent = t('menu.report');
     report.title = t('report.title.bug');
     report.onclick = () => this.cbs.onReport();

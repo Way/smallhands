@@ -18,8 +18,8 @@
 import { BUILD_TIME, ITEM_TYPES, NODE_YIELD, ROLES } from './types';
 import type { Building, BuildingKind, ItemType, Role } from './types';
 import type { Game, Worker } from './sim';
-import { encodeShareCode, encodeTiles, makeLevelId } from './leveldata';
-import type { CustomLevelData, SnapshotBuilding } from './leveldata';
+import { CONSTRUCTIBLE, encodeShareCode, encodeTiles, makeLevelId } from './leveldata';
+import type { CustomLevelData, SnapshotBuilding, SnapshotWorld } from './leveldata';
 
 export type ReportKind = 'bug' | 'feedback' | 'idea';
 
@@ -130,11 +130,11 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
   for (const role of ROLES) {
     if (game.desiredRoles[role] > 0) startRoles[role] = game.desiredRoles[role];
   }
-  // BUILD_TIME's keys are exactly the constructible buildings, which is also
-  // exactly what a snapshot may carry: townhall and goal are excluded because
-  // they travel in their own fields and would otherwise be placed twice.
+  // CONSTRUCTIBLE is exactly what a snapshot may carry: townhall and goal are
+  // excluded because they travel in their own fields and would otherwise be
+  // placed twice. Same set the sanitizer admits on the way back in.
   const buildings: SnapshotBuilding[] = game.buildings
-    .filter((b) => BUILD_TIME[b.kind] !== undefined)
+    .filter((b) => CONSTRUCTIBLE.has(b.kind))
     .map((b) => ({
       kind: b.kind,
       x: b.x,
@@ -142,7 +142,29 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
       ready: b.state === 'ready',
       ...(b.state === 'ready' ? {} : { progress: round2(b.progress) }),
       ...(b.paused ? { paused: true as const } : {}),
+      ...(hasItems(b.inputs) ? { inputs: { ...b.inputs } } : {}),
+      ...(hasItems(b.outputs) ? { outputs: { ...b.outputs } } : {}),
     }));
+
+  // Level type and loose run state. Only emitted when there is something to
+  // say, so a plain day level's code is unchanged by this block existing.
+  const snapWorld: SnapshotWorld = {};
+  if (level.night) snapWorld.night = true;
+  snapWorld.startHour = round2(game.timeOfDay);
+  if (level.dayNight) snapWorld.dayNightRate = level.dayNight.rate;
+  if (level.flood) snapWorld.flood = { ...level.flood };
+  if (level.weather?.length) {
+    snapWorld.weather = level.weather.map((p) => ({ ...p }));
+    snapWorld.weatherIdx = game.weatherIdx % level.weather.length;
+  }
+  if (game.waterRow !== null) snapWorld.waterRow = game.waterRow;
+  const keep: Partial<Record<ItemType, number>> = {};
+  for (const item of ITEM_TYPES) if (game.keep[item] > 0) keep[item] = game.keep[item];
+  if (Object.keys(keep).length) snapWorld.keep = keep;
+  if (game.digOrders.size) snapWorld.digOrders = [...game.digOrders];
+  if (game.groundItems.length) {
+    snapWorld.groundItems = game.groundItems.slice(0, 200).map((g) => ({ item: g.item, x: g.x, y: g.y }));
+  }
 
   return {
     v: 1,
@@ -164,7 +186,12 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
     startThLevel: game.thLevel,
     biome: level.biome,
     ...(buildings.length ? { buildings } : {}),
+    world: snapWorld,
   };
+}
+
+function hasItems(bag: Partial<Record<ItemType, number>>): boolean {
+  return ITEM_TYPES.some((i) => (bag[i] ?? 0) > 0);
 }
 
 // ---- collection --------------------------------------------------------------
@@ -403,8 +430,18 @@ export function formatReport(d: ReportData): string {
 
   push(`## Live level code`);
   push();
-  push('Level select → Import → paste this. Loads the map exactly as it stood when the report was made:');
-  push('same terrain, same buildings and blueprints, same node yields, same stock.');
+  push('Level select → Import → paste this.');
+  push();
+  push('**Restored:** terrain (every dug cell, ladder, ramp and platform), buildings and');
+  push('blueprints with their construction progress, producer buffers and paused flags,');
+  push('node yields including spent stumps, loose ground items, dig orders, stock, keep');
+  push('floors, role targets, town-hall level, and the level type — night, day/night rate,');
+  push('weather schedule and phase, flood range and the current water row.');
+  push();
+  push('**Not restored** — read these off the tables above instead: worker positions, their');
+  push('tasks and what they are carrying (the crew respawns at the town hall), objective');
+  push('progress, in-flight reservations, lift car and hoist cycle positions, and elapsed');
+  push('time. A snapshot is the world, not the exact instant.');
   push();
   push('```');
   push(d.code);

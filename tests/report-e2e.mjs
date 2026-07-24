@@ -61,7 +61,7 @@ await page.waitForTimeout(1500);
 
 await page.click('.island .menu-trigger');
 await page.waitForTimeout(150);
-await page.click('.menu-pop .speed-btn:has-text("Report")');
+await page.click('.menu-pop .report-open');
 await page.waitForTimeout(400);
 
 check('the overlay opens from the menu', (await page.locator('.report-box').count()) === 1);
@@ -94,7 +94,7 @@ const zoomAfter = await page.evaluate(() => window.__smallhands.cam?.zoom ?? nul
 check('a shortcut key typed in the textarea does not zoom the map', zoomBefore === zoomAfter);
 
 // clipboard
-await page.click('.btn-row .seg-btn:has-text("Copy report")');
+await page.click('.report-box .report-copy');
 await page.waitForTimeout(300);
 const clip = await page.evaluate(() => navigator.clipboard.readText());
 check('copy puts the whole report on the clipboard', clip.includes('# Smallhands') && clip.includes('SMH1.'));
@@ -107,19 +107,39 @@ context.on('download', async (d) => {
   seen.push(name);
   await d.saveAs(join(dir, name));
 });
-await page.click('.btn-row .seg-btn:has-text("Download")');
+await page.click('.report-box .report-download');
 await page.waitForTimeout(4000);
 check(`download emits three files (got ${seen.length}: ${seen.join(', ')})`, seen.length === 3);
 check('the markdown file is there', seen.some((n) => n.endsWith('.md')));
 check('the viewport screenshot is there', seen.some((n) => n.endsWith('-viewport.png')));
 check('the whole-map screenshot is there', seen.some((n) => n.endsWith('-map.png')));
 
+// the status line is honest about what happened, not a blanket "saved"
+const status = await page.textContent('.report-status');
+check(`the status reports the send (${JSON.stringify(status)})`, /3/.test(status));
+
 // closing resumes
-await page.click('.btn-row .seg-btn:has-text("Close")');
+await page.click('.report-box .report-close');
 await page.waitForTimeout(400);
 check('the overlay closes', (await page.locator('.report-box').count()) === 0);
 check(
   'closing resumes the run',
+  await page.evaluate(() => window.__smallhands.game.paused === false)
+);
+
+// Escape closes too, including from the textarea — the global keydown handler
+// bails on TEXTAREA targets, so the overlay has to handle this itself.
+await page.click('.island .menu-trigger');
+await page.waitForTimeout(150);
+await page.click('.menu-pop .report-open');
+await page.waitForTimeout(400);
+check('the overlay reopens', (await page.locator('.report-box').count()) === 1);
+await page.focus('.report-text');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+check('Escape from inside the textarea closes the overlay', (await page.locator('.report-box').count()) === 0);
+check(
+  'and resumes the run',
   await page.evaluate(() => window.__smallhands.game.paused === false)
 );
 

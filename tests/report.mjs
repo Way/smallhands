@@ -101,6 +101,12 @@ function playedGame() {
   check('a blueprint shows progress against its build time', md.includes(`blueprint 3.5/${BUILD_TIME.forge}s`));
   check('dig orders are listed', md.includes('## Dig orders (1)'));
   check('the live code is embedded', md.includes(data.code) && data.code.startsWith('SMH1.'));
+  // The code restores the world, not the instant. Saying so beats letting a
+  // reader assume worker positions came back and chase a phantom difference.
+  check(
+    'the code section states what it does NOT restore',
+    md.includes('**Restored:**') && md.includes('**Not restored**') && md.includes('worker positions')
+  );
   check('sections an agent needs are all present', [
     '## What happened',
     '## Run state',
@@ -225,6 +231,111 @@ function playedGame() {
   });
   check('townhall/goal/unknown/out-of-bounds buildings are rejected', hostile.buildings.length === 1);
   check('blueprint progress is clamped to the build time', hostile.buildings[0].progress === BUILD_TIME.forge);
+
+  // `BUILD_TIME[kind] !== undefined` looks like an allowlist and is not: every
+  // object inherits constructor/toString/__proto__, so those kinds would sail
+  // through, get persisted to localStorage by the importer, and place a
+  // building whose footprint lookup resolves to an inherited function.
+  const polluted = sanitizeLevelData({
+    ...JSON.parse(JSON.stringify(snap)),
+    buildings: [
+      { kind: 'constructor', x: 4, y: 4, ready: true },
+      { kind: 'toString', x: 5, y: 4, ready: true },
+      { kind: '__proto__', x: 6, y: 4, ready: true },
+      { kind: 'valueOf', x: 7, y: 4, ready: true },
+      { kind: 'hasOwnProperty', x: 8, y: 4, ready: true },
+    ],
+  });
+  check('inherited Object keys are not building kinds', polluted.buildings === undefined);
+}
+
+// ---- a spent node stays spent ------------------------------------------------------
+//
+// Depleted nodes are NOT removed from game.nodes — they stay on as stumps
+// (render.ts draws 'stump' when yieldLeft is 0). A snapshot therefore has to
+// carry 0 through; clamping it up to 1 hands the player back a live tree and
+// quietly changes the level's resource budget.
+{
+  const g = new Game(LEVELS[0]);
+  const tree = g.nodes.find((n) => n.kind === 'tree');
+  tree.yieldLeft = 0;
+  const other = g.nodes.filter((n) => n !== tree)[0];
+  other.yieldLeft = 2;
+
+  const back = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(g)))));
+  const treeBack = back.nodes.find((n) => n.x === tree.x && n.y === tree.y);
+  const otherBack = back.nodes.find((n) => n.x === other.x && n.y === other.y);
+  check('a fully harvested node comes back spent, not resurrected', treeBack.yieldLeft === 0);
+  check('a partly harvested node keeps its exact remainder', otherBack.yieldLeft === 2);
+  check(
+    'the reloaded level cannot be over-harvested',
+    back.nodes.reduce((s, n) => s + n.yieldLeft, 0) === g.nodes.reduce((s, n) => s + n.yieldLeft, 0)
+  );
+}
+
+// ---- the level's *type* survives ----------------------------------------------------
+//
+// night/dayNight/weather/flood live on LevelDef, not in the tile grid. Without
+// them a snapshot of a flood level reloads as a calm day map and the reported
+// bug cannot happen again.
+{
+  const flood = LEVELS.find((l) => l.flood);
+  const night = LEVELS.find((l) => l.night);
+  const weather = LEVELS.find((l) => l.weather?.length);
+  check('the campaign has a flood, a night and a weather level to test with', !!flood && !!night && !!weather);
+
+  const floodBack = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(new Game(flood))))));
+  check(
+    'a flood level reloads as a flood level',
+    floodBack.level.flood?.start === flood.flood.start && floodBack.level.flood?.min === flood.flood.min
+  );
+
+  const nightGame = new Game(night);
+  const nightBack = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(nightGame)))));
+  check('a night level reloads as a night level', nightBack.level.night === true);
+  check('and it reloads at the same hour', Math.abs(nightBack.timeOfDay - nightGame.timeOfDay) < 0.01);
+  // the lantern is the light source; without it a night snapshot is unplayable
+  check('a night snapshot keeps the lantern available', nightBack.level.allowedTools.includes('lantern'));
+
+  const wxGame = new Game(weather);
+  const wxBack = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(wxGame)))));
+  check(
+    'a weather schedule reloads intact',
+    JSON.stringify(wxBack.level.weather) === JSON.stringify(weather.weather)
+  );
+
+  // an authored (non-snapshot) custom level must stay a plain day map
+  const plain = sanitizeLevelData(JSON.parse(JSON.stringify({ ...snapshotLevelData(new Game(LEVELS[0])), world: undefined })));
+  const plainBack = new Game(levelDefFromData(plain));
+  check(
+    'a code with no world block is still a plain day level',
+    plain.world === undefined && !plainBack.level.night && !plainBack.level.flood && !plainBack.level.weather
+  );
+}
+
+// ---- loose run state survives --------------------------------------------------------
+{
+  const g = new Game(LEVELS[0]);
+  g.keep.log = 3;
+  g.digOrders.add(5 * g.world.w + 7);
+  g.digOrders.add(5 * g.world.w + 8);
+  g.groundItems.push({ id: 999, item: 'plank', x: 12, y: 17, reserved: false, bounce: 0, stranded: true, idleFor: 4 });
+  const mill = g.addBuilding('sawmill', g.townhall.x + 12, g.townhall.y, true);
+  mill.inputs = { log: 2 };
+  mill.outputs = { plank: 1 };
+
+  const back = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(g)))));
+  check('keep floors survive', back.keep.log === 3);
+  check('dig orders survive', back.digOrders.size === 2 && back.digOrders.has(5 * g.world.w + 7));
+  check(
+    'loose ground items survive at their exact cell',
+    back.groundItems.length === 1 && back.groundItems[0].item === 'plank' && back.groundItems[0].x === 12 && back.groundItems[0].y === 17
+  );
+  const millBack = back.buildings.find((b) => b.kind === 'sawmill');
+  check(
+    'producer buffers survive — the difference between reproducing a stall and not',
+    millBack.inputs.log === 2 && millBack.outputs.plank === 1
+  );
 }
 
 // ---- every UI string is translated in both languages ------------------------------
@@ -254,8 +365,9 @@ function playedGame() {
     'report.close',
     'report.copied',
     'report.copyFailed',
-    'report.rendering',
     'report.downloaded',
+    'report.downloadedPartial',
+    'report.downloadUnsupported',
   ];
   for (const lang of LANGS) {
     setLang(lang);

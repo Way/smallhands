@@ -2,7 +2,16 @@
 // procedural generator, stored in localStorage and shareable as a text code.
 
 import { BUILD_TIME, FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, NODE_YIELD, ROLES, T, TOOL_DEFS } from './types';
-import type { BuildingKind, ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
+import type {
+  BuildingKind,
+  ItemType,
+  MedalTimes,
+  NodeKind,
+  ObjectiveReq,
+  Role,
+  WeatherKind,
+  WeatherPhase,
+} from './types';
 import { BIOMES } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
 import { World, liftTopFor, ropeDropFor } from './world';
@@ -25,6 +34,28 @@ export interface SnapshotBuilding {
   ready: boolean;
   progress?: number; // blueprints only: seconds of construction done so far
   paused?: boolean; // producers only: player is holding conversion
+  // Producer buffers. A stalled producer is one of the commonest things a
+  // report is filed about, and "sawmill holding 2 logs" versus "sawmill empty"
+  // is the whole difference between reproducing it and not.
+  inputs?: Partial<Record<ItemType, number>>;
+  outputs?: Partial<Record<ItemType, number>>;
+}
+
+// The parts of a level's *type* that live on LevelDef rather than in the world
+// grid. Without these a snapshot of a flood level reloads as a calm day map and
+// the reported bug simply cannot happen again. Every field is optional and
+// omitted for a plain day level, so authored levels and old codes are unchanged.
+export interface SnapshotWorld {
+  night?: boolean;
+  startHour?: number; // 0..24 clock the level opens on
+  dayNightRate?: number; // LevelDef.dayNight.rate — live day→night cycle
+  flood?: { start: number; min: number };
+  weather?: WeatherPhase[]; // looping schedule
+  weatherIdx?: number; // which phase the run had reached
+  waterRow?: number; // the risen water table at snapshot time
+  keep?: Partial<Record<ItemType, number>>; // per-item hauling floors
+  digOrders?: number[]; // world tile indices the player marked to dig
+  groundItems?: { item: ItemType; x: number; y: number }[];
 }
 
 export interface CustomLevelData {
@@ -48,7 +79,15 @@ export interface CustomLevelData {
   seed?: string; // set when produced by the generator
   biome?: Biome; // terrain palette family; omit for the classic meadow look
   buildings?: SnapshotBuilding[]; // snapshot codes only, see SnapshotBuilding
+  world?: SnapshotWorld; // snapshot codes only, see SnapshotWorld
 }
+
+// The building kinds a snapshot may carry, as a real allowlist. A bare
+// `BUILD_TIME[kind] !== undefined` test is NOT one: every object inherits
+// `constructor`, `toString` and friends, so "kind": "constructor" would pass,
+// get written to localStorage by the level importer, and place a building whose
+// footprint lookup resolves to an inherited function. Own keys only.
+export const CONSTRUCTIBLE: ReadonlySet<BuildingKind> = new Set(Object.keys(BUILD_TIME) as BuildingKind[]);
 
 export const MIN_W = 32;
 export const MAX_W = 160;
@@ -164,8 +203,12 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     width: data.width,
     height: data.height,
     objectives: data.objectives.filter((o) => o.amount > 0),
-    // custom levels are daytime levels — the lantern (a night tool) is left out
-    allowedTools: TOOL_DEFS.map((t) => t.id).filter((id) => id !== 'lantern'),
+    // Authored custom levels are daytime levels, so the lantern (a night tool)
+    // is left out — but a snapshot of a night level needs it, or the map it
+    // reproduces is unplayable in the dark it was reported in.
+    allowedTools: data.world?.night
+      ? TOOL_DEFS.map((t) => t.id)
+      : TOOL_DEFS.map((t) => t.id).filter((id) => id !== 'lantern'),
     startStock: { ...data.startStock },
     startRoles: { ...data.startRoles },
     startWorkers: data.startWorkers,
@@ -173,6 +216,13 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     biome: data.biome,
     medals: medalTimesFor(data),
     camera: { x: Math.max(0, data.townhall.x - 6), y: Math.max(0, data.townhall.y - 6) },
+    // Level *type*, restored only from a snapshot (see SnapshotWorld). An
+    // authored custom level has no `world` block and stays a plain day map.
+    night: data.world?.night,
+    startHour: data.world?.startHour,
+    dayNight: data.world?.dayNightRate !== undefined ? { rate: data.world.dayNightRate } : undefined,
+    flood: data.world?.flood,
+    weather: data.world?.weather,
     build: (g) => {
       g.world.tiles = decodeTiles(data.tiles, data.width * data.height);
       g.addBuilding('townhall', data.townhall.x, data.townhall.y);
@@ -190,6 +240,8 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
         const built = g.addBuilding(b.kind, b.x, b.y, b.ready);
         if (!b.ready) built.progress = b.progress ?? 0;
         if (b.paused) built.paused = true;
+        if (b.inputs) built.inputs = { ...b.inputs };
+        if (b.outputs) built.outputs = { ...b.outputs };
         if (b.kind === 'lift') {
           built.liftTopY = liftTopFor(g.world, b.x, b.y) ?? b.y;
           built.liftCarY = b.y;
@@ -200,6 +252,29 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
             built.ropeBottomY = drop.bottomY;
           }
         }
+      }
+      // Remaining snapshot state. These are plain Game fields the constructor
+      // does not touch after build(), so setting them here sticks.
+      const w = data.world;
+      if (!w) return;
+      if (w.waterRow !== undefined) g.waterRow = w.waterRow;
+      if (w.weatherIdx !== undefined) g.weatherIdx = w.weatherIdx;
+      if (w.keep) g.keep = { ...g.keep, ...w.keep };
+      for (const idx of w.digOrders ?? []) g.digOrders.add(idx);
+      // Placed at their reported cell rather than through dropItem, which
+      // re-settles the position and would quietly move the very item the
+      // report is about.
+      for (const gi of w.groundItems ?? []) {
+        g.groundItems.push({
+          id: g.id(),
+          item: gi.item,
+          x: gi.x,
+          y: gi.y,
+          reserved: false,
+          bounce: 0,
+          stranded: false,
+          idleFor: 0,
+        });
       }
     },
   };
@@ -255,6 +330,22 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     );
   };
   if (!inBounds(r.townhall) || !inBounds(r.goal)) return null;
+  const numRecord = <K extends string>(v: unknown, keys: readonly K[], max: number): Partial<Record<K, number>> => {
+    const out: Partial<Record<K, number>> = {};
+    if (typeof v === 'object' && v !== null) {
+      for (const k of keys) {
+        const n = (v as Record<string, unknown>)[k];
+        if (typeof n === 'number' && n > 0) out[k] = Math.min(max, Math.floor(n));
+      }
+    }
+    return out;
+  };
+  // An item bag that stays absent when empty, so authored levels and old codes
+  // keep serializing byte-identically.
+  const bagField = <K extends string>(key: K, v: unknown): Partial<Record<K, Partial<Record<ItemType, number>>>> => {
+    const bag = numRecord(v, ITEM_TYPES, 99);
+    return Object.keys(bag).length ? ({ [key]: bag } as Partial<Record<K, Partial<Record<ItemType, number>>>>) : {};
+  };
   const nodeKinds: NodeKind[] = ['tree', 'boulder', 'vein'];
   const nodes = Array.isArray(r.nodes)
     ? (r.nodes as unknown[])
@@ -266,9 +357,10 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
         .slice(0, 200)
         .map((n) => {
           // A snapshot node carries its remaining yield; an authored one omits
-          // it and the sim fills the full amount. 0 would mean "depleted", which
-          // never survives into a snapshot, so treat it as absent.
-          const left = clampInt(n.yieldLeft, 1, NODE_YIELD[n.kind].amount);
+          // it and the sim fills the full amount. 0 is meaningful and must
+          // survive: a spent node is never removed from game.nodes, it stays on
+          // as a stump, and clamping it up to 1 would hand back a live tree.
+          const left = clampInt(n.yieldLeft, 0, NODE_YIELD[n.kind].amount);
           return {
             kind: n.kind,
             x: Math.floor(n.x),
@@ -277,14 +369,15 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
           };
         })
     : [];
-  // Snapshot buildings (see SnapshotBuilding). townhall/goal are filtered out —
-  // they have their own fields and would otherwise be placed twice.
+  // Snapshot buildings (see SnapshotBuilding). townhall/goal are absent from
+  // BUILD_TIME and so are filtered out here — they have their own fields and
+  // would otherwise be placed twice.
   const buildings = Array.isArray(r.buildings)
     ? (r.buildings as unknown[])
         .filter((b): b is Record<string, unknown> => {
           if (typeof b !== 'object' || b === null) return false;
           const q = b as Record<string, unknown>;
-          return BUILD_TIME[q.kind as BuildingKind] !== undefined && inBounds(q);
+          return CONSTRUCTIBLE.has(q.kind as BuildingKind) && inBounds(q);
         })
         .slice(0, 200)
         .map((b) => {
@@ -300,6 +393,8 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
             ready,
             ...(progress === null ? {} : { progress }),
             ...(b.paused === true ? { paused: true } : {}),
+            ...bagField('inputs', b.inputs),
+            ...bagField('outputs', b.outputs),
           };
         })
     : [];
@@ -313,16 +408,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
         .slice(0, ITEM_TYPES.length)
         .map((o) => ({ item: o.item, amount: Math.min(99, Math.floor(o.amount)) }))
     : [];
-  const numRecord = <K extends string>(v: unknown, keys: readonly K[], max: number): Partial<Record<K, number>> => {
-    const out: Partial<Record<K, number>> = {};
-    if (typeof v === 'object' && v !== null) {
-      for (const k of keys) {
-        const n = (v as Record<string, unknown>)[k];
-        if (typeof n === 'number' && n > 0) out[k] = Math.min(max, Math.floor(n));
-      }
-    }
-    return out;
-  };
+  const world = sanitizeSnapshotWorld(r.world, width, height, numRecord);
   return {
     v: 1,
     id: typeof r.id === 'string' && r.id.length <= 40 ? r.id : makeLevelId(),
@@ -342,7 +428,84 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     seed: typeof r.seed === 'string' ? r.seed.slice(0, 60) : undefined,
     biome: BIOMES.includes(r.biome as Biome) ? (r.biome as Biome) : undefined,
     ...(buildings.length ? { buildings } : {}),
+    ...(world ? { world } : {}),
   };
+}
+
+// The snapshot-only `world` block (see SnapshotWorld). Returns null when there
+// is nothing worth carrying, so an authored level never grows an empty object.
+function sanitizeSnapshotWorld(
+  raw: unknown,
+  width: number,
+  height: number,
+  numRecord: <K extends string>(v: unknown, keys: readonly K[], max: number) => Partial<Record<K, number>>
+): SnapshotWorld | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const out: SnapshotWorld = {};
+
+  if (r.night === true) out.night = true;
+  const hour = clampFloat(r.startHour, 0, 24);
+  if (hour !== null) out.startHour = hour;
+  const rate = clampFloat(r.dayNightRate, 0, 24);
+  if (rate !== null && rate > 0) out.dayNightRate = rate;
+
+  if (typeof r.flood === 'object' && r.flood !== null) {
+    const f = r.flood as Record<string, unknown>;
+    const start = clampInt(f.start, 0, height - 1);
+    const min = clampInt(f.min, 0, height - 1);
+    if (start !== null && min !== null) out.flood = { start, min };
+  }
+
+  if (Array.isArray(r.weather)) {
+    const kinds: WeatherKind[] = ['clear', 'rain', 'storm'];
+    const phases = (r.weather as unknown[])
+      .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+      .map((p) => ({ kind: p.kind as WeatherKind, duration: clampFloat(p.duration, 1, 3600) }))
+      .filter((p): p is WeatherPhase => kinds.includes(p.kind) && p.duration !== null)
+      .slice(0, 24);
+    if (phases.length) {
+      out.weather = phases;
+      // Only meaningful against a schedule, and modulo'd by the sim anyway.
+      const idx = clampInt(r.weatherIdx, 0, phases.length - 1);
+      if (idx !== null) out.weatherIdx = idx;
+    }
+  }
+
+  const row = clampInt(r.waterRow, 0, height - 1);
+  if (row !== null) out.waterRow = row;
+
+  const keep = numRecord(r.keep, ITEM_TYPES, 99);
+  if (Object.keys(keep).length) out.keep = keep;
+
+  if (Array.isArray(r.digOrders)) {
+    const cells = width * height;
+    const orders = (r.digOrders as unknown[])
+      .map((v) => clampInt(v, 0, cells - 1))
+      .filter((v): v is number => v !== null)
+      .slice(0, 400);
+    if (orders.length) out.digOrders = orders;
+  }
+
+  if (Array.isArray(r.groundItems)) {
+    const items = (r.groundItems as unknown[])
+      .filter((g): g is Record<string, unknown> => typeof g === 'object' && g !== null)
+      .filter(
+        (g) =>
+          ITEM_TYPES.includes(g.item as ItemType) &&
+          typeof g.x === 'number' &&
+          typeof g.y === 'number' &&
+          g.x >= 0 &&
+          g.x < width &&
+          g.y >= 0 &&
+          g.y < height
+      )
+      .slice(0, 200)
+      .map((g) => ({ item: g.item as ItemType, x: Math.floor(g.x as number), y: Math.floor(g.y as number) }));
+    if (items.length) out.groundItems = items;
+  }
+
+  return Object.keys(out).length ? out : null;
 }
 
 function clampInt(v: unknown, min: number, max: number): number | null {
@@ -420,8 +583,14 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
   const objectives = data.objectives.filter((o) => o.amount > 0);
   if (objectives.length === 0) problems.push(t('verify.noObjectives'));
 
-  // resource budget: raw yield + starting stock vs. what the order needs
-  const yieldOf = (kind: NodeKind) => data.nodes.filter((n) => n.kind === kind).length * 4;
+  // Resource budget: raw yield + starting stock vs. what the order needs.
+  // A snapshot's nodes are part-harvested, so count what is actually left —
+  // budgeting a spent stump as a full tree would pass a level that can no
+  // longer be finished. Authored nodes have no yieldLeft and count in full.
+  const yieldOf = (kind: NodeKind) =>
+    data.nodes
+      .filter((n) => n.kind === kind)
+      .reduce((sum, n) => sum + (n.yieldLeft ?? NODE_YIELD[kind].amount), 0);
   const have = {
     log: (data.startStock.log ?? 0) + yieldOf('tree'),
     stone: (data.startStock.stone ?? 0) + yieldOf('boulder'),

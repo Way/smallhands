@@ -432,8 +432,15 @@ const D: Record<string, [string, string]> = {
     'Could not reach the clipboard — the text is selected, press Ctrl/Cmd+C.',
     'Zwischenablage nicht erreichbar — der Text ist markiert, drücke Strg/Cmd+C.',
   ],
-  'report.rendering': ['Rendering the map…', 'Karte wird gezeichnet…'],
-  'report.downloaded': ['Saved {n} files.', '{n} Dateien gespeichert.'],
+  'report.downloaded': ['Sent {n} files to your downloads.', '{n} Dateien an deine Downloads geschickt.'],
+  'report.downloadedPartial': [
+    'Sent {n} files — a screenshot could not be captured on this device.',
+    '{n} Dateien geschickt — ein Screenshot war auf diesem Gerät nicht möglich.',
+  ],
+  'report.downloadUnsupported': [
+    'This browser cannot save files. Use Copy report instead — the text is selected below.',
+    'Dieser Browser kann keine Dateien speichern. Nutze stattdessen „Bericht kopieren“ — der Text ist unten markiert.',
+  ],
 
   'select.title': ['Choose a level', 'Wähle ein Level'],
   'shelf.gold': ['<b>{a}/{b}</b> campaign gold', '<b>{a}/{b}</b> Kampagnen-Gold'],

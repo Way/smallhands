@@ -26,7 +26,6 @@ import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud, TOOL_ICON } from './game/ui';
-import { showReportOverlay } from './game/report-ui';
 import { FrontDoor } from './game/frontdoor';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
@@ -1102,7 +1101,7 @@ function attachHud(): void {
       running = false;
       showOptions(resumeGame);
     },
-    onReport: () => {
+    onReport: async () => {
       // Same pause contract as the options overlay: freeze the run so the
       // snapshot in the report matches what the player is looking at, and let
       // resumeGame put the speed back on close.
@@ -1110,6 +1109,10 @@ function attachHud(): void {
       setSpeed(0);
       running = false;
       clearOverlay();
+      // Loaded on demand. The report and its offscreen renderer are dead weight
+      // for every player who never files one, and this is a menu click — there
+      // is no frame budget to protect here.
+      const { showReportOverlay } = await import('./game/report-ui');
       showReportOverlay({
         game: game!,
         canvas,
