@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:unit": "node tests/unit.mjs",
+    "test:dailylog": "node tests/dailylog.mjs",
     "test:devmode": "node tests/devmode.mjs",
     "test:maplayout": "node tests/maplayout.mjs",
     "test:worldmap": "node tests/worldmap.mjs",

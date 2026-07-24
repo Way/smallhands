@@ -31,6 +31,8 @@ import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
 import type { CustomLevelData } from './game/leveldata';
 import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
+import { dailyLog, dailyStats, dailyStrip } from './game/dailylog';
+import type { DailyLogEntry } from './game/dailylog';
 import { buildWorldMap } from './game/worldmap';
 import { rampCellsFaceLeft } from './game/world';
 import { computeCampaignStates } from './game/progress';
@@ -651,6 +653,16 @@ function buildShelf(): HTMLElement | null {
   return shelf;
 }
 
+// Boot a daily — today's or a logged past one. The seed IS the identity: it
+// regenerates the same mountain and doubles as the save-record key, so a replay
+// scores against the same personal best.
+function bootDaily(d: { seed: string; label: string; difficulty: number }): void {
+  const data = generateVerifiedLevel({ seed: d.seed, difficulty: d.difficulty });
+  data.id = d.seed; // stable id so completion sticks
+  data.name = t('daily.title', { label: d.label });
+  startCustomLevel(data, {});
+}
+
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
@@ -670,9 +682,15 @@ function showLevelSelect(): void {
   const campaigns = computeCampaignStates(LEVELS, save.completed, devUnlock);
 
   const daily = dailySeed();
+  // The logbook is pure derivation over the records already on disk — no new save
+  // state, so a player's whole daily history shows up the first time they open it.
+  const log = dailyLog(save.records);
   const ov = buildWorldMap({
     campaigns,
     daily: { ...daily, done: save.completedCustom.includes(daily.seed) },
+    dailyLog: log,
+    dailyStats: dailyStats(log, daily.label),
+    dailyStrip: dailyStrip(log, daily.label),
     customLevels,
     shelf: buildShelf(),
     resumeLabel: gameInProgress() ? t('btn.resume', { name: t(game!.level.name) }) : null,
@@ -686,13 +704,11 @@ function showLevelSelect(): void {
         t('btn.abandon'),
         () => startLevel(i)
       ),
-    onPlayDaily: () =>
-      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => {
-        const data = generateVerifiedLevel({ seed: daily.seed, difficulty: daily.difficulty });
-        data.id = daily.seed; // stable id so completion sticks
-        data.name = t('daily.title', { label: daily.label });
-        startCustomLevel(data, {});
-      }),
+    onPlayDaily: () => confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => bootDaily(daily)),
+    // replaying a logged day regenerates from the same seed, so it is the same
+    // mountain and the same record key — a better time overwrites the old best
+    onPlayPastDaily: (entry: DailyLogEntry) =>
+      confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => bootDaily(entry)),
     onPlayCustom: (lvl) =>
       confirmIfInProgress(t('confirm.abandon'), t('btn.abandon'), () => startCustomLevel(lvl, {})),
     onEditCustom: (lvl) =>

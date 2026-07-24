@@ -87,7 +87,11 @@ Beyond the campaign, the level select offers a **Workshop** row:
   roll is re-verified until it passes. The same seed always builds the same
   level — share seeds with friends.
 - **Daily challenge** — one shared seed per calendar day, difficulty rising
-  through the week. Completion is tracked.
+  through the week. The lighthouse also keeps a **logbook**: every day you
+  cleared with its best time, medal and feat pins, your current and longest
+  streak, and a strip of the last two weeks where a missed day shows as a gap.
+  Any logged day replays from its seed — the same mountain, scored against the
+  same personal best.
 - **Share codes** — any level (edited or generated) exports as a compact
   `SMH1.…` text code; import codes from the level select. No server needed —
   levels and progress live in localStorage.
