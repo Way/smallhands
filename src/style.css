@@ -518,7 +518,62 @@ body.in-game #frontdoor { display: none; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.menu-pop .speed-btn { width: 100%; text-align: left; padding: 0 10px; }
+/* ---- the ☰ menu: rows, not chips -------------------------------------------
+   The three entries used to be .speed-btn chips stretched full width, which
+   drew a bordered box around each one — three stacked outlines competing with
+   the popover's own border and no hierarchy between them. Menu rows instead:
+   no chrome at rest, the hover fill alone carries the affordance, and a fixed
+   icon column keeps the labels on one vertical edge. */
+.menu-pop { padding: 6px; gap: 1px; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+/* fixed slot: ☰ ↺ ⚙ render at wildly different widths, and a flowing glyph
+   would step every label along by a different amount */
+.menu-ic {
+  flex: none;
+  width: 16px;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-dim);
+  opacity: 0.75;
+  transition: color 0.12s, opacity 0.12s;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.menu-item:hover .menu-ic,
+.menu-item:focus-visible .menu-ic { color: var(--accent); opacity: 1; }
+/* the fill alone is a mouse affordance; keyboard focus also needs a ring */
+.menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.menu-item:active { background: rgba(255, 255, 255, 0.13); }
+/* restart throws away the run in progress — warn on the hover, not at rest */
+.menu-item.danger:hover,
+.menu-item.danger:focus-visible { background: rgba(255, 122, 107, 0.14); color: var(--danger); }
+.menu-item.danger:hover .menu-ic,
+.menu-item.danger:focus-visible .menu-ic { color: var(--danger); }
+.menu-item.danger:focus-visible { outline-color: var(--danger); }
+/* the seam between the level actions and settings needs more air than the
+   speed popover's, where it separates two tight control rows */
+.menu-pop .ctrl-divider { margin: 5px 8px; }
 
 /* ---- zoom: bottom right, the Google-Maps corner ---- */
 .zoombar {
@@ -1775,6 +1830,7 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .res-pop { min-width: 190px; padding: 10px 12px; }
   .res-chip { min-height: 34px; }
   .speed-btn { min-width: 44px; height: 44px; font-size: 14px; }
+  .menu-item { height: 44px; font-size: 14px; } /* the menu rows are thumb targets too */
   .play-btn { height: 46px; font-size: 14px; }
   .island-btn { min-width: 52px; font-size: 15px; }
   .zoom-btn { width: 46px; height: 44px; font-size: 20px; }

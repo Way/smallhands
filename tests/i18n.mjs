@@ -55,7 +55,7 @@ check('first tool label is German', toolLabel === 'Prüfen');
 // in-game options via the gear, switch back to English -> HUD rebuilds live.
 // The gear lives in the island's burger popover, which opens on click.
 await page.click('.island .menu-trigger');
-await page.click('.menu-pop .speed-btn[title="Optionen"]');
+await page.click('.menu-pop .menu-item:has-text("Optionen")');
 await page.waitForTimeout(200);
 await page.click('.seg-btn:has-text("English")');
 await page.waitForTimeout(300);

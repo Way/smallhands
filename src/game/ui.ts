@@ -421,7 +421,7 @@ export class Hud {
     // right zone: the burger
     const menuTrigger = el('button', 'island-btn menu-trigger', island);
     menuTrigger.textContent = '☰';
-    menuTrigger.setAttribute('aria-label', t('menu.levels'));
+    menuTrigger.setAttribute('aria-label', t('hud.menu'));
 
     // ---- speed popover: play/pause, then the rate ----
     const speedPop = this.popover(speedTrigger, 'speed-pop', false);
@@ -439,17 +439,24 @@ export class Hud {
     }
 
     // ---- menu popover: levels / restart / options ----
+    // Menu ROWS, not the generic .speed-btn chips — a bordered box per entry
+    // read as three stacked outlines with no hierarchy. The glyph lives in its
+    // own fixed-width slot (never in the label string) so the three labels line
+    // up on one edge whatever width the emoji font gives the icon.
     const menuPop = this.popover(menuTrigger, 'menu-pop', true);
-    const menu = el('button', 'speed-btn', menuPop);
-    menu.textContent = t('menu.levels');
-    menu.onclick = () => this.cbs.onMenu();
-    const restart = el('button', 'speed-btn', menuPop);
-    restart.textContent = t('menu.restart');
-    restart.onclick = () => this.cbs.onRestart();
-    const opts = el('button', 'speed-btn', menuPop);
-    opts.textContent = `⚙ ${t('opt.title')}`;
-    opts.title = t('opt.title');
-    opts.onclick = () => this.cbs.onOptions();
+    const menuItem = (glyph: string, label: string, cls = ''): HTMLButtonElement => {
+      const b = el('button', `menu-item${cls ? ` ${cls}` : ''}`, menuPop);
+      const ic = el('span', 'menu-ic', b);
+      ic.textContent = glyph;
+      ic.setAttribute('aria-hidden', 'true'); // decorative — the label names the action
+      el('span', 'menu-label', b).textContent = label;
+      return b;
+    };
+    menuItem('☰', t('menu.levels')).onclick = () => this.cbs.onMenu();
+    // restart discards the run in progress: the one row that warns on hover
+    menuItem('↺', t('menu.restart'), 'danger').onclick = () => this.cbs.onRestart();
+    el('div', 'ctrl-divider', menuPop); // level actions above · settings below
+    menuItem('⚙', t('opt.title')).onclick = () => this.cbs.onOptions();
 
     // ---- weather popover: current phase + countdown, then the next two ----
     // No actions inside (closeOnAction=false); it is purely a readout. The

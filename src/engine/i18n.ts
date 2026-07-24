@@ -349,6 +349,7 @@ const D: Record<string, [string, string]> = {
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
   'hud.speedMenu': ['Pause and speed', 'Pause und Tempo'],
+  'hud.menu': ['Menu', 'Menü'],
   'hud.speed': ['speed', 'Tempo'],
   'hud.pause': ['Pause', 'Pause'],
   'hud.resume': ['Resume', 'Weiter'],
@@ -386,8 +387,11 @@ const D: Record<string, [string, string]> = {
   ],
   'resume.btn': ['▶ Resume', '▶ Weiter'],
   'btn.levels': ['Levels', 'Level'],
-  'menu.levels': ['☰ Levels', '☰ Level'],
-  'menu.restart': ['↺ Restart', '↺ Neustart'],
+  // the HUD menu rows draw their own glyph in a fixed icon slot, so these two
+  // are plain labels. menu.options keeps its ⚙ — the world map's top bar uses
+  // it as a single-string text button.
+  'menu.levels': ['Levels', 'Level'],
+  'menu.restart': ['Restart', 'Neustart'],
   'menu.options': ['⚙ Options', '⚙ Optionen'],
   'select.title': ['Choose a level', 'Wähle ein Level'],
   'shelf.gold': ['<b>{a}/{b}</b> campaign gold', '<b>{a}/{b}</b> Kampagnen-Gold'],
