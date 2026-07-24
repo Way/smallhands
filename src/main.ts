@@ -26,6 +26,7 @@ import type { LevelDef } from './game/levels';
 import { Camera, Renderer } from './game/render';
 import type { HoverState } from './game/render';
 import { Hud, TOOL_ICON } from './game/ui';
+import { showReportOverlay } from './game/report-ui';
 import { FrontDoor } from './game/frontdoor';
 import { Editor } from './game/editor';
 import { blankLevelData, decodeShareCode, encodeShareCode, levelDefFromData, verifyLevel } from './game/leveldata';
@@ -113,6 +114,14 @@ function mkIcon(name: string, size: number): HTMLCanvasElement {
 // save-file key for the running level's personal best
 function recordKey(): string {
   return currentCustom ? currentCustom.id : `c${LEVELS[currentLevelIdx].id}`;
+}
+
+// How a bug report names the level. Untranslated on purpose — the report body
+// is read by maintainers, not players (see game/report.ts).
+function reportLevelLabel(): string {
+  if (currentCustom) return `custom level "${currentCustom.name}"`;
+  const def = LEVELS[currentLevelIdx];
+  return `campaign ${def.campaign ?? 1} · level ${currentLevelIdx + 1}`;
 }
 
 // medal + feat slots as shown on level cards
@@ -1084,6 +1093,25 @@ function attachHud(): void {
       setSpeed(0);
       running = false;
       showOptions(resumeGame);
+    },
+    onReport: () => {
+      // Same pause contract as the options overlay: freeze the run so the
+      // snapshot in the report matches what the player is looking at, and let
+      // resumeGame put the speed back on close.
+      prevSpeed = speed;
+      setSpeed(0);
+      running = false;
+      clearOverlay();
+      showReportOverlay({
+        game: game!,
+        canvas,
+        levelLabel: reportLevelLabel(),
+        levelName: t(game!.level.name),
+        originCode: currentCustom ? encodeShareCode(currentCustom) : undefined,
+        speed: prevSpeed,
+        build: __BUILD__,
+        onClose: resumeGame,
+      });
     },
     onRestart: () =>
       confirmIfInProgress(

@@ -116,6 +116,7 @@ export interface HudCallbacks {
   onMenu: () => void;
   onRestart: () => void;
   onOptions: () => void;
+  onReport: () => void;
 }
 
 // The touch confirm bar: one glance says what will be placed, what it costs,
@@ -450,6 +451,12 @@ export class Hud {
     opts.textContent = `⚙ ${t('opt.title')}`;
     opts.title = t('opt.title');
     opts.onclick = () => this.cbs.onOptions();
+    // In-level only, and deliberately so: the report carries a snapshot of the
+    // live map, which means nothing on the front door or the world map.
+    const report = el('button', 'speed-btn', menuPop);
+    report.textContent = t('menu.report');
+    report.title = t('report.title.bug');
+    report.onclick = () => this.cbs.onReport();
 
     // ---- weather popover: current phase + countdown, then the next two ----
     // No actions inside (closeOnAction=false); it is purely a readout. The

@@ -29,6 +29,11 @@ export interface ReportContext {
   kind: ReportKind;
   message: string; // the player's free text, verbatim
   levelLabel: string; // "campaign 2 · level 7" or "custom level"
+  // The level's *displayed* name. LevelDef.name is an i18n key ("lvl7.name")
+  // because the sim never translates, so a readable name has to come from the
+  // display layer. Both end up in the report: the name for a human reader, the
+  // key for whoever wants to grep levels.ts.
+  levelName: string;
   originCode?: string; // pristine starting code, for custom levels
   speed: number; // main-loop speed multiplier — a sim-external concern
   build: string;
@@ -109,7 +114,11 @@ export interface ReportData {
 // straight off `world.tiles`, so every dug cell, ladder, ramp and platform the
 // player made is baked in; the start-state fields are filled from live values so
 // loading the code drops you into the same economy, not the level's opening one.
-export function snapshotLevelData(game: Game, name?: string): CustomLevelData {
+// `displayName` is the level's readable name. It is a parameter rather than a
+// t() call because this module must stay language-independent and DOM-free;
+// LevelDef.name alone is an i18n key and would read as "lvl7.name" in the
+// level list after importing a snapshot.
+export function snapshotLevelData(game: Game, displayName?: string): CustomLevelData {
   const { level, world } = game;
   const townhall = game.townhall;
   const goal = game.goal;
@@ -138,8 +147,8 @@ export function snapshotLevelData(game: Game, name?: string): CustomLevelData {
   return {
     v: 1,
     id: makeLevelId(),
-    name: (name ?? `${level.name} (snapshot)`).slice(0, 40),
-    desc: `Reported state of ${level.name}`.slice(0, 140),
+    name: `${displayName ?? level.name} (snapshot)`.slice(0, 40),
+    desc: `Reported state of ${displayName ?? level.name}`.slice(0, 140),
     width: level.width,
     height: level.height,
     tiles: encodeTiles(world.tiles),
@@ -256,7 +265,7 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
       stranded: g.stranded,
     })),
     digOrders: [...game.digOrders].map((idx) => ({ x: idx % level.width, y: Math.floor(idx / level.width) })),
-    code: encodeShareCode(snapshotLevelData(game)),
+    code: encodeShareCode(snapshotLevelData(game, context.levelName)),
   };
 }
 
@@ -275,7 +284,9 @@ export function formatReport(d: ReportData): string {
 
   push(`# Smallhands — ${KIND_TITLE[c.kind]}`);
   push();
-  push(`- **Level:** ${c.levelLabel} — "${level.name}" (id ${level.id}, ${level.width}×${level.height}, ${level.biome})`);
+  push(
+    `- **Level:** ${c.levelLabel} — "${c.levelName}" (key \`${level.name}\`, id ${level.id}, ${level.width}×${level.height}, ${level.biome})`
+  );
   push(`- **When:** ${c.generatedAt}`);
   push(`- **Build:** ${c.build}`);
   push(`- **Client:** ${c.viewport} · lang ${c.lang}`);
@@ -392,7 +403,8 @@ export function formatReport(d: ReportData): string {
 
   push(`## Live level code`);
   push();
-  push('Paste into the game to load the map exactly as it was when this was reported.');
+  push('Level select → Import → paste this. Loads the map exactly as it stood when the report was made:');
+  push('same terrain, same buildings and blueprints, same node yields, same stock.');
   push();
   push('```');
   push(d.code);

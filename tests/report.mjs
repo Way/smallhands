@@ -13,6 +13,7 @@ const mod = await bundleExports(`
   export { encodeShareCode, decodeShareCode, levelDefFromData, sanitizeLevelData, encodeTiles } from './src/game/leveldata.ts';
   export { T, BUILD_TIME } from './src/game/types.ts';
   export { liftTopFor, ropeDropFor } from './src/game/world.ts';
+  export { t, setLang, LANGS } from './src/engine/i18n.ts';
 `);
 const {
   Game,
@@ -30,6 +31,9 @@ const {
   BUILD_TIME,
   liftTopFor,
   ropeDropFor,
+  t,
+  setLang,
+  LANGS,
 } = mod;
 
 let failures = 0;
@@ -42,6 +46,7 @@ const CONTEXT = {
   kind: 'bug',
   message: 'my digger will not move',
   levelLabel: 'campaign 1 · level 1',
+  levelName: 'First Steps',
   speed: 2,
   build: 'test',
   userAgent: 'node',
@@ -84,6 +89,12 @@ function playedGame() {
   check('report titles by kind', md.startsWith('# Smallhands — Bug report'));
   check("player's own words survive verbatim", md.includes('my digger will not move'));
   check('elapsed time is reported', md.includes('| elapsed | 214s |'));
+  // LevelDef.name is an i18n key, so the readable name has to come from the
+  // caller; both belong in the report — one for a human, one to grep with.
+  check(
+    'the level line carries the readable name AND the i18n key',
+    md.includes('"First Steps"') && md.includes('`lvl1.name`')
+  );
   check('speed comes from the caller, not the sim', md.includes('| speed | 2×'));
   check('every worker gets a row', data.workers.length === g.workers.length);
   check('a paused producer is called out', md.includes('ready (PAUSED)'));
@@ -115,6 +126,11 @@ function playedGame() {
   const snap = snapshotLevelData(g);
   const decoded = decodeShareCode(encodeShareCode(snap));
   check('a snapshot code decodes', decoded !== null);
+  const named = snapshotLevelData(g, 'First Steps');
+  check(
+    'the snapshot is named readably, not by its i18n key',
+    named.name === 'First Steps (snapshot)' && !named.desc.includes('lvl1.name')
+  );
 
   const reloaded = new Game(levelDefFromData(decoded));
 
@@ -209,6 +225,46 @@ function playedGame() {
   });
   check('townhall/goal/unknown/out-of-bounds buildings are rejected', hostile.buildings.length === 1);
   check('blueprint progress is clamped to the build time', hostile.buildings[0].progress === BUILD_TIME.forge);
+}
+
+// ---- every UI string is translated in both languages ------------------------------
+//
+// t() falls back to returning the key itself when one is missing, so a forgotten
+// German string renders as "report.copy" in the UI and no test notices. The
+// browser i18n suite is a smoke test and would not catch it either — hence this
+// explicit list.
+{
+  const KEYS = [
+    'menu.report',
+    'report.title.bug',
+    'report.title.feedback',
+    'report.title.idea',
+    'report.intro',
+    'report.kind',
+    'report.kind.bug',
+    'report.kind.feedback',
+    'report.kind.idea',
+    'report.hint.bug',
+    'report.hint.feedback',
+    'report.hint.idea',
+    'report.placeholder',
+    'report.preview',
+    'report.copy',
+    'report.download',
+    'report.close',
+    'report.copied',
+    'report.copyFailed',
+    'report.rendering',
+    'report.downloaded',
+  ];
+  for (const lang of LANGS) {
+    setLang(lang);
+    const missing = KEYS.filter((k) => t(k) === k);
+    check(`every report.* key is translated in ${lang}`, missing.length === 0);
+    if (missing.length) console.log('      missing:', missing.join(', '));
+  }
+  setLang('en');
+  check('report.downloaded interpolates its count', t('report.downloaded', { n: 3 }).includes('3'));
 }
 
 console.log(failures ? `\n${failures} failure(s)` : '\nall report tests passed');
