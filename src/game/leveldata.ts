@@ -1,14 +1,31 @@
 // Serializable custom-level format: created by the in-game editor or the
 // procedural generator, stored in localStorage and shareable as a text code.
 
-import { FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, ROLES, T, TOOL_DEFS } from './types';
-import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
+import { BUILD_TIME, FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, NODE_YIELD, ROLES, T, TOOL_DEFS } from './types';
+import type { BuildingKind, ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
 import { BIOMES } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
 import { t } from '../engine/i18n';
 import type { LevelDef } from './levels';
+
+// A building carried by a *snapshot* code (see game/report.ts): a level as it
+// stands mid-play, not as it starts. The editor never emits these — it has no
+// building tool — so the field is optional and an editor round-trip drops them.
+//
+// Lift/rope/hoist geometry (liftTopY, ropeBottomY, ropeSide) is deliberately
+// absent: it is a pure function of the terrain, which the same code already
+// carries, so levelDefFromData recomputes it. Storing it would be a second
+// source of truth free to disagree with the tiles.
+export interface SnapshotBuilding {
+  kind: BuildingKind; // never 'townhall' or 'goal' — those have their own fields
+  x: number;
+  y: number;
+  ready: boolean;
+  progress?: number; // blueprints only: seconds of construction done so far
+  paused?: boolean; // producers only: player is holding conversion
+}
 
 export interface CustomLevelData {
   v: 1;
@@ -18,7 +35,9 @@ export interface CustomLevelData {
   width: number;
   height: number;
   tiles: string; // run-length encoded terrain, see encodeTiles()
-  nodes: { kind: NodeKind; x: number; y: number }[];
+  // `yieldLeft` is only set by snapshot codes; a freshly authored node omits it
+  // and starts at the full NODE_YIELD amount.
+  nodes: { kind: NodeKind; x: number; y: number; yieldLeft?: number }[];
   townhall: { x: number; y: number };
   goal: { x: number; y: number };
   objectives: ObjectiveReq[];
@@ -28,6 +47,7 @@ export interface CustomLevelData {
   startThLevel: number;
   seed?: string; // set when produced by the generator
   biome?: Biome; // terrain palette family; omit for the classic meadow look
+  buildings?: SnapshotBuilding[]; // snapshot codes only, see SnapshotBuilding
 }
 
 export const MIN_W = 32;
@@ -157,7 +177,30 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
       g.world.tiles = decodeTiles(data.tiles, data.width * data.height);
       g.addBuilding('townhall', data.townhall.x, data.townhall.y);
       g.addBuilding('goal', data.goal.x, data.goal.y);
-      for (const n of data.nodes) g.addNode(n.kind, n.x, n.y);
+      for (const n of data.nodes) {
+        g.addNode(n.kind, n.x, n.y);
+        // Patch the partial yield afterwards rather than widening addNode's
+        // signature, which every hand-authored campaign level calls.
+        if (n.yieldLeft !== undefined) g.nodes[g.nodes.length - 1].yieldLeft = n.yieldLeft;
+      }
+      // Snapshot buildings. Terrain is already in place above, so the lift and
+      // rope geometry recomputes to exactly what it was when the snapshot was
+      // taken — see SnapshotBuilding on why it is not serialized.
+      for (const b of data.buildings ?? []) {
+        const built = g.addBuilding(b.kind, b.x, b.y, b.ready);
+        if (!b.ready) built.progress = b.progress ?? 0;
+        if (b.paused) built.paused = true;
+        if (b.kind === 'lift') {
+          built.liftTopY = liftTopFor(g.world, b.x, b.y) ?? b.y;
+          built.liftCarY = b.y;
+        } else if (b.kind === 'rope' || b.kind === 'hoist') {
+          const drop = ropeDropFor(g.world, b.x, b.y);
+          if (drop) {
+            built.ropeSide = drop.side;
+            built.ropeBottomY = drop.bottomY;
+          }
+        }
+      }
     },
   };
 }
@@ -215,13 +258,50 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
   const nodeKinds: NodeKind[] = ['tree', 'boulder', 'vein'];
   const nodes = Array.isArray(r.nodes)
     ? (r.nodes as unknown[])
-        .filter((n): n is { kind: NodeKind; x: number; y: number } => {
+        .filter((n): n is { kind: NodeKind; x: number; y: number; yieldLeft?: unknown } => {
           if (typeof n !== 'object' || n === null) return false;
           const q = n as Record<string, unknown>;
           return nodeKinds.includes(q.kind as NodeKind) && inBounds(q);
         })
         .slice(0, 200)
-        .map((n) => ({ kind: n.kind, x: Math.floor(n.x), y: Math.floor(n.y) }))
+        .map((n) => {
+          // A snapshot node carries its remaining yield; an authored one omits
+          // it and the sim fills the full amount. 0 would mean "depleted", which
+          // never survives into a snapshot, so treat it as absent.
+          const left = clampInt(n.yieldLeft, 1, NODE_YIELD[n.kind].amount);
+          return {
+            kind: n.kind,
+            x: Math.floor(n.x),
+            y: Math.floor(n.y),
+            ...(left === null ? {} : { yieldLeft: left }),
+          };
+        })
+    : [];
+  // Snapshot buildings (see SnapshotBuilding). townhall/goal are filtered out —
+  // they have their own fields and would otherwise be placed twice.
+  const buildings = Array.isArray(r.buildings)
+    ? (r.buildings as unknown[])
+        .filter((b): b is Record<string, unknown> => {
+          if (typeof b !== 'object' || b === null) return false;
+          const q = b as Record<string, unknown>;
+          return BUILD_TIME[q.kind as BuildingKind] !== undefined && inBounds(q);
+        })
+        .slice(0, 200)
+        .map((b) => {
+          const kind = b.kind as BuildingKind;
+          const ready = b.ready !== false;
+          // Construction progress is seconds, not a whole number — clampInt
+          // would quietly floor a half-built blueprint back down.
+          const progress = ready ? null : clampFloat(b.progress, 0, BUILD_TIME[kind]!);
+          return {
+            kind,
+            x: Math.floor(b.x as number),
+            y: Math.floor(b.y as number),
+            ready,
+            ...(progress === null ? {} : { progress }),
+            ...(b.paused === true ? { paused: true } : {}),
+          };
+        })
     : [];
   const objectives = Array.isArray(r.objectives)
     ? (r.objectives as unknown[])
@@ -261,12 +341,19 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     startThLevel: clampInt(r.startThLevel, 1, 3) ?? 1,
     seed: typeof r.seed === 'string' ? r.seed.slice(0, 60) : undefined,
     biome: BIOMES.includes(r.biome as Biome) ? (r.biome as Biome) : undefined,
+    ...(buildings.length ? { buildings } : {}),
   };
 }
 
 function clampInt(v: unknown, min: number, max: number): number | null {
   if (typeof v !== 'number' || !Number.isFinite(v)) return null;
   return Math.max(min, Math.min(max, Math.floor(v)));
+}
+
+// Same, for the values that are genuinely fractional (construction seconds).
+function clampFloat(v: unknown, min: number, max: number): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  return Math.max(min, Math.min(max, v));
 }
 
 // ---- verification ---------------------------------------------------------------
