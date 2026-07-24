@@ -1155,6 +1155,48 @@ export class Game {
     return near;
   }
 
+  // Nearest harvested-out node of `kind` (yieldLeft 0), by straight-line from
+  // the town hall. The answer to "the map had iron — where WAS it?", which is a
+  // different, more useful answer than "no iron here" (card #57).
+  private nearestSpentNodeOfKind(kind: NodeKind): ResourceNode | undefined {
+    const th = this.townhall;
+    let near: ResourceNode | undefined;
+    let nd = Infinity;
+    for (const n of this.nodes) {
+      if (n.kind !== kind || n.yieldLeft > 0) continue;
+      const d = (n.x - th.x) ** 2 + (n.y - th.y) ** 2;
+      if (d < nd) { nd = d; near = n; }
+    }
+    return near;
+  }
+
+  // Where units of `item` physically sit right now — dropped on the ground, in a
+  // smallhand's hands, or parked in a building buffer (producer in/out, hoist
+  // car). Ranked stranded-first (the actionable one: it needs a lift, not a
+  // miner), then by straight-line from the town hall. The store is deliberately
+  // NOT searched here: it is the least useful answer, so locateItem keeps it as
+  // a last resort.
+  private nearestItemUnit(item: ItemType): { x: number; y: number } | undefined {
+    const th = this.townhall;
+    let best: { x: number; y: number; rank: number; d: number } | undefined;
+    const offer = (x: number, y: number, rank: number) => {
+      const d = (x - th.x) ** 2 + (y - th.y) ** 2;
+      if (!best || rank < best.rank || (rank === best.rank && d < best.d)) best = { x, y, rank, d };
+    };
+    for (const gi of this.groundItems) {
+      if (gi.item === item) offer(gi.x, gi.y, gi.stranded ? 0 : 1);
+    }
+    for (const w of this.workers) {
+      if (w.carrying === item) offer(w.cx, w.cy, 1);
+    }
+    for (const b of this.buildings) {
+      const held =
+        (b.inputs[item] ?? 0) + (b.outputs[item] ?? 0) + (b.hoistUpper[item] ?? 0) + (b.hoistLower[item] ?? 0);
+      if (held > 0) offer(b.x, b.y, 1);
+    }
+    return best ? { x: best.x, y: best.y } : undefined;
+  }
+
   // Nearest building of `kind` (by straight-line from the town hall). `ready`
   // selects finished producers; `!ready` selects blueprints/under-construction.
   private nearestBuildingOfKind(kind: BuildingKind, ready: boolean): Building | undefined {
@@ -1177,16 +1219,22 @@ export class Game {
     const nodeKind = this.nodeKindFor(item);
     if (nodeKind) {
       const n = this.nearestNodeOfKind(nodeKind);
-      if (n) return { x: n.x, y: n.y, kind: 'node' };
+      if (n) return { x: n.x, y: n.y, kind: 'node', item };
     }
 
     const pk = this.producerKind(item);
     if (pk) {
       const ready = this.nearestBuildingOfKind(pk, true);
-      if (ready) return { x: ready.x, y: ready.y, kind: 'building' };
+      if (ready) return { x: ready.x, y: ready.y, kind: 'building', item };
       const bp = this.nearestBuildingOfKind(pk, false);
-      if (bp) return { x: bp.x, y: bp.y, kind: 'building' };
-      // no producer on the map → point at the scarcest input's source
+      if (bp) return { x: bp.x, y: bp.y, kind: 'building', item };
+
+      // No producer built: the actionable answer is the input you still need, so
+      // the recipe chain outranks a stray already-made unit lying around. A
+      // 'spent' verdict from the child SURVIVES — otherwise a spear request whose
+      // iron is mined out pans onto a rubble mark in silence, which is the very
+      // confusion this resolver exists to kill. The child's `item` rides along so
+      // the toast can name the item that is actually used up.
       const inputs = Object.keys(RECIPES[pk]!.inputs) as ItemType[];
       let target: ItemType | undefined;
       let low = Infinity;
@@ -1195,8 +1243,28 @@ export class Game {
       }
       if (target) {
         const r = this.locateItem(target, seen);
-        if (r) return { x: r.x, y: r.y, kind: 'input' };
+        if (r) return { ...r, kind: r.kind === 'spent' ? 'spent' : 'input' };
       }
+    }
+
+    // Nothing makes it any more — but units of it may already be out there:
+    // dropped (possibly stranded below a cliff), carried, or sitting in a
+    // buffer. "Where do I get iron?" is honestly answered by "that iron, there".
+    const unit = this.nearestItemUnit(item);
+    if (unit) return { x: unit.x, y: unit.y, kind: 'item', item };
+
+    // Every source of this kind is harvested out. Point at the dead node so the
+    // HUD can say "used up" instead of the flatly wrong "no source on this map".
+    if (nodeKind) {
+      const spent = this.nearestSpentNodeOfKind(nodeKind);
+      if (spent) return { x: spent.x, y: spent.y, kind: 'spent', item };
+    }
+
+    // Last resort: it is simply in the store already. Its own kind, because a
+    // ring on your own town hall only reads as an answer if the HUD says so.
+    if (this.stock[item] > 0) {
+      const th = this.townhall;
+      return { x: th.x, y: th.y, kind: 'store', item };
     }
     return null;
   }

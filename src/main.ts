@@ -1061,6 +1061,14 @@ function attachHud(): void {
         hud?.toast(t('locate.none', { name: t(`item.${item}`) }));
         return;
       }
+      // A spent source and a store-only answer both still get the ring and the
+      // pan, but neither reads as an answer without a line of copy — a silent
+      // ring on rubble or on your own town hall is the same "is this level
+      // broken?" confusion as the old "no source on this map" (card #57). The
+      // name comes off the result, not the request: a spear whose iron is mined
+      // out must say Iron.
+      if (r.kind === 'spent') hud?.toast(t('locate.spent', { name: t(`item.${r.item}`) }));
+      else if (r.kind === 'store') hud?.toast(t('locate.inStore', { name: t(`item.${r.item}`) }));
       const avw = renderer.viewW - cam.rightInset;
       const tx = (r.x + 0.5) * TILE * cam.zoom - avw / 2;
       const ty = (r.y + 0.5) * TILE * cam.zoom - renderer.viewH / 2;

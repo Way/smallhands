@@ -966,6 +966,16 @@ export class Renderer {
         const shiver = Math.sin(t * 26) * anticip * 0.7 * osc;
         const lift = anticip * 0.8;
         ctx.drawImage(sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas, px + shiver, n.y * TILE - lift);
+      } else {
+        // A worked-out boulder/vein leaves rubble — its own silhouette, ghosted
+        // and squashed to the ground, the way a felled tree leaves a stump. The
+        // map keeps remembering where the stone/iron WAS, and "find on map" has
+        // something visible to ring when the source is spent (card #57).
+        const img = sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas;
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.drawImage(img, 0, 0, img.width, img.height, n.x * TILE + 2, n.y * TILE + 9, TILE - 4, 7);
+        ctx.restore();
       }
       if (n.marked && n.yieldLeft > 0) {
         const bounce = Math.sin(t * 3) * 1.5;
