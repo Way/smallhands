@@ -1750,8 +1750,12 @@ export class Renderer {
       if (step) {
         const to = lift(step.x, step.y);
         if (to !== foot) {
-          const span = Math.max(Math.abs(step.x - w.cx), Math.abs(step.y - w.cy)) || 1;
-          const done = Math.max(Math.abs(w.px - w.cx), Math.abs(w.py - w.cy)) / span;
+          // Follow the ROW when the step changes rows: a fall or a rope slide
+          // travels horizontally first and only then drops (tickMove zeroes dy
+          // while dx is unspent), so blending on the horizontal component would
+          // float the walker up half a tile before they leave the old row.
+          const rows = Math.abs(step.y - w.cy);
+          const done = rows > 0 ? Math.abs(w.py - w.cy) / rows : Math.abs(w.px - w.cx);
           foot += (to - foot) * Math.min(1, Math.max(0, done));
         }
       }

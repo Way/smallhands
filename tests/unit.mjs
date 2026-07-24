@@ -331,8 +331,9 @@ function findLadderCells(g, count) {
 
 // ---- no smallhand prison under a ramp -----------------------------------------
 // A ramp run laid against a wall roofs over the floor pocket beneath its
-// diagonal. Workers standing there when it lands must still be able to step
-// out onto the ramp (a ramp tile overhead counts as headroom in the nav).
+// diagonal. Workers standing there when it lands must still be able to step out
+// onto the ramp — a ramp cell is passable, so it is headroom like any air cell
+// (card #59; there is no longer a ramp-specific clause in the nav).
 {
   const g = new Game(LEVELS[8]); // Tempest Summit (night): wall at x50, terrace floor row 20
   g.stock.plank = 10;
@@ -347,17 +348,33 @@ function findLadderCells(g, count) {
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
   check('a smallhand under the ramp can still climb out', path !== null);
 
-  // a worker whose very cell was built over pops up on top of the new tile
+  // A worker whose very cell becomes a RAMP is not entombed and is not moved
+  // either: a ramp cell is walkable, so they simply stand on the new slope.
+  const park = (w, x, y) => {
+    w.cx = x;
+    w.cy = y;
+    w.px = x;
+    w.py = y;
+    w.task = null;
+    w.path = [];
+    w.stepIdx = 0;
+  };
   const w = g.workers[0];
-  w.cx = 45;
-  w.cy = 20; // this cell is now a ramp tile
-  w.px = 45;
-  w.py = 20;
-  w.task = null;
-  w.path = [];
-  w.stepIdx = 0;
+  park(w, 45, 20); // (45,20) is one of the ramp tiles just laid
+  check('the ramp really covers the test cell', g.world.get(45, 20) === T.RAMP);
   g.tick(1 / 60);
-  check('a smallhand built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+  check('a smallhand built over by a ramp stays put on the slope',
+    w.cx === 45 && w.cy === 20 && g.world.isStandable(45, 20));
+
+  // A BRIDGE tile is still a solid deck, so it keeps the pop-up rescue: the
+  // worker is lifted onto the first standable cell above instead of entombed.
+  const w2 = g.workers[1];
+  park(w2, 46, 20);
+  g.world.set(46, 20, T.PLATFORM); // drop a deck straight onto them
+  check('a bridge tile really covers the second test cell', g.world.isPassable(46, 20) === false);
+  g.tick(1 / 60);
+  check('a smallhand built over by a bridge pops up on top',
+    w2.cy < 20 && g.world.isStandable(w2.cx, w2.cy));
 }
 
 // ---- i18n: keys translate, params substitute, unknown text passes through -----

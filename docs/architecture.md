@@ -66,3 +66,9 @@ and a ramp never seals the row it is built in. Two consequences worth knowing be
   landing. Deliberately one-way — a vertical ramp column is a cargo chute down, never a free
   cargo elevator up. `cargoReach` in `leveldata.ts` mirrors this rule; the verifier and nav
   must stay in lockstep or levels verify against physics the sim doesn't have.
+- **Machine anchors need clear `AIR`, not merely a standable cell.** `liftTopFor` and
+  `ropeDropFor` are the only gate `placeLift`/`placeRope`/`placeHoist` have (they never call
+  `canPlaceBuilding`), and "standable" now includes ladder *and* ramp cells — anchoring a
+  machine inside one orphans it the moment that tile is demolished. Both helpers therefore
+  require the cell to be `T.AIR`, which matches `canPlaceBuilding`'s footprint rule and covers
+  every built tile in one test.
