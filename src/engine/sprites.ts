@@ -692,7 +692,7 @@ export function buildAtlas(): void {
     '..sss...',
   ]);
 
-  // ---- smallhands (10x12, two walk frames + climb + work) ----
+  // ---- smallies (10x12, two walk frames + climb + work) ----
   // 'H' = hat (recolored per role at draw time via separate hat sprites)
   const bodyPal = {
     s: '#f2c9a0', S: '#ffdcb8', // skin

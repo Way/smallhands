@@ -12,6 +12,21 @@
 - `src/engine/` — engine
 - `src/game/` — game
 
+## Terminology (card #60)
+
+Four registers, deliberately layered — don't collapse them into one word:
+
+| Register | Word | Use |
+|---|---|---|
+| The game / product | **Smallhands** | Title, logo, save keys (`smallhands-save-v1`), the `window.__smallhands` hook, export format. Never renamed. |
+| The species | **smallie** · **smallies** | The inhabitants. Lowercase in EN (a species, like *lemmings*); capitalised in DE (`der Smallie`, `die Smallies`) as a loanword, never translated. |
+| The collective | **crew** · *Trupp* | "your autonomous crew" — a group, not a species name. |
+| The counting noun | **hands** | Keeps the game's own metaphor alive: "many hands make the mountain small", DE tagline "Kleine Hände". |
+
+Roles (Builder, Digger, Hauler, Miner) are **jobs**, not species — they stay as they are.
+In code there are no `smallhand` identifiers and none should be added: the sim calls them
+`Worker`. Copy says *smallie*, code says `worker`, brand says *Smallhands*.
+
 ## Placement models
 
 The sim (`src/game/sim.ts`) places things into the world through **three intentionally

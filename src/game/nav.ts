@@ -3,13 +3,13 @@ import type { Building, PathStep } from './types';
 import type { World } from './world';
 
 // Movement graph search. The graph differs depending on whether the
-// smallhand is carrying goods:
+// smallie is carrying goods:
 //   - carrying workers cannot climb ladders
 //   - carrying workers only dare a single-tile drop (MAX_FALL_CARRY = 1)
 //   - cargo lifts move workers (and their cargo) upward only
 //   - rope anchors slide workers (and their cargo) downward only
 //
-// Vertical travel is symmetric infrastructure (card #48): a smallhand steps
+// Vertical travel is symmetric infrastructure (card #48): a smallie steps
 // down a single tile for free (MAX_FALL = 1) and hops up a single tile for
 // free, but anything deeper — up OR down — needs a ladder (empty-handed),
 // a ramp (either), a lift (up, cargo) or a rope (down, cargo). Descent is no
@@ -112,7 +112,7 @@ export function findPath(
       }
       // Step up one tile (a little hop onto a ledge) — needs headroom. A ramp
       // tile overhead counts as headroom: its underside is a diagonal, so a
-      // smallhand in the pocket beneath a ramp run can duck out onto the ramp
+      // smallie in the pocket beneath a ramp run can duck out onto the ramp
       // instead of being walled in by its own staircase.
       const head = world.get(x, y - 1);
       if (

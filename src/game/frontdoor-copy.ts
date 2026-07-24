@@ -13,8 +13,8 @@ export const S: Record<string, Str> = {
     '<b>Lemmings</b> trifft <b>Die Siedler</b>&nbsp;— zwei Kindheitsklassiker in einem.',
   ],
   subLede: [
-    'You never control the smallhands. You shape the world — ladders, lifts, workshops — and your autonomous crew gathers, hauls, builds and crafts on its own. Every level is a delivery puzzle.',
-    'Du steuerst die Smallhands nie. Du formst die Welt — Leitern, Aufzüge, Werkstätten — und dein eigenständiger Trupp sammelt, schleppt, baut und werkelt von allein. Jedes Level ist ein Lieferrätsel.',
+    'You never control the smallies. You shape the world — ladders, lifts, workshops — and your autonomous crew gathers, hauls, builds and crafts on its own. Every level is a delivery puzzle.',
+    'Du steuerst die Smallies nie. Du formst die Welt — Leitern, Aufzüge, Werkstätten — und dein eigenständiger Trupp sammelt, schleppt, baut und werkelt von allein. Jedes Level ist ein Lieferrätsel.',
   ],
   heroHook: ['Up or down, cargo needs a road.', 'Ob hinauf oder hinab — Fracht braucht einen Weg.'],
   playNote: ['Free · in your browser · no download', 'Kostenlos · im Browser · kein Download'],
@@ -41,13 +41,13 @@ export const S: Record<string, Str> = {
   ],
   mechHead: ['The puzzle: every climb is a build', 'Das Rätsel: jeder Auf- und Abstieg will gebaut sein'],
   mechIntro: [
-    'A smallhand steps a single tile up or down for free — anything deeper wants a ladder, ramp, lift or rope. Cargo is the hard part: every mechanic answers one question — how do the goods get up and down?',
-    'Ein Smallhand steigt ein einzelnes Feld hinauf oder hinab von allein — alles Tiefere braucht Leiter, Rampe, Aufzug oder Seil. Fracht ist das Schwere: jede Mechanik beantwortet eine Frage — wie kommen die Waren hinauf und hinab?',
+    'A smallie steps a single tile up or down for free — anything deeper wants a ladder, ramp, lift or rope. Cargo is the hard part: every mechanic answers one question — how do the goods get up and down?',
+    'Ein Smallie steigt ein einzelnes Feld hinauf oder hinab von allein — alles Tiefere braucht Leiter, Rampe, Aufzug oder Seil. Fracht ist das Schwere: jede Mechanik beantwortet eine Frage — wie kommen die Waren hinauf und hinab?',
   ],
   mechLadderTitle: ['The ladder rule', 'Die Leiter-Regel'],
   mechLadderBody: [
-    'A smallhand carrying goods refuses ladders. Empty hands climb them freely; cargo needs a ramp, lift or rope instead.',
-    'Ein beladener Smallhand verweigert Leitern. Leere Hände klettern sie mühelos; Fracht braucht stattdessen Rampe, Aufzug oder Seil.',
+    'A smallie carrying goods refuses ladders. Empty hands climb them freely; cargo needs a ramp, lift or rope instead.',
+    'Ein beladener Smallie verweigert Leitern. Leere Hände klettern sie mühelos; Fracht braucht stattdessen Rampe, Aufzug oder Seil.',
   ],
   mechLiftTitle: ['Cargo lifts', 'Lastenaufzüge'],
   mechLiftBody: [

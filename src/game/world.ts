@@ -37,7 +37,7 @@ export class World {
     return t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK;
   }
 
-  // Can a smallhand's body occupy this cell?
+  // Can a smallie's body occupy this cell?
   isPassable(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return false;
     const t = this.get(x, y);
@@ -52,7 +52,7 @@ export class World {
     return this.extraSupport.has(this.idx(x, y));
   }
 
-  // Can a smallhand stand in this cell?
+  // Can a smallie stand in this cell?
   isStandable(x: number, y: number): boolean {
     if (!this.isPassable(x, y)) return false;
     if (this.get(x, y) === T.LADDER) return true;

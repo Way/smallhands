@@ -7,7 +7,7 @@ challenge modes and quest systems — plus the order in which to build it all.
 
 Everything here respects the two design pillars the game already has:
 
-1. **Indirect control.** You never steer a smallhand. Every new mechanic must
+1. **Indirect control.** You never steer a smallie. Every new mechanic must
    be something you *build, mark or configure* — never a unit you click.
 2. **Visible logistics.** The puzzle is always "how do goods physically get
    from A to B?". New mechanics add new answers (and new obstacles) to that
@@ -22,7 +22,7 @@ Status legend: ✅ shipped · 🔜 next up · 🧭 designed, not scheduled
 The campaign so far ends with the Summit Beacon being lit (level 4). The
 story continues from that exact moment:
 
-> When the Summit Beacon flared to life, the smallhands expected silence.
+> When the Summit Beacon flared to life, the smallies expected silence.
 > Instead, far across the valley — one after another — old beacons answered.
 > Faint, guttering, half-forgotten: the waystations of the **Ember Road**,
 > the great trade route that once stitched the scattered villages of the
@@ -30,7 +30,7 @@ story continues from that exact moment:
 > stopped coming a hundred years ago.
 >
 > So the crew packs the caravan, appoints an Overseer (that's you), and sets
-> out to do the only thing smallhands know how to do about a broken world:
+> out to do the only thing smallies know how to do about a broken world:
 > **rebuild the supply line.** One beacon at a time.
 
 The story is told with the tools the game already has — level names, level
@@ -125,7 +125,7 @@ cargo). Every chapter bends that asymmetry a new way instead of repeating it:
   that keeps late-game logistics from going fully idle.
 
 All hazards are deterministic or clearly telegraphed. Nothing kills a
-smallhand — this game's tension is about *goods and time*, not lives.
+smallie — this game's tension is about *goods and time*, not lives.
 
 ---
 
@@ -150,7 +150,7 @@ three-tier finale, so tooltips stay readable:
 | **gold** (rare nuggets) 🧭 | — | pure order/score item, never a tool cost |
 
 **Bread & stamina (Ch. 2+, campaign only):** workers slowly get *peckish*
-(never die, never strike): a peckish smallhand walks at 80% speed. One bread
+(never die, never strike): a peckish smallie walks at 80% speed. One bread
 at the town hall tops up the whole crew for a few minutes. This adds a
 gentle upkeep drum to long levels *without* punishing puzzle experimentation
 — and it makes the farm/bakery chain matter. Off by default in editor

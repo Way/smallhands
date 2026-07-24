@@ -58,7 +58,7 @@ part that lags behind it.
 ### The complaint, precisely
 
 - Flats are ruler-flat, cliffs are sheer → **harsh, artificial silhouettes**.
-- When a smallhand does hop a 1-tile step, the step is a blocky right angle
+- When a smallie does hop a 1-tile step, the step is a blocky right angle
   taller than the sprite itself — it *reads* as climbing furniture, not
   walking a hillside bank.
 - Every level is the same three words: flat, cliff, pit.
@@ -102,7 +102,7 @@ Construction sketch (all seeded, deterministic):
    Pads are also where resource nodes prefer to cluster loosely.
 
 This single change answers the "1-level steps" wish directly: gentle banks and
-rises become the *default fabric* of the land, the smallhands stroll over them
+rises become the *default fabric* of the land, the smallies stroll over them
 (cargo included), and the only hard edges left are the ones the puzzle put
 there on purpose.
 
@@ -184,7 +184,7 @@ sprite in the air tile beside the step (pure decoration — collision unchanged;
 eye reads as a bank). With micro relief everywhere, the whole level reads as
 rolling hills while the sim stays blocky. The little hop animation now happens
 "up a bank" instead of "onto a crate". Also fixes the current visual of a
-smallhand scaling a right angle taller than itself.
+smallie scaling a right angle taller than itself.
 
 ### 4.3 Strata & cliff-face character
 
@@ -206,7 +206,7 @@ Deterministic (`tileHash`-driven) props on grass tiles, density ~1 in 5,
 biome-scaled: grass tufts (2–3 variants, gentle sway reusing the tree-sway
 shear with tiny amplitude, honoring reduced-motion), flowers, pebbles,
 mushrooms clustered near trees, reeds beside water, tiny cairns near cliff
-lips. Rules: props never obscure a smallhand's silhouette (max ~6 px, muted
+lips. Rules: props never obscure a smallie's silhouette (max ~6 px, muted
 palette, drawn *behind* workers), never spawn on reserved build pads or the
 goal/TH aprons — readability is a mechanic in this game.
 

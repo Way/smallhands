@@ -39,7 +39,7 @@ add randomness; all of them add *planning*.
 ### The rising tide (`LevelDef.flood`)
 - In flood levels, **every rainfall raises the water table one row**, from
   `flood.start` up to the `flood.min` ceiling. It never recedes.
-- Flooded ground items sink; smallhands caught wading scramble back to the
+- Flooded ground items sink; smallies caught wading scramble back to the
   town hall, dropping their load into the drink.
 - The ceiling is tuned per level so a bridge one row above the final
   waterline can always be anchored on dry shelf edges — pressure, not a trap.
@@ -47,7 +47,7 @@ add randomness; all of them add *planning*.
 ### Night & lanterns (`LevelDef.night`, the Lantern tool)
 - The world is dark outside light circles cast by the town hall, the caravan
   and finished lanterns.
-- Smallhands **only harvest and raise workshops in the light** — but a
+- Smallies **only harvest and raise workshops in the light** — but a
   builder will raise a *lantern* anywhere (1 log + 1 stone, key `L`). Chaining
   light toward far resources is the level's routing puzzle.
 
