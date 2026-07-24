@@ -73,6 +73,27 @@ const run = (g, secs, dt = 1 / 60) => { for (let i = 0; i < secs / dt; i++) g.ti
   check('no shovel: the digger never equips', g.workers[0].hasShovel === false);
 }
 
+// ---- a KEPT shovel is not a shovel the sim may claim (card #64) -------------
+// Equipping a Digger takes the shovel out of the store for good, so it obeys the
+// keep floor like every other autonomous consumer: reserve the only shovel and
+// the dig waits until the player releases it.
+{
+  const g = new Game(LEVELS[0]);
+  const s = digSite(g);
+  const w = pinDigger(g, s.sx, s.sy);
+  g.stock.shovel = 1;
+  g.setKeep('shovel', 1);
+  g.paintDigRun(s.x, s.y, s.x, s.y);
+  run(g, 6);
+  check('kept shovel: the digger never equips it', w.hasShovel === false);
+  check('kept shovel: it is still in store', g.stock.shovel === 1);
+  check('kept shovel: the tile stays solid', g.world.isSolid(s.x, s.y));
+
+  g.setKeep('shovel', 0); // the player releases it
+  run(g, 8);
+  check('released: the digger equips and digs', w.hasShovel === true && !g.world.isSolid(s.x, s.y));
+}
+
 // ---- an assigned Digger removes the tile only after DIG_TIME elapses --------
 {
   const g = new Game(LEVELS[0]);

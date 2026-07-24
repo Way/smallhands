@@ -56,6 +56,21 @@ New gate — ship only what exceeds the floor:
 
 **Scope:** this gate touches **only** priority-0 goal deliveries. Production feeding (priority 1), loose-item collection and output draining (priority 2), and construction (`placeLift`/`placeBuilding`/`placeLadder`/`upgrade`, which deduct from `stock` directly) are all unaffected. So "keep 6 stone" lets stock climb past 6, the player places the upgrade/lift/forge (spending from stock, including the reserved amount if they choose), and any remaining surplus still flows to the order.
 
+> **Amended by card #64 — the floor is absolute for every *autonomous* consumer.**
+> The narrow scope above read as a leak in play: reserve 1 iron and the forge ate
+> it anyway, because production feeding never consulted the floor. The gate now
+> lives in one policy method, `Game.spare(item) = available(item) - keep[item]`,
+> and every consumer the *sim* decides for goes through it — goal deliveries,
+> producer input feeding (from stock **and** straight off the ground), hoist car
+> loading including auto-ballast, and a Digger claiming a shovel. Below the floor
+> a loose unit banks to the store first, exactly as the goal route already did.
+> **Unchanged:** the player's own spend (`canAfford`/`payCost`/`placeLadder`/the
+> town-hall upgrade) still reads raw `stock` — paying for a build *is* the player
+> releasing the goods, and holding material back for precisely that is what the
+> floor is for (level 3's hint). Trade-off accepted: a floor no longer means
+> "hold it back from the caravan but keep feeding my forge" — it means frozen.
+> Lower the floor to feed a producer from reserved stock.
+
 ### Behaviour — edge cases
 
 - **Floor ≥ what you have + what you'll get:** if the player sets `keep` so high that the surplus never reaches the order, the level cannot be completed until they lower it. This is intended and the player's choice; no automatic override.
@@ -68,7 +83,7 @@ New gate — ship only what exceeds the floor:
 The stock lives in an always-visible top bar as one `res-chip` per item (`buildTopBar` in `src/game/ui.ts`, ~line 99; chips tracked in `this.resChips`).
 
 - Each `res-chip` becomes a clickable button. Clicking opens a small popover anchored to the chip, reusing the existing `tooltip` styling.
-- Popover contents: item name, current stock count, a `keep [N] ▲▼` stepper (▲ = +1, ▼ = −1, clamped 0..99), and a one-line explainer: "Haulers ship only the surplus to the caravan."
+- Popover contents: item name, current stock count, a `keep [N] ▲▼` stepper (▲ = +1, ▼ = −1, clamped 0..99), and a one-line explainer (`hud.keepNote`, reworded with card #64: "Kept units stay put — no caravan, no workshop. Only the surplus moves.").
 - Only one popover open at a time; clicking the chip again, clicking another chip, or clicking elsewhere closes it.
 - **Floor badge:** when `keep[item] > 0`, the chip shows a small corner badge (e.g. `⊝6`) so a set floor is visible even with the popover closed. This is the in-game answer to "why isn't my stone shipping?"
 - Updating a floor takes effect on the next scheduler tick; no confirm step.
