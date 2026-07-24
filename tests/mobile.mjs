@@ -13,8 +13,14 @@
 // `npm run preview`). Mirrors tests/e2e.mjs for browser launch.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { bundleExports } from './bundle.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
+
+// first level with a dynamic-weather schedule — the only place the clock's sky
+// glyph is a tappable forecast trigger (card #62)
+const { LEVELS } = await bundleExports(`export { LEVELS } from './src/game/levels.ts';`);
+const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.length >= 2);
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -365,6 +371,27 @@ check('inspecting the blueprint shows its build %', (await hintPct()) === 1);
 await page.evaluate((id) => { window.__smallhands.game.buildings.find((b) => b.id === id).progress = 0.18; }, bp.id);
 await page.waitForTimeout(120);
 check('build % updates in 1% steps (not frozen in a 5% bucket)', (await hintPct()) === 3);
+
+// ---- the forecast glyph is a thumb target (card #62) --------------------------
+// On touch the clock's sky glyph is the ONLY way into the forecast — there is no
+// hover fallback — and the glyph box is deliberately only 24px so it fits the
+// pill's row. The 44px disc therefore comes from an invisible ::after inset, so
+// assert the behaviour: a tap OUTSIDE the box, inside the disc, still opens it.
+await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
+await page.waitForTimeout(500);
+const wxOpen = () => page.evaluate(() => {
+  const p = document.querySelector('.weather-pop');
+  return !!p && !p.hidden;
+});
+const glyph = await page.locator('.clock button.clock-ic').boundingBox();
+check('weather map: the sky glyph is the pill\'s forecast trigger', !!glyph);
+await page.tap('.clock button.clock-ic');
+check('tapping the glyph opens the forecast', await wxOpen());
+await page.tap('.clock button.clock-ic');
+check('tapping the glyph again closes it', !(await wxOpen()));
+await page.touchscreen.tap(glyph.x - 8, glyph.y + glyph.height / 2);
+await page.waitForTimeout(120);
+check('the 24px glyph still carries a 44px tap disc', await wxOpen());
 
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();

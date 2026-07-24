@@ -1797,6 +1797,13 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .speed-btn { min-width: 44px; height: 44px; font-size: 14px; }
   .play-btn { height: 46px; font-size: 14px; }
   .island-btn { min-width: 52px; font-size: 15px; }
+  /* the sky glyph is the ONLY route to the forecast on touch — there is no
+     hover fallback — so it must carry a full 44px thumb disc like every other
+     primary control (card #62). It can't just grow: the clock's row leaves
+     exactly 24px of content height, so a bigger box would stretch the pill.
+     Keep the box, hang the hit area off an invisible ::after instead. */
+  .clock button.clock-ic { position: relative; }
+  .clock button.clock-ic::after { content: ''; position: absolute; inset: -10px; }
   .zoom-btn { width: 46px; height: 44px; font-size: 20px; }
   .th-upgrade { padding: 10px 8px; }
   .tooltip .tt-btn { padding: 11px 24px; font-size: 14px; }

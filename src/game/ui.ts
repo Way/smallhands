@@ -80,7 +80,13 @@ function icon(name: string, size = 20, parent?: HTMLElement): HTMLCanvasElement 
 // closure per level. Wired once for the page instead.
 function closeIslandPopovers(): void {
   document.querySelectorAll<HTMLElement>('.island-pop:not([hidden])').forEach((p) => (p.hidden = true));
-  document.querySelectorAll('.island-btn.active').forEach((b) => {
+  // every trigger in the pill, not just the .island-btn zones: the clock's sky
+  // glyph opens the forecast too and is NOT a zone button (card #62). Keying off
+  // aria-expanded — which popover() sets on whatever it is handed, in lockstep
+  // with .active — is what keeps this honest for the next trigger that isn't an
+  // .island-btn either. It must stay this narrow: a blanket `.island .active`
+  // would also wipe the speed popover's current-rate highlight.
+  document.querySelectorAll('.island [aria-expanded="true"]').forEach((b) => {
     b.classList.remove('active');
     b.setAttribute('aria-expanded', 'false');
   });

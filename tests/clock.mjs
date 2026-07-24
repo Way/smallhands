@@ -115,6 +115,7 @@ const island = () =>
       (e) => /^(☀️|🌙|🌇|🌧️|🌩️)$/u.test(e.textContent.trim()) && !e.closest('.island-pop')
     );
     const pop = document.querySelector('.weather-pop');
+    const trigger = pill.querySelector('.clock .clock-ic');
     return {
       count: ics.length,
       glyphs: glyphs.length,
@@ -123,6 +124,11 @@ const island = () =>
       legacy: !!pill.querySelector('.weather-trigger'),
       popBuilt: !!pop,
       popOpen: pop ? !pop.hidden : false,
+      // the glyph is not an .island-btn, so a reset that only sweeps those
+      // leaves it lit and announced as expanded forever
+      lit: trigger?.classList.contains('active') ?? false,
+      expanded: trigger?.getAttribute('aria-expanded'),
+      rateLit: [...document.querySelectorAll('.speed-pop .speed-btn.active')].length,
     };
   });
 
@@ -138,10 +144,27 @@ check('weather map: still exactly one sky glyph', isl.count === 1 && isl.glyphs 
 check('weather map: the glyph is the forecast button', isl.tag === 'BUTTON');
 await page.hover('.clock button.clock-ic');
 await page.waitForTimeout(150);
-check('weather map: hovering the glyph opens the forecast', (await island()).popOpen);
+isl = await island();
+check('weather map: hovering the glyph opens the forecast', isl.popOpen);
+check('weather map: the open glyph is lit and announced expanded', isl.lit && isl.expanded === 'true');
 await page.mouse.move(700, 700);
 await page.waitForTimeout(150);
-check('weather map: leaving the glyph closes the forecast', !(await island()).popOpen);
+isl = await island();
+check('weather map: leaving the glyph closes the forecast', !isl.popOpen);
+// the glyph is not an .island-btn: the dismissal sweep has to reach it anyway,
+// or it stays lit (and aria-expanded="true") for the rest of the level
+check('weather map: the closed glyph drops .active and aria-expanded', !isl.lit && isl.expanded === 'false');
+
+// ...and the same sweep must NOT strip the speed popover's current-rate mark
+await page.evaluate(() => window.__smallhands.setSpeed(1));
+await page.click('.island .speed-trigger');
+await page.waitForTimeout(120);
+check('speed popover marks the live rate', (await island()).rateLit === 1);
+await page.click('#game-canvas'); // outside-click dismissal
+await page.waitForTimeout(120);
+isl = await island();
+check('dismissing the pill leaves the rate mark alone', isl.rateLit === 1);
+check('dismissing the pill clears the glyph state too', !isl.lit && isl.expanded === 'false');
 // the glyph tracks the live phase (weather/weatherRemaining are getters over
 // the sim's private phase clock, so drive the index; tests/weather.mjs covers
 // the advance itself)
