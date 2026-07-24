@@ -38,10 +38,13 @@ export class World {
   }
 
   // Can a smallhand's body occupy this cell?
+  // RAMP counts: a ramp is a diagonal slope in the floor, not a wall — its cell
+  // holds both the earth below the diagonal and walkable space above it, so a
+  // ramp never seals the row it stands in (card #59).
   isPassable(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return false;
     const t = this.get(x, y);
-    return t === T.AIR || t === T.LADDER;
+    return t === T.AIR || t === T.LADDER || t === T.RAMP;
   }
 
   // Does this cell provide floor support for the cell above it?
@@ -52,10 +55,14 @@ export class World {
     return this.extraSupport.has(this.idx(x, y));
   }
 
-  // Can a smallhand stand in this cell?
+  // Can a smallhand stand in this cell? A ladder is stood on anywhere along its
+  // column; a ramp carries the walker on its own slope, so (like a ladder) it
+  // needs no support underneath — that is what makes a switchback stack
+  // climbable, where each leg's tiles are the steps (card #59).
   isStandable(x: number, y: number): boolean {
     if (!this.isPassable(x, y)) return false;
-    if (this.get(x, y) === T.LADDER) return true;
+    const t = this.get(x, y);
+    if (t === T.LADDER || t === T.RAMP) return true;
     return this.isSupport(x, y + 1);
   }
 

@@ -1740,9 +1740,23 @@ export class Renderer {
     const { ctx } = this;
     for (const w of game.workers) {
       if (w.spawnT > 0.3) continue;
-      const px = w.px * TILE + TILE / 2;
-      const py = w.py * TILE + TILE;
       const step = w.stepIdx < w.path.length ? w.path[w.stepIdx] : null;
+      // Walking a ramp means walking its diagonal (card #59): the cell is half
+      // earth, so lift the feet to the slope's midline instead of sinking them
+      // into it. Blended over the step in progress so stepping onto or off a
+      // slope glides rather than snapping half a tile.
+      const lift = (cx: number, cy: number) => (game.world.get(cx, cy) === T.RAMP ? TILE / 2 : 0);
+      let foot = lift(w.cx, w.cy);
+      if (step) {
+        const to = lift(step.x, step.y);
+        if (to !== foot) {
+          const span = Math.max(Math.abs(step.x - w.cx), Math.abs(step.y - w.cy)) || 1;
+          const done = Math.max(Math.abs(w.px - w.cx), Math.abs(w.py - w.cy)) / span;
+          foot += (to - foot) * Math.min(1, Math.max(0, done));
+        }
+      }
+      const px = w.px * TILE + TILE / 2;
+      const py = w.py * TILE + TILE - foot;
       let body = 'ling_walk_a';
       if (w.working) {
         body = Math.sin(w.animT * 10) > 0 ? 'ling_work' : 'ling_walk_a';

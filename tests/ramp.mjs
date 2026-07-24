@@ -323,5 +323,82 @@ function stepWorld() {
     rampCellsFaceLeft(wc2, clip2) === false);
 }
 
+// --- Walkable diagonal (card #59): a ramp tile is passable AND standable, so it
+// never walls off the row it stands in — a smallhand walks the slope itself
+// instead of only the flat cell above it. ---
+{
+  const surfaceY = 14;
+  const flat = () => {
+    const w = new World(24, 20);
+    for (let x = 0; x < w.w; x++)
+      for (let y = 0; y < w.h; y++) w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+    return w;
+  };
+
+  const w = flat();
+  w.set(10, surfaceY - 1, T.RAMP); // a lone ramp tile standing on the grass
+  check('a ramp cell is passable', w.isPassable(10, surfaceY - 1) === true);
+  check('a ramp cell is standable (you walk the slope itself)',
+    w.isStandable(10, surfaceY - 1) === true);
+
+  // A mid-chain tile has nothing under it — its own slope carries the walker.
+  const wc = flat();
+  wc.set(8, surfaceY - 1, T.RAMP);
+  wc.set(9, surfaceY - 2, T.RAMP);
+  wc.set(10, surfaceY - 3, T.RAMP);
+  check('a mid-chain ramp tile stands on its own slope',
+    wc.get(9, surfaceY - 1) === T.AIR && wc.isStandable(9, surfaceY - 2) === true);
+
+  // A loaded hauler crossing flat ground walks THROUGH the ramp cell rather than
+  // hopping over its top — the ramp is a slope in the floor, not a wall.
+  const across = findPath(w, [], 7, surfaceY - 1, new Set([w.key(13, surfaceY - 1)]), true);
+  check('a loaded hauler crosses a ramp on flat ground', across !== null);
+  check('the crossing passes through the ramp cell, not over it',
+    !!across && across.steps.some((s) => s.x === 10 && s.y === surfaceY - 1 && s.kind === 'walk'));
+
+  // Falling bodies still land ON a ramp — passable must not mean see-through.
+  check('a ramp still catches a fall', findPath(w, [], 10, surfaceY - 4,
+    new Set([w.key(10, surfaceY - 1)]), false) !== null);
+}
+
+// --- Switchback stacks (card #59): reversing legs gain height in a tight
+// footprint. The upper leg anchors on the cell directly ABOVE the lower leg's
+// top tile, so the turn only works because ramp tiles are walkable. ---
+{
+  const surfaceY = 16;
+  const w = new World(24, 22);
+  for (let x = 0; x < w.w; x++)
+    for (let y = 0; y < w.h; y++) w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+
+  // leg 1: three tiles up-LEFT off the ground, (12,15) → (10,13)
+  const leg1 = rampRunCells(w, 12, surfaceY - 1, 10, surfaceY - 3);
+  check('switchback leg 1 lays 3 tiles up-left', leg1.length === 3);
+  for (const c of leg1) w.set(c.x, c.y, T.RAMP);
+
+  // leg 2: reverse direction — four tiles up-RIGHT anchored on the cell directly
+  // above leg 1's top tile, (10,12) → (13,9)
+  const leg2 = rampRunCells(w, 10, surfaceY - 4, 13, surfaceY - 7);
+  check('switchback leg 2 lays 4 tiles up-right off the lower leg', leg2.length === 4);
+  for (const c of leg2) w.set(c.x, c.y, T.RAMP);
+
+  // The stack climbs 7 rows inside 4 columns; a single 45° run would need 7.
+  const cols = new Set([...leg1, ...leg2].map((c) => c.x));
+  check('the switchback climbs 7 rows within 4 columns',
+    cols.size === 4 && leg1[0].y - leg2[leg2.length - 1].y === 6);
+
+  // A LOADED hauler climbs the whole zigzag: ground → the cell atop leg 2.
+  const top = new Set([w.key(13, surfaceY - 8)]);
+  check('a loaded hauler climbs the switchback', findPath(w, [], 16, surfaceY - 1, top, true) !== null);
+  // …and back down again (ramps carry cargo both ways, card #48).
+  const ground = new Set([w.key(16, surfaceY - 1)]);
+  check('a loaded hauler descends the switchback',
+    findPath(w, [], 13, surfaceY - 8, ground, true) !== null);
+
+  // Facing: each leg reads as one slope face, so the turn is a peak — the lower
+  // leg climbs left into it, the upper leg climbs right out of it.
+  check('switchback lower leg climbs left', leg1.every((c) => rampFacesLeft(w, c.x, c.y) === true));
+  check('switchback upper leg climbs right', leg2.every((c) => rampFacesLeft(w, c.x, c.y) === false));
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
 process.exit(failures ? 1 : 0);

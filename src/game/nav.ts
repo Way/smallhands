@@ -111,13 +111,12 @@ export function findPath(
         // nothing — handled by fall below
       }
       // Step up one tile (a little hop onto a ledge) — needs headroom. A ramp
-      // tile overhead counts as headroom: its underside is a diagonal, so a
-      // smallhand in the pocket beneath a ramp run can duck out onto the ramp
-      // instead of being walled in by its own staircase.
-      const head = world.get(x, y - 1);
+      // overhead is passable (its cell is a slope, not a wall), so a smallhand
+      // in the pocket beneath a ramp run can duck out onto the ramp instead of
+      // being walled in by its own staircase.
       if (
         world.isStandable(nx, y - 1) &&
-        (world.isPassable(x, y - 1) || head === T.RAMP) &&
+        world.isPassable(x, y - 1) &&
         world.get(nx, y - 1) !== T.LADDER
       ) {
         consider(nx, y - 1, 'walk', 1.4);
@@ -137,6 +136,17 @@ export function findPath(
         }
         if (ok) consider(nx, fy, 'fall', 1 + (fy - y) * 0.3);
       }
+    }
+
+    // Step down onto a ramp lying directly below — the mirror of the step-up,
+    // and the free single-tile descent the contract grants, taken straight down
+    // the slope instead of diagonally off a ledge. Cargo included: a ramp is the
+    // one structure walkable in BOTH directions (card #48). A switchback stack
+    // turns on exactly this step — the upper leg's tile sits directly under the
+    // lower leg's top landing. Never upward: a vertical ramp column must not
+    // become a free cargo elevator.
+    if (world.get(x, y + 1) === T.RAMP) {
+      consider(x, y + 1, 'walk', 1.4);
     }
 
     // Ladders (never while carrying).
