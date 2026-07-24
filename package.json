@@ -21,6 +21,7 @@
     "test:campaign4": "node tests/campaign4.mjs",
     "test:digging": "node tests/digging.mjs",
     "test:i18n": "node tests/i18n.mjs",
+    "test:terminology": "node tests/terminology.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:mobile": "node tests/mobile.mjs",
     "test:autopause": "node tests/autopause.mjs",

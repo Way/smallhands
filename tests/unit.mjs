@@ -241,7 +241,7 @@ function findLadderCells(g, count) {
   check('storm also slows harvest', g.workFactor < 1);
 }
 
-// ---- the rising tide: floods, sinks goods, rescues smallhands, then stops ----
+// ---- the rising tide: floods, sinks goods, rescues smallies, then stops ----
 {
   const g = new Game(LEVELS[7]); // The Rising Tide; basin floor stands at row 25
   const w = g.workers[0];
@@ -254,7 +254,7 @@ function findLadderCells(g, count) {
   g.riseWater();
   check('the first rise floods the basin floor', g.world.get(31, 25) === T.WATER);
   check('goods caught by the tide sink', !g.groundItems.some((i) => i.id === 9999));
-  check('a smallhand caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
+  check('a smallie caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
   g.riseWater();
   check('the second rise laps one row higher', g.world.get(31, 24) === T.WATER);
   g.riseWater();
@@ -329,7 +329,7 @@ function findLadderCells(g, count) {
   check('the town fire still holds its own light', g.isLit(6, g.buildings.find((b) => b.kind === 'townhall').y + 1) === true);
 }
 
-// ---- no smallhand prison under a ramp -----------------------------------------
+// ---- no smallie prison under a ramp -----------------------------------------
 // A ramp run laid against a wall roofs over the floor pocket beneath its
 // diagonal. Workers standing there when it lands must still be able to step
 // out onto the ramp (a ramp tile overhead counts as headroom in the nav).
@@ -345,7 +345,7 @@ function findLadderCells(g, count) {
   // a worker in the pocket under the diagonal (x46..49, row 20)
   const targets = new Set([g.world.key(50, 15)]); // the terrace above
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
-  check('a smallhand under the ramp can still climb out', path !== null);
+  check('a smallie under the ramp can still climb out', path !== null);
 
   // a worker whose very cell was built over pops up on top of the new tile
   const w = g.workers[0];
@@ -357,7 +357,7 @@ function findLadderCells(g, count) {
   w.path = [];
   w.stepIdx = 0;
   g.tick(1 / 60);
-  check('a smallhand built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+  check('a smallie built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
 }
 
 // ---- i18n: keys translate, params substitute, unknown text passes through -----

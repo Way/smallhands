@@ -24,8 +24,13 @@ Four registers, deliberately layered — don't collapse them into one word:
 | The counting noun | **hands** | Keeps the game's own metaphor alive: "many hands make the mountain small", DE tagline "Kleine Hände". |
 
 Roles (Builder, Digger, Hauler, Miner) are **jobs**, not species — they stay as they are.
-In code there are no `smallhand` identifiers and none should be added: the sim calls them
-`Worker`. Copy says *smallie*, code says `worker`, brand says *Smallhands*.
+No identifier is named after either the brand or the species: the sim entity is `Worker`,
+and it stays that way. Copy says *smallie*, code says `worker`, brand says *Smallhands*.
+
+`tests/terminology.mjs` enforces all of the above — it walks both copy tables (EN and DE)
+and sweeps the tree, so a half-renamed pair fails loudly instead of shipping. The brand is
+always plural, so the guard reads any singular form of it as a creature reference the
+rename missed.
 
 ## Placement models
 

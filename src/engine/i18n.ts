@@ -44,7 +44,9 @@ export function tOr(key: string, fallbackKey: string, vars?: Record<string, stri
 
 // ---- the dictionary: [english, german] ---------------------------------------
 
-const D: Record<string, [string, string]> = {
+// Exported so the headless suites can walk every pair (see tests/terminology.mjs),
+// the same way frontdoor-copy.ts exports its S table for tests/frontdoor-data.mjs.
+export const D: Record<string, [string, string]> = {
   // items
   'item.log': ['Log', 'Stamm'],
   'item.plank': ['Plank', 'Brett'],
