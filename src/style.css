@@ -178,6 +178,28 @@ body.in-game #frontdoor { display: none; }
   color: var(--text);
 }
 .clock .clock-ic { font-size: 12px; opacity: 0.75; }
+/* on a dynamic-weather level the sky glyph IS the forecast trigger (card #62),
+   so it is a real button — keyboard and touch reach it — but visually still
+   just the glyph: it only grows to a thumb-sized 24px target (which lands
+   inside the island's 42px row, no reflow) and lights up on hover/open. */
+.clock button.clock-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s;
+}
+.clock button.clock-ic:hover,
+.clock button.clock-ic.active { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 /* fixed-width digits: the seconds turn over every tick and must not shuffle */
 .clock .clock-time { font-variant-numeric: tabular-nums; min-width: 38px; }
 
@@ -415,12 +437,10 @@ body.in-game #frontdoor { display: none; }
   overflow: visible; /* popovers hang out of it */
 }
 /* hairline seams between zones: a left border on every zone but the first
-   (speed) draws exactly one line per boundary — speed | weather | clock | menu */
-.island > .weather-trigger,
+   (speed) draws exactly one line per boundary — speed | clock | menu. The
+   forecast has no zone of its own; it hangs off the clock's glyph (card #62). */
 .island > .clock,
 .island > .menu-trigger { border-left: 1px solid var(--panel-border); }
-/* the weather zone is icon-only: a touch tighter than the text buttons */
-.island-btn.weather-trigger { min-width: 0; padding: 0 10px; font-size: 15px; }
 
 .island-btn {
   display: flex;

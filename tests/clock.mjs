@@ -11,7 +11,13 @@ import { execSync } from 'node:child_process';
 import { bundleExports } from './bundle.mjs';
 
 // the real formatter, so this can't drift from what the HUD renders
-const { fmtClock } = await bundleExports(`export { fmtClock } from './src/game/types.ts';`);
+const { fmtClock, LEVELS } = await bundleExports(`
+  export { fmtClock } from './src/game/types.ts';
+  export { LEVELS } from './src/game/levels.ts';
+`);
+// first level with a dynamic-weather schedule — the only place the clock's sky
+// glyph doubles as the forecast trigger (card #62)
+const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.length >= 2);
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -95,6 +101,55 @@ await page.evaluate(() => window.__smallhands.startLevel(0));
 await page.waitForTimeout(200);
 check('restart resets the score timer', (await gameTime()) < 1);
 check('restart clock still shows the day time of day', (await clockText()) === '12:00');
+
+// ---- ONE sky glyph, and it carries the forecast (card #62) ------------------
+// The island used to run a weather zone with its own ☀️ right next to the
+// clock's day glyph — two identical suns whenever the weather was clear. There
+// is now a single glyph: passive where there is no forecast, the forecast's own
+// trigger where there is one.
+const island = () =>
+  page.evaluate(() => {
+    const pill = document.querySelector('.island');
+    const ics = pill.querySelectorAll('.clock-ic');
+    const glyphs = [...pill.querySelectorAll('*')].filter(
+      (e) => /^(☀️|🌙|🌇|🌧️|🌩️)$/u.test(e.textContent.trim()) && !e.closest('.island-pop')
+    );
+    const pop = document.querySelector('.weather-pop');
+    return {
+      count: ics.length,
+      glyphs: glyphs.length,
+      tag: ics[0]?.tagName,
+      text: ics[0]?.textContent,
+      legacy: !!pill.querySelector('.weather-trigger'),
+      popBuilt: !!pop,
+      popOpen: pop ? !pop.hidden : false,
+    };
+  });
+
+let isl = await island();
+check('day map: exactly one sky glyph on the pill', isl.count === 1 && isl.glyphs === 1);
+check('day map: the glyph is a passive span (no forecast to open)', isl.tag === 'SPAN');
+check('day map: no forecast popover and no legacy weather zone', !isl.popBuilt && !isl.legacy);
+
+await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
+await page.waitForTimeout(400);
+isl = await island();
+check('weather map: still exactly one sky glyph', isl.count === 1 && isl.glyphs === 1);
+check('weather map: the glyph is the forecast button', isl.tag === 'BUTTON');
+await page.hover('.clock button.clock-ic');
+await page.waitForTimeout(150);
+check('weather map: hovering the glyph opens the forecast', (await island()).popOpen);
+await page.mouse.move(700, 700);
+await page.waitForTimeout(150);
+check('weather map: leaving the glyph closes the forecast', !(await island()).popOpen);
+// the glyph tracks the live phase (weather/weatherRemaining are getters over
+// the sim's private phase clock, so drive the index; tests/weather.mjs covers
+// the advance itself)
+await page.evaluate(() => (window.__smallhands.game.weatherIdx = 1));
+await page.waitForTimeout(250);
+isl = await island();
+check('weather map: the glyph follows a non-clear phase', isl.text === '🌧️' || isl.text === '🌩️');
+check('weather map: rain does not add a second glyph', isl.count === 1 && isl.glyphs === 1);
 
 await browser.close();
 if (failed) {
