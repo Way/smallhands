@@ -286,14 +286,20 @@ export interface ObjectiveReq {
 // Where the camera should go when the player asks "where do I get <item>?"
 // kind: 'node' = a live raw source node, 'building' = a producer, 'input' = the
 // source of a producer's missing input (the recipe had no built producer),
-// 'item' = units of the item that already exist somewhere on the map (dropped,
-// in a hauler's hands, in a building's buffer, or in the store), 'spent' = a
-// harvested-out source node — the map DID have one, it is used up, which is a
-// different answer from "this map has none" (card #57).
+// 'item' = units of the item that already exist out on the map (dropped, in a
+// hauler's hands, in a building's buffer), 'store' = the only ones left are
+// already in the stockpile, 'spent' = a harvested-out source node — the map DID
+// have one, it is used up, which is a different answer from "this map has none"
+// (card #57).
+//
+// `item` is the item the answer is ABOUT, which is not always the item asked
+// for: a spear request whose iron is mined out resolves through the recipe to a
+// spent vein, and the HUD has to say "Iron", not "Spear".
 export interface LocateResult {
   x: number; // tile
   y: number; // tile
-  kind: 'node' | 'building' | 'input' | 'item' | 'spent';
+  kind: 'node' | 'building' | 'input' | 'item' | 'store' | 'spent';
+  item: ItemType;
 }
 
 // ---- medals & feats ---------------------------------------------------------

@@ -784,17 +784,66 @@ function spentNode(id, kind, x, y) {
 {
   // Nothing out in the world, but the store holds some: least useful answer, so
   // it comes last — after the spent node has had its chance… which means with a
-  // spent node present the node wins, and with none the store answers.
+  // spent node present the node wins, and with none the store answers. It gets
+  // its OWN kind: a ring on your own town hall needs its own line of copy.
   const g = new Game(LEVELS[0]);
   const th = g.townhall;
   g.nodes.length = 0;
   g.stock.iron = 3;
   const r = g.locateItem('iron');
-  check('iron only in the store is located at the town hall',
-    !!r && r.kind === 'item' && r.x === th.x && r.y === th.y);
+  check('iron only in the store is located at the town hall, kind store',
+    !!r && r.kind === 'store' && r.x === th.x && r.y === th.y);
   g.stock.iron = 0;
   check('no vein, no iron anywhere → still null (locate.none is honest here)',
     g.locateItem('iron') === null);
+}
+
+{
+  // PR #83 review, finding 1: a 'spent' verdict reached THROUGH the recipe must
+  // survive the recursion, or a spear request whose iron is mined out pans onto
+  // a rubble mark in silence. The result also has to name the spent item (iron),
+  // not the requested one (spear), or the toast lies.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.buildings = g.buildings.filter((b) => b.kind !== 'forge'); // no spear producer
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9401, 'vein', th.x + 7, th.y));
+  g.stock.iron = 0;
+  g.stock.plank = 5; // iron is the scarcest input → the recursion targets iron
+  const r = g.locateItem('spear');
+  check('a spent source reached through the recipe stays kind spent',
+    !!r && r.kind === 'spent' && r.x === th.x + 7 && r.y === th.y);
+  check('…and names the item that is actually used up', !!r && r.item === 'iron');
+}
+
+{
+  // PR #83 review, finding 2: for a produced item with no producer, "here is the
+  // input you still need" beats "here is one stray unit someone dropped".
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.buildings = g.buildings.filter((b) => b.kind !== 'sawmill'); // no plank producer
+  g.nodes.length = 0;
+  g.nodes.push(node(9402, 'tree', th.x + 4, th.y));
+  g.dropItem('plank', th.x + 1, th.y); // a single stray plank, much nearer
+  const r = g.locateItem('plank');
+  check('a stray plank does not outrank the log source a plank is made from',
+    !!r && r.kind === 'input' && r.x === th.x + 4 && r.y === th.y);
+  check('the input answer names the input item', !!r && r.item === 'log');
+}
+
+{
+  // Raw items keep the opposite precedence: nothing produces iron, so an iron
+  // lying on the map IS the answer once the veins are worked out.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9403, 'vein', th.x + 7, th.y));
+  g.stock.iron = 0;
+  g.dropItem('iron', th.x + 2, th.y);
+  const gi = g.groundItems.find((it) => it.item === 'iron');
+  const r = g.locateItem('iron');
+  check('dropped iron still outranks the spent vein for a raw item',
+    !!r && r.kind === 'item' && !!gi && r.x === gi.x && r.y === gi.y);
 }
 
 {
@@ -822,11 +871,15 @@ function spentNode(id, kind, x, y) {
   const prev = getLang();
   for (const lang of ['en', 'de']) {
     setLang(lang);
-    const spent = t('locate.spent', { name: t('item.iron') });
-    check(`locate.spent is translated in ${lang}`, spent !== 'locate.spent' && spent.length > 0);
-    check(`locate.spent names the item in ${lang}`, spent.includes(t('item.iron')));
-    check(`locate.spent differs from locate.none in ${lang}`,
-      spent !== t('locate.none', { name: t('item.iron') }));
+    const none = t('locate.none', { name: t('item.iron') });
+    for (const key of ['locate.spent', 'locate.inStore']) {
+      const line = t(key, { name: t('item.iron') });
+      check(`${key} is translated in ${lang}`, line !== key && line.length > 0);
+      check(`${key} names the item in ${lang}`, line.includes(t('item.iron')));
+      check(`${key} differs from locate.none in ${lang}`, line !== none);
+    }
+    check(`locate.spent and locate.inStore differ in ${lang}`,
+      t('locate.spent', { name: 'X' }) !== t('locate.inStore', { name: 'X' }));
   }
   setLang(prev);
 }

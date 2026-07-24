@@ -1219,25 +1219,22 @@ export class Game {
     const nodeKind = this.nodeKindFor(item);
     if (nodeKind) {
       const n = this.nearestNodeOfKind(nodeKind);
-      if (n) return { x: n.x, y: n.y, kind: 'node' };
+      if (n) return { x: n.x, y: n.y, kind: 'node', item };
     }
 
     const pk = this.producerKind(item);
     if (pk) {
       const ready = this.nearestBuildingOfKind(pk, true);
-      if (ready) return { x: ready.x, y: ready.y, kind: 'building' };
+      if (ready) return { x: ready.x, y: ready.y, kind: 'building', item };
       const bp = this.nearestBuildingOfKind(pk, false);
-      if (bp) return { x: bp.x, y: bp.y, kind: 'building' };
-    }
+      if (bp) return { x: bp.x, y: bp.y, kind: 'building', item };
 
-    // No live source and no producer — but units of the item may already be out
-    // there: dropped (possibly stranded below a cliff), carried, or sitting in a
-    // buffer. "Where do I get iron?" is honestly answered by "that iron, there".
-    const unit = this.nearestItemUnit(item);
-    if (unit) return { x: unit.x, y: unit.y, kind: 'item' };
-
-    if (pk) {
-      // no producer on the map → point at the scarcest input's source
+      // No producer built: the actionable answer is the input you still need, so
+      // the recipe chain outranks a stray already-made unit lying around. A
+      // 'spent' verdict from the child SURVIVES — otherwise a spear request whose
+      // iron is mined out pans onto a rubble mark in silence, which is the very
+      // confusion this resolver exists to kill. The child's `item` rides along so
+      // the toast can name the item that is actually used up.
       const inputs = Object.keys(RECIPES[pk]!.inputs) as ItemType[];
       let target: ItemType | undefined;
       let low = Infinity;
@@ -1246,21 +1243,28 @@ export class Game {
       }
       if (target) {
         const r = this.locateItem(target, seen);
-        if (r) return { x: r.x, y: r.y, kind: 'input' };
+        if (r) return { ...r, kind: r.kind === 'spent' ? 'spent' : 'input' };
       }
     }
+
+    // Nothing makes it any more — but units of it may already be out there:
+    // dropped (possibly stranded below a cliff), carried, or sitting in a
+    // buffer. "Where do I get iron?" is honestly answered by "that iron, there".
+    const unit = this.nearestItemUnit(item);
+    if (unit) return { x: unit.x, y: unit.y, kind: 'item', item };
 
     // Every source of this kind is harvested out. Point at the dead node so the
     // HUD can say "used up" instead of the flatly wrong "no source on this map".
     if (nodeKind) {
       const spent = this.nearestSpentNodeOfKind(nodeKind);
-      if (spent) return { x: spent.x, y: spent.y, kind: 'spent' };
+      if (spent) return { x: spent.x, y: spent.y, kind: 'spent', item };
     }
 
-    // Last resort: it is simply in the store already.
+    // Last resort: it is simply in the store already. Its own kind, because a
+    // ring on your own town hall only reads as an answer if the HUD says so.
     if (this.stock[item] > 0) {
       const th = this.townhall;
-      return { x: th.x, y: th.y, kind: 'item' };
+      return { x: th.x, y: th.y, kind: 'store', item };
     }
     return null;
   }
