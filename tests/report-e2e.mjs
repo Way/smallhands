@@ -143,6 +143,31 @@ check(
   await page.evaluate(() => window.__smallhands.game.paused === false)
 );
 
+// Escape must also work when focus has left the overlay — clicking the backdrop
+// moves it to <body>, where a listener bound to the overlay would never see it.
+await page.click('.island .menu-trigger');
+await page.waitForTimeout(150);
+await page.click('.menu-pop .report-open');
+await page.waitForTimeout(400);
+await page.evaluate(() => document.activeElement.blur());
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+check('Escape works with focus outside the overlay', (await page.locator('.report-box').count()) === 0);
+
+// A double-click on the menu entry must not stack two overlays while the
+// lazily-imported chunk is still loading.
+await page.click('.island .menu-trigger');
+await page.waitForTimeout(150);
+await page.evaluate(() => {
+  const b = document.querySelector('.menu-pop .report-open');
+  b.click();
+  b.click();
+});
+await page.waitForTimeout(600);
+check('a double click opens exactly one overlay', (await page.locator('.report-box').count()) === 1);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+
 await browser.close();
 console.log(failures === 0 ? 'REPORT E2E PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

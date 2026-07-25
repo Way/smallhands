@@ -78,10 +78,22 @@ The snapshot fills the existing start-state fields from live values:
 | `startThLevel` | `game.thLevel` |
 | `startWorkers` | `game.workers.length` |
 
-**Not serialized, on purpose:** lift/rope geometry (`liftTopY`, `ropeBottomY`,
-`ropeSide`). Terrain is identical on reload, so `liftTopFor`/`ropeDropFor`
-recompute the same values. Storing them would create a second source of truth
-that can silently disagree with the terrain.
+**Lift/rope geometry: originally not serialized — that was wrong, and review
+caught it.** The argument was that `liftTopY`/`ropeBottomY`/`ropeSide` are a pure
+function of the terrain the code already carries, so recomputing avoids a second
+source of truth. But they are a pure function of the terrain *at placement time*:
+`liftTopFor`/`ropeDropFor` run once in `placeLift`/`placeRope` and the sim never
+re-measures. Dig the ledge away and the live lift keeps its span while a
+recomputing loader produces a different one — on exactly the dug-up maps where
+lift bugs get reported. The sim treats this as state, so the snapshot does too;
+absent (authored levels, older codes) still falls back to recomputation.
+
+The same area hid a second bug: a *ready* lift's top landing is held up by a
+`world.extraSupport` cell that the sim adds only on the builder-completion path.
+Restoring a ready lift skips that path, and `liftTopFor` guarantees the mast
+column is `AIR`, so the landing was unstandable and the reproduced lift unusable
+— while every geometry assertion still passed. `levelDefFromData` now adds the
+support, and the test checks standability rather than just the span.
 
 `levelDefFromData().build()` places buildings after nodes, then patches
 `yieldLeft` and `progress` on the created objects directly. This avoids changing

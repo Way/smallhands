@@ -166,6 +166,12 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
       ...(hasItems(b.hoistLower) ? { lower: { ...b.hoistLower } } : {}),
       ...(routed(b.hoistSendDown).length ? { sendDown: routed(b.hoistSendDown) } : {}),
       ...(routed(b.hoistSendUp).length ? { sendUp: routed(b.hoistSendUp) } : {}),
+      // Placement-time geometry the sim stores and never recomputes; see
+      // SnapshotBuilding on why this is carried rather than derived.
+      ...(b.kind === 'lift' ? { liftTopY: b.liftTopY } : {}),
+      ...(b.kind === 'rope' || b.kind === 'hoist'
+        ? { ropeBottomY: b.ropeBottomY, ropeSide: b.ropeSide }
+        : {}),
     }));
 
   // Level type and loose run state. Only emitted when there is something to

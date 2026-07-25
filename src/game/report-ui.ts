@@ -50,8 +50,10 @@ export function showReportOverlay(opts: ReportOptions): void {
   // Grab the player's exact frame now, before anything else can redraw it.
   const viewportPng = safeDataUrl(canvas);
   // The whole-map overview is rendered lazily — it costs a full extra draw, and
-  // someone who only copies the text never needs it.
-  let mapPng: string | null = null;
+  // someone who only copies the text never needs it. `undefined` means "not
+  // attempted"; `null` means "attempted and failed", so a tainted or
+  // out-of-memory canvas is not re-rendered on every subsequent click.
+  let mapPng: string | null | undefined = undefined;
 
   const data = collectReport(game, {
     kind: 'bug',
@@ -142,7 +144,7 @@ export function showReportOverlay(opts: ReportOptions): void {
     // the user activation browsers require before saving a file. That costs the
     // "rendering…" status a paint, which is a fair trade for the download
     // actually happening.
-    if (mapPng === null) mapPng = renderWholeMap(game);
+    if (mapPng === undefined) mapPng = renderWholeMap(game);
     const stem = fileStem(data);
     const files: { name: string; body: string | Blob }[] = [{ name: `${stem}.md`, body: markdown }];
     if (viewportPng) files.push({ name: `${stem}-viewport.png`, body: dataUrlToBlob(viewportPng) });
@@ -157,23 +159,28 @@ export function showReportOverlay(opts: ReportOptions): void {
 
   const closeBtn = el('button', 'seg-btn report-close', row);
   closeBtn.textContent = t('report.close');
+  // Escape closes, even from inside the textarea. The global handler bails on
+  // TEXTAREA targets — correctly, so typing never fires a game shortcut — which
+  // would otherwise leave this the one overlay you cannot dismiss with the key
+  // every other overlay uses.
+  //
+  // Bound to the document rather than to `ov`: clicking the backdrop moves focus
+  // to <body>, and a listener on the overlay would never see the keydown again.
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    close();
+  };
   const close = (): void => {
+    document.removeEventListener('keydown', onKey, true);
     ov.remove();
     opts.onClose();
   };
+  document.addEventListener('keydown', onKey, true);
   closeBtn.onclick = () => {
     audio.click();
     close();
   };
-  // Escape closes, even from inside the textarea. The global handler bails on
-  // TEXTAREA targets — correctly, so typing never triggers a game shortcut —
-  // which would otherwise leave this overlay as the one you cannot dismiss with
-  // the key every other overlay uses. Listening here keeps both behaviours.
-  ov.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    e.stopPropagation();
-    close();
-  });
 
   let markdown = '';
   function refresh(): void {

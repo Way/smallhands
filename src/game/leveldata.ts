@@ -23,10 +23,13 @@ import type { LevelDef } from './levels';
 // stands mid-play, not as it starts. The editor never emits these — it has no
 // building tool — so the field is optional and an editor round-trip drops them.
 //
-// Lift/rope/hoist geometry (liftTopY, ropeBottomY, ropeSide) is deliberately
-// absent: it is a pure function of the terrain, which the same code already
-// carries, so levelDefFromData recomputes it. Storing it would be a second
-// source of truth free to disagree with the tiles.
+// Lift/rope/hoist geometry IS stored, despite looking derivable. It is a pure
+// function of the terrain only *at placement time* — `liftTopFor`/`ropeDropFor`
+// run once in placeLift/placeRope and the sim never recomputes. Dig the ledge
+// away afterwards and the live lift keeps its original span, so recomputing on
+// load would hand back a different lift than the player had, precisely on the
+// dug-up maps where lift bugs get reported. The sim treats this as state; so
+// does the snapshot. Absent (authored levels, pre-#58 codes) still recomputes.
 export interface SnapshotBuilding {
   kind: BuildingKind; // never 'townhall' or 'goal' — those have their own fields
   x: number;
@@ -47,6 +50,10 @@ export interface SnapshotBuilding {
   sendUp?: ItemType[]; // items routed into the lower car
   upper?: Partial<Record<ItemType, number>>; // cargo in the car at the top station
   lower?: Partial<Record<ItemType, number>>; // cargo in the car at the bottom station
+  // Placement-time geometry, stored rather than recomputed — see above.
+  liftTopY?: number;
+  ropeBottomY?: number;
+  ropeSide?: number; // -1 or 1
 }
 
 // The parts of a level's *type* that live on LevelDef rather than in the world
@@ -267,14 +274,19 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
         for (const item of b.sendDown ?? []) built.hoistSendDown[item] = true;
         for (const item of b.sendUp ?? []) built.hoistSendUp[item] = true;
         if (b.kind === 'lift') {
-          built.liftTopY = liftTopFor(g.world, b.x, b.y) ?? b.y;
+          built.liftTopY = b.liftTopY ?? liftTopFor(g.world, b.x, b.y) ?? b.y;
           built.liftCarY = b.y;
+          // A finished lift's top landing is held up by an extraSupport cell,
+          // which the sim only adds on the builder-completion path (see the
+          // 'built' branch of the construct task). Restoring a ready lift skips
+          // that path entirely, and liftTopFor guarantees the mast column is
+          // AIR — so without this the landing is unstandable and the lift the
+          // report is about cannot be used at all.
+          if (built.state === 'ready') g.world.extraSupport.add(g.world.idx(built.x, built.liftTopY + 1));
         } else if (b.kind === 'rope' || b.kind === 'hoist') {
           const drop = ropeDropFor(g.world, b.x, b.y);
-          if (drop) {
-            built.ropeSide = drop.side;
-            built.ropeBottomY = drop.bottomY;
-          }
+          built.ropeSide = b.ropeSide ?? drop?.side ?? built.ropeSide;
+          built.ropeBottomY = b.ropeBottomY ?? drop?.bottomY ?? built.ropeBottomY;
         }
       }
       // Remaining snapshot state. These are plain Game fields the constructor
@@ -370,11 +382,23 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     const bag = numRecord(v, ITEM_TYPES, 99);
     return Object.keys(bag).length ? ({ [key]: bag } as Partial<Record<K, Partial<Record<ItemType, number>>>>) : {};
   };
-  // A list of item names, deduped against the known set and absent when empty.
-  const itemListField = <K extends string>(key: K, v: unknown): Partial<Record<K, ItemType[]>> => {
-    if (!Array.isArray(v)) return {};
-    const items = ITEM_TYPES.filter((i) => (v as unknown[]).includes(i));
-    return items.length ? ({ [key]: items } as Partial<Record<K, ItemType[]>>) : {};
+  const itemList = (v: unknown): ItemType[] =>
+    Array.isArray(v) ? ITEM_TYPES.filter((i) => (v as unknown[]).includes(i)) : [];
+  // Hoist routes, with the invariant toggleHoistRoute enforces: an item may be
+  // routed in ONE direction, never both. The snapshot writer cannot produce a
+  // conflict, but a hand-edited code can, and this is the trust boundary — two
+  // opposing routes on one item is a perpetual-motion machine.
+  const routeFields = (
+    down: unknown,
+    up: unknown
+  ): { sendDown?: ItemType[]; sendUp?: ItemType[] } => {
+    const sendDown = itemList(down);
+    const sendUp = itemList(up).filter((i) => !sendDown.includes(i));
+    return { ...(sendDown.length ? { sendDown } : {}), ...(sendUp.length ? { sendUp } : {}) };
+  };
+  const intField = <K extends string>(key: K, v: unknown, min: number, max: number): Partial<Record<K, number>> => {
+    const n = clampInt(v, min, max);
+    return n === null ? {} : ({ [key]: n } as Partial<Record<K, number>>);
   };
   const nodeKinds: NodeKind[] = ['tree', 'boulder', 'vein'];
   const nodes = Array.isArray(r.nodes)
@@ -428,8 +452,10 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
             ...bagField('outputs', b.outputs),
             ...bagField('upper', b.upper),
             ...bagField('lower', b.lower),
-            ...itemListField('sendDown', b.sendDown),
-            ...itemListField('sendUp', b.sendUp),
+            ...routeFields(b.sendDown, b.sendUp),
+            ...intField('liftTopY', b.liftTopY, 0, height - 1),
+            ...intField('ropeBottomY', b.ropeBottomY, 0, height - 1),
+            ...(b.ropeSide === -1 || b.ropeSide === 1 ? { ropeSide: b.ropeSide } : {}),
           };
         })
     : [];

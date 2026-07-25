@@ -1113,6 +1113,9 @@ function attachHud(): void {
       // for every player who never files one, and this is a menu click — there
       // is no frame budget to protect here.
       const { showReportOverlay } = await import('./game/report-ui');
+      // Two fast clicks can both get here while the chunk loads; without this
+      // the second stacks a duplicate overlay on the first.
+      if (uiRoot.querySelector('.report-box')) return;
       showReportOverlay({
         game: game!,
         canvas,

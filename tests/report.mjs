@@ -162,11 +162,12 @@ function playedGame() {
   check('town-hall level survives', reloaded.thLevel === g.thLevel);
 }
 
-// ---- lift and rope geometry is recomputed, not stored -----------------------------
+// ---- lift and rope geometry is carried, not recomputed ----------------------------
 //
-// The snapshot code deliberately omits liftTopY/ropeBottomY/ropeSide, because
-// they are a function of terrain the code already carries. If that assumption
-// ever stops holding, every reported lift comes back the wrong length.
+// It looks derivable and is not: liftTopFor/ropeDropFor run once at placement
+// and the sim never recomputes, so a lift outlives the ledge it was measured
+// against. Recomputing on load would hand back a different lift than the player
+// had, on exactly the dug-up maps where lift bugs get reported.
 {
   // Level 1 is deliberately flat and has no cliff face at all; level 4 does.
   const g = new Game(LEVELS[3]);
@@ -181,24 +182,62 @@ function playedGame() {
   const ropeAt = findSite((x, y) => ropeDropFor(g.world, x, y) !== null && !(liftAt && x === liftAt.x && y === liftAt.y));
   check('level 4 offers a lift site and a rope site to test with', !!liftAt && !!ropeAt);
 
-  const lift = g.addBuilding('lift', liftAt.x, liftAt.y, true);
-  lift.liftTopY = liftTopFor(g.world, liftAt.x, liftAt.y);
-  lift.liftCarY = liftAt.y;
+  // Measure the rope before the lift's support cell exists: extraSupport widens
+  // isStandable, which ropeDropFor consults, so adding it first can invalidate a
+  // rope site chosen against the bare terrain.
   const drop = ropeDropFor(g.world, ropeAt.x, ropeAt.y);
   const rope = g.addBuilding('rope', ropeAt.x, ropeAt.y, true);
   rope.ropeSide = drop.side;
   rope.ropeBottomY = drop.bottomY;
 
+  const lift = g.addBuilding('lift', liftAt.x, liftAt.y, true);
+  lift.liftTopY = liftTopFor(g.world, liftAt.x, liftAt.y);
+  lift.liftCarY = liftAt.y;
+  // What the sim does when a builder finishes a lift — the fixture has to match,
+  // or "is the landing standable" compares against a lift that never worked.
+  g.world.extraSupport.add(g.world.idx(lift.x, lift.liftTopY + 1));
+
   const reloaded = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(g)))));
   const liftBack = reloaded.buildings.find((b) => b.kind === 'lift');
   const ropeBack = reloaded.buildings.find((b) => b.kind === 'rope');
   check(
-    'lift span is recomputed from terrain, matching the original',
+    'lift span survives, matching the original',
     !!liftBack && liftBack.x === lift.x && liftBack.y === lift.y && liftBack.liftTopY === lift.liftTopY
   );
   check(
-    'rope drop and side are recomputed from terrain, matching the original',
+    'rope drop and side survive, matching the original',
     !!ropeBack && ropeBack.ropeBottomY === rope.ropeBottomY && ropeBack.ropeSide === rope.ropeSide
+  );
+
+  // A ready lift's top landing is held up by an extraSupport cell that the sim
+  // only adds when a builder finishes it. Restore skips that path, and the mast
+  // column is guaranteed AIR, so without it the landing is unstandable and the
+  // reproduced lift cannot be used — while every geometry assertion still passes.
+  check(
+    'the original lift top landing is standable',
+    g.world.isStandable(lift.x, lift.liftTopY)
+  );
+  check(
+    'and so is the restored one — the landing support is not lost',
+    reloaded.world.isStandable(liftBack.x, liftBack.liftTopY)
+  );
+
+  // The decisive case: dig the ledge out from under the lift. The live lift
+  // keeps its span (the sim never re-measures), so the snapshot must too.
+  const dug = new Game(LEVELS[3]);
+  const l2 = dug.addBuilding('lift', liftAt.x, liftAt.y, true);
+  l2.liftTopY = liftTopFor(dug.world, liftAt.x, liftAt.y);
+  l2.liftCarY = liftAt.y;
+  dug.world.extraSupport.add(dug.world.idx(l2.x, l2.liftTopY + 1));
+  for (const side of [-1, 1]) {
+    for (let y = l2.liftTopY - 1; y <= l2.liftTopY + 1; y++) dug.world.set(liftAt.x + side, y, T.AIR);
+  }
+  check('digging the ledge away does not change the live lift', liftTopFor(dug.world, liftAt.x, liftAt.y) !== l2.liftTopY);
+  const dugBack = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(dug)))));
+  const l2Back = dugBack.buildings.find((b) => b.kind === 'lift');
+  check(
+    'a lift whose ledge was dug away still reloads with the span it actually has',
+    !!l2Back && l2Back.liftTopY === l2.liftTopY
   );
 }
 
@@ -356,6 +395,20 @@ function playedGame() {
 
   const md = formatReport(collectReport(g, CONTEXT));
   check('the report prints the routes beside the cargo', md.includes('route↓[plank]') && md.includes('route↑[stone]'));
+
+  // toggleHoistRoute treats one-direction-per-item as an invariant it must never
+  // break. The writer cannot produce a conflict, but the sanitizer is the trust
+  // boundary and a hand-edited code can: both directions on one item would be a
+  // perpetual-motion machine.
+  const conflicted = sanitizeLevelData({
+    ...JSON.parse(JSON.stringify(snapshotLevelData(new Game(LEVELS[0])))),
+    buildings: [{ kind: 'hoist', x: 20, y: 16, ready: true, sendDown: ['plank', 'log'], sendUp: ['plank', 'stone'] }],
+  });
+  const cb = conflicted.buildings[0];
+  check(
+    'an item cannot be routed both ways at once',
+    !cb.sendUp.includes('plank') && cb.sendDown.includes('plank') && cb.sendUp.includes('stone')
+  );
 }
 
 // ---- the player's own text cannot break the report -------------------------------------
