@@ -197,6 +197,14 @@ export class FrontDoor {
               <div><h3>${this.tr('mechRopeTitle')}</h3><p>${this.tr('mechRopeBody')}</p></div>
             </article>
             <article class="mech">
+              <div class="mech-ic">${this.icon('hoist_post')}</div>
+              <div><h3>${this.tr('mechHoistTitle')}</h3><p>${this.tr('mechHoistBody')}</p></div>
+            </article>
+            <article class="mech">
+              <div class="mech-ic">${this.icon('icon_dig')}</div>
+              <div><h3>${this.tr('mechDigTitle')}</h3><p>${this.tr('mechDigBody')}</p></div>
+            </article>
+            <article class="mech">
               <div class="mech-ic">${this.icon('item_spear')}</div>
               <div><h3>${this.tr('mechChainTitle')}</h3><p>${this.tr('mechChainBody')}</p></div>
             </article>
