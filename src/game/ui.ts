@@ -575,20 +575,28 @@ export class Hud {
     // would make the browser silently drop the click).
     const nameEl = el('div', 'res-pop-name', pop);
     const row = el('div', 'res-pop-row', pop);
-    el('span', undefined, row).textContent = t('hud.keep');
+    el('span', 'res-pop-lbl', row).textContent = t('hud.keep');
+    // The whole keep control is ONE row: jump-to-zero · step down · value · step
+    // up · jump-to-max. "All"/"Reset" used to sit below as two full-width buttons,
+    // which read as the popover's primary actions when they are really just the
+    // stepper's end stops (card #68).
+    const resetBtn = el('button', 'res-step res-step-end', row);
+    resetBtn.textContent = t('hud.keepResetShort');
+    resetBtn.title = t('hud.keepReset');
+    resetBtn.ariaLabel = resetBtn.title;
     const minus = el('button', 'res-step', row);
     minus.textContent = '−';
     const val = el('b', 'res-keep-val', row);
     const plus = el('button', 'res-step', row);
     plus.textContent = '+';
-    const acts = el('div', 'res-pop-acts', pop);
-    const allBtn = el('button', 'res-act', acts);
-    allBtn.textContent = t('hud.keepAll');
-    const resetBtn = el('button', 'res-act', acts);
-    resetBtn.textContent = t('hud.keepReset');
+    const allBtn = el('button', 'res-step res-step-end', row);
+    allBtn.textContent = t('hud.keepAllShort');
+    allBtn.title = t('hud.keepAll');
+    allBtn.ariaLabel = allBtn.title;
     el('div', 'res-pop-note', pop).textContent = t('hud.keepNote');
     const locateBtn = el('button', 'res-act res-locate', pop);
-    locateBtn.textContent = t('hud.findOnMap');
+    icon('icon_pin', 14, locateBtn);
+    el('span', undefined, locateBtn).textContent = t('hud.findOnMap');
     locateBtn.onclick = () => {
       this.closeReservePopover();
       this.cbs.onLocate(item);
@@ -610,7 +618,9 @@ export class Hud {
     };
     refresh();
     const r = anchor.getBoundingClientRect();
-    pop.style.left = `${Math.max(8, r.left)}px`;
+    // The box is width-capped, so its measured width is all it takes to keep the
+    // popover of a right-edge chip on screen instead of running off the viewport.
+    pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8))}px`;
     pop.style.top = `${r.bottom + 6}px`;
     this.reservePop = { item, el: pop, refresh };
     setTimeout(() => document.addEventListener('click', this.closeReserveOnOutside), 0);
