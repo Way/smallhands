@@ -1689,6 +1689,54 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .custom-drawer { animation: none; }
 }
 
+/* ---- daily logbook: the lighthouse's record of past dailies ---- */
+.log-stats {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  font-size: 13px; font-weight: 700; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* the recent-days strip: solved days are filled in their medal colour, missed
+   days stay dashed-empty, so a broken streak is visible as a gap */
+.log-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.log-dot {
+  width: 28px; height: 28px; border-radius: 7px;
+  border: 1px dashed #3b4a63; background: rgba(0, 0, 0, 0.25);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.log-dot.solved { border-style: solid; border-color: var(--panel-border-light); color: var(--text); }
+.log-dot.solved.none { background: rgba(111, 214, 111, 0.16); color: var(--accent2); }
+.log-dot.solved.gold { background: #c8971e; border-color: #f0d27a; color: #2a1e05; }
+.log-dot.solved.silver { background: #9aa7b4; border-color: #d6dee6; color: #1f242c; }
+.log-dot.solved.bronze { background: #a4682f; border-color: #d79b62; color: #241304; }
+.log-dot.today { box-shadow: 0 0 0 2px var(--accent); }
+.log-list { justify-content: flex-start; }
+.daily-row { cursor: default; }
+.daily-row:hover { transform: none; border-color: var(--panel-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 8px rgba(0, 0, 0, 0.28); }
+/* the row's own tear-off calendar, matching the lighthouse pin */
+.daily-row .lv-num.cal-mini {
+  width: 30px; height: 32px;
+  border: 2px solid #40372a; border-radius: 5px;
+  background: #f6eecf; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.daily-row .cal-top {
+  height: 9px; flex: 0 0 auto;
+  background: linear-gradient(#ff8f80, #e0554a);
+  border-bottom: 2px solid #40372a;
+}
+.daily-row .cal-day {
+  flex: 1; display: grid; place-items: center;
+  font-size: 14px; font-weight: 800; line-height: 1; color: var(--map-ink);
+}
+/* keep the date clear of the replay button in the corner */
+.daily-row .lv-name { padding-right: 30px; }
+.daily-row .lv-name { font-variant-numeric: tabular-nums; }
+.daily-row .lv-desc { margin-bottom: 8px; }
+/* the logbook button sits under Play in the lighthouse popover */
+.pop-log { margin-top: 8px; }
+
 /* ================================ mobile ================================
    The desktop HUD stays untouched; everything below layers the touch game on
    top. Three concerns, three scopes:
