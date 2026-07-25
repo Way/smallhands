@@ -221,7 +221,7 @@ check('replay boots the logged day', /\d{4}-\d{2}-\d{2}/.test(replayed));
 // `gameInProgress()` needs game.time > 3, so let the run breathe first.
 await page.waitForFunction(() => window.__smallhands.game.time > 3.2, { timeout: 15000 });
 await page.click('.island .menu-trigger');
-await page.click('.menu-pop .speed-btn:has-text("Levels")');
+await page.click('.menu-pop .menu-item:has-text("Levels")');
 await page.waitForTimeout(400);
 await page.click('.map-daily');
 await page.waitForTimeout(150);
