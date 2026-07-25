@@ -19,6 +19,17 @@ grammar of the whole game and the new terrain must be designed *around* them:
 | Step **down** 1 tile | ✅ | ✅ |
 | Drop down ≥ 2 tiles | ❌ (ladder/ramp/rope) | ❌ (ramp/rope) |
 | Ladders | ✅ | ❌ (the ladder rule) |
+| Walk **into** a ramp cell (through / along the slope) | ✅ | ✅ |
+| Step **down** onto a ramp directly below | ✅ | ✅ |
+
+A ramp tile is a **walkable diagonal**, not a wall (card #59): its cell is
+passable and stands on its own slope, so a ramp never seals the row it is built
+in, and the tiles of a ramp run *are* the steps. That is what makes a
+**switchback** work — reverse a second run off the cell directly above the first
+run's top tile and the stack climbs in a tight footprint (7 rows inside 4
+columns, where a single 45° run would need 7). The straight-down step exists
+only downward, so a vertical column of ramps is a cargo chute, never a free
+cargo elevator.
 
 Two consequences that shape everything:
 

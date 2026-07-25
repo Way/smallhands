@@ -966,6 +966,16 @@ export class Renderer {
         const shiver = Math.sin(t * 26) * anticip * 0.7 * osc;
         const lift = anticip * 0.8;
         ctx.drawImage(sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas, px + shiver, n.y * TILE - lift);
+      } else {
+        // A worked-out boulder/vein leaves rubble — its own silhouette, ghosted
+        // and squashed to the ground, the way a felled tree leaves a stump. The
+        // map keeps remembering where the stone/iron WAS, and "find on map" has
+        // something visible to ring when the source is spent (card #57).
+        const img = sprite(n.kind === 'boulder' ? 'boulder' : 'vein').canvas;
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.drawImage(img, 0, 0, img.width, img.height, n.x * TILE + 2, n.y * TILE + 9, TILE - 4, 7);
+        ctx.restore();
       }
       if (n.marked && n.yieldLeft > 0) {
         const bounce = Math.sin(t * 3) * 1.5;
@@ -1740,9 +1750,27 @@ export class Renderer {
     const { ctx } = this;
     for (const w of game.workers) {
       if (w.spawnT > 0.3) continue;
-      const px = w.px * TILE + TILE / 2;
-      const py = w.py * TILE + TILE;
       const step = w.stepIdx < w.path.length ? w.path[w.stepIdx] : null;
+      // Walking a ramp means walking its diagonal (card #59): the cell is half
+      // earth, so lift the feet to the slope's midline instead of sinking them
+      // into it. Blended over the step in progress so stepping onto or off a
+      // slope glides rather than snapping half a tile.
+      const lift = (cx: number, cy: number) => (game.world.get(cx, cy) === T.RAMP ? TILE / 2 : 0);
+      let foot = lift(w.cx, w.cy);
+      if (step) {
+        const to = lift(step.x, step.y);
+        if (to !== foot) {
+          // Follow the ROW when the step changes rows: a fall or a rope slide
+          // travels horizontally first and only then drops (tickMove zeroes dy
+          // while dx is unspent), so blending on the horizontal component would
+          // float the walker up half a tile before they leave the old row.
+          const rows = Math.abs(step.y - w.cy);
+          const done = rows > 0 ? Math.abs(w.py - w.cy) / rows : Math.abs(w.px - w.cx);
+          foot += (to - foot) * Math.min(1, Math.max(0, done));
+        }
+      }
+      const px = w.px * TILE + TILE / 2;
+      const py = w.py * TILE + TILE - foot;
       let body = 'ling_walk_a';
       if (w.working) {
         body = Math.sin(w.animT * 10) > 0 ? 'ling_work' : 'ling_walk_a';

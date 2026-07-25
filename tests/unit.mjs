@@ -331,8 +331,9 @@ function findLadderCells(g, count) {
 
 // ---- no smallie prison under a ramp -----------------------------------------
 // A ramp run laid against a wall roofs over the floor pocket beneath its
-// diagonal. Workers standing there when it lands must still be able to step
-// out onto the ramp (a ramp tile overhead counts as headroom in the nav).
+// diagonal. Workers standing there when it lands must still be able to step out
+// onto the ramp — a ramp cell is passable, so it is headroom like any air cell
+// (card #59; there is no longer a ramp-specific clause in the nav).
 {
   const g = new Game(LEVELS[8]); // Tempest Summit (night): wall at x50, terrace floor row 20
   g.stock.plank = 10;
@@ -347,17 +348,33 @@ function findLadderCells(g, count) {
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
   check('a smallie under the ramp can still climb out', path !== null);
 
-  // a worker whose very cell was built over pops up on top of the new tile
+  // A worker whose very cell becomes a RAMP is not entombed and is not moved
+  // either: a ramp cell is walkable, so they simply stand on the new slope.
+  const park = (w, x, y) => {
+    w.cx = x;
+    w.cy = y;
+    w.px = x;
+    w.py = y;
+    w.task = null;
+    w.path = [];
+    w.stepIdx = 0;
+  };
   const w = g.workers[0];
-  w.cx = 45;
-  w.cy = 20; // this cell is now a ramp tile
-  w.px = 45;
-  w.py = 20;
-  w.task = null;
-  w.path = [];
-  w.stepIdx = 0;
+  park(w, 45, 20); // (45,20) is one of the ramp tiles just laid
+  check('the ramp really covers the test cell', g.world.get(45, 20) === T.RAMP);
   g.tick(1 / 60);
-  check('a smallie built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+  check('a smallie built over by a ramp stays put on the slope',
+    w.cx === 45 && w.cy === 20 && g.world.isStandable(45, 20));
+
+  // A BRIDGE tile is still a solid deck, so it keeps the pop-up rescue: the
+  // worker is lifted onto the first standable cell above instead of entombed.
+  const w2 = g.workers[1];
+  park(w2, 46, 20);
+  g.world.set(46, 20, T.PLATFORM); // drop a deck straight onto them
+  check('a bridge tile really covers the second test cell', g.world.isPassable(46, 20) === false);
+  g.tick(1 / 60);
+  check('a smallie built over by a bridge pops up on top',
+    w2.cy < 20 && g.world.isStandable(w2.cx, w2.cy));
 }
 
 // ---- i18n: keys translate, params substitute, unknown text passes through -----
@@ -699,6 +716,189 @@ function node(id, kind, x, y) {
   const r2 = g.locateItem('iron');
   check('removing the reachable vein falls back to the nearer buried one',
     !!r2 && r2.kind === 'node' && r2.x === buried.x && r2.y === buried.y);
+}
+
+// ---- Locate finds harvested resources too (card #57) ------------------------
+// A mined-out vein used to make locateItem return null, so the HUD said "No
+// Iron source on this map." on a level that shipped exactly the iron the order
+// needed. The resolver must instead follow the iron that already exists — on the
+// ground, in a hauler's hands, in a buffer, in the store — and, failing all of
+// that, point at the dead vein so the copy can say "used up", not "never here".
+
+// A spent node literal: the map HAD this source, it is worked out.
+function spentNode(id, kind, x, y) {
+  const n = node(id, kind, x, y);
+  n.yieldLeft = 0;
+  return n;
+}
+
+{
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9301, 'vein', th.x + 6, th.y));
+  g.stock.iron = 0;
+  const r = g.locateItem('iron');
+  check('locateItem(iron) with the only vein mined out points at the spent vein',
+    !!r && r.kind === 'spent' && r.x === th.x + 6 && r.y === th.y);
+}
+
+{
+  // A live vein must still outrank iron lying around — the source is the answer
+  // to "where do I get more", the dropped unit is only the fallback.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(node(9302, 'vein', th.x + 9, th.y));
+  g.dropItem('iron', th.x + 1, th.y);
+  const r = g.locateItem('iron');
+  check('a live vein still wins over a dropped iron', !!r && r.kind === 'node' && r.x === th.x + 9);
+}
+
+{
+  // The repro shape: vein worked out, the iron it yielded is lying on the map.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9303, 'vein', th.x + 6, th.y));
+  g.stock.iron = 0;
+  g.dropItem('iron', th.x + 3, th.y);
+  const gi = g.groundItems.find((it) => it.item === 'iron');
+  const r = g.locateItem('iron');
+  check('the dropped iron exists as a ground item', !!gi);
+  check('a spent vein plus dropped iron points at the iron on the ground',
+    !!r && r.kind === 'item' && !!gi && r.x === gi.x && r.y === gi.y);
+}
+
+{
+  // Iron parked in a forge's input buffer is still iron on the map.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9304, 'vein', th.x + 6, th.y));
+  g.stock.iron = 0;
+  const forge = g.addBuilding('forge', th.x + 4, th.y, true);
+  forge.inputs.iron = 1;
+  const r = g.locateItem('iron');
+  check('iron in a producer input buffer is located at that producer',
+    !!r && r.kind === 'item' && r.x === th.x + 4 && r.y === th.y);
+}
+
+{
+  // A hauler mid-route counts too — the iron is in its hands, not nowhere.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9305, 'vein', th.x + 6, th.y));
+  g.stock.iron = 0;
+  const w = g.workers[0];
+  w.carrying = 'iron';
+  const r = g.locateItem('iron');
+  check('iron in a smallie\'s hands is located at that smallie',
+    !!r && r.kind === 'item' && r.x === w.cx && r.y === w.cy);
+}
+
+{
+  // Nothing out in the world, but the store holds some: least useful answer, so
+  // it comes last — after the spent node has had its chance… which means with a
+  // spent node present the node wins, and with none the store answers. It gets
+  // its OWN kind: a ring on your own town hall needs its own line of copy.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.stock.iron = 3;
+  const r = g.locateItem('iron');
+  check('iron only in the store is located at the town hall, kind store',
+    !!r && r.kind === 'store' && r.x === th.x && r.y === th.y);
+  g.stock.iron = 0;
+  check('no vein, no iron anywhere → still null (locate.none is honest here)',
+    g.locateItem('iron') === null);
+}
+
+{
+  // PR #83 review, finding 1: a 'spent' verdict reached THROUGH the recipe must
+  // survive the recursion, or a spear request whose iron is mined out pans onto
+  // a rubble mark in silence. The result also has to name the spent item (iron),
+  // not the requested one (spear), or the toast lies.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.buildings = g.buildings.filter((b) => b.kind !== 'forge'); // no spear producer
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9401, 'vein', th.x + 7, th.y));
+  g.stock.iron = 0;
+  g.stock.plank = 5; // iron is the scarcest input → the recursion targets iron
+  const r = g.locateItem('spear');
+  check('a spent source reached through the recipe stays kind spent',
+    !!r && r.kind === 'spent' && r.x === th.x + 7 && r.y === th.y);
+  check('…and names the item that is actually used up', !!r && r.item === 'iron');
+}
+
+{
+  // PR #83 review, finding 2: for a produced item with no producer, "here is the
+  // input you still need" beats "here is one stray unit someone dropped".
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.buildings = g.buildings.filter((b) => b.kind !== 'sawmill'); // no plank producer
+  g.nodes.length = 0;
+  g.nodes.push(node(9402, 'tree', th.x + 4, th.y));
+  g.dropItem('plank', th.x + 1, th.y); // a single stray plank, much nearer
+  const r = g.locateItem('plank');
+  check('a stray plank does not outrank the log source a plank is made from',
+    !!r && r.kind === 'input' && r.x === th.x + 4 && r.y === th.y);
+  check('the input answer names the input item', !!r && r.item === 'log');
+}
+
+{
+  // Raw items keep the opposite precedence: nothing produces iron, so an iron
+  // lying on the map IS the answer once the veins are worked out.
+  const g = new Game(LEVELS[0]);
+  const th = g.townhall;
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9403, 'vein', th.x + 7, th.y));
+  g.stock.iron = 0;
+  g.dropItem('iron', th.x + 2, th.y);
+  const gi = g.groundItems.find((it) => it.item === 'iron');
+  const r = g.locateItem('iron');
+  check('dropped iron still outranks the spent vein for a raw item',
+    !!r && r.kind === 'item' && !!gi && r.x === gi.x && r.y === gi.y);
+}
+
+{
+  // Stranded iron outranks freely haulable iron even when it is farther away:
+  // the stuck unit is the one the player has to act on (build a lift), so that
+  // is where the camera should go.
+  const g = new Game(LEVELS[9]);
+  const th = g.townhall;
+  const { gy, L } = islandShelf(g);
+  g.nodes.length = 0;
+  g.nodes.push(spentNode(9306, 'vein', th.x + 2, th.y));
+  g.stock.iron = 0;
+  g.dropItem('iron', L + 3, gy - 1); // on the cut-off shelf → stranded
+  g.dropItem('iron', th.x + 1, th.y); // right by the town hall → haulable
+  for (let i = 0; i < 60 * 4; i++) g.tick(1 / 60); // past the 3s stranded grace
+  const stranded = g.strandedGroundItems().find((it) => it.item === 'iron');
+  check('the shelf iron is genuinely flagged stranded', !!stranded);
+  const r = g.locateItem('iron');
+  check('stranded iron outranks nearer haulable iron',
+    !!r && r.kind === 'item' && !!stranded && r.x === stranded.x && r.y === stranded.y);
+}
+
+{
+  // The copy has to distinguish "used up" from "never here", in both languages.
+  const prev = getLang();
+  for (const lang of ['en', 'de']) {
+    setLang(lang);
+    const none = t('locate.none', { name: t('item.iron') });
+    for (const key of ['locate.spent', 'locate.inStore']) {
+      const line = t(key, { name: t('item.iron') });
+      check(`${key} is translated in ${lang}`, line !== key && line.length > 0);
+      check(`${key} names the item in ${lang}`, line.includes(t('item.iron')));
+      check(`${key} differs from locate.none in ${lang}`, line !== none);
+    }
+    check(`locate.spent and locate.inStore differ in ${lang}`,
+      t('locate.spent', { name: 'X' }) !== t('locate.inStore', { name: 'X' }));
+  }
+  setLang(prev);
 }
 
 // ---- Producer pause hint reflects state (card #44 follow-up) ----------------

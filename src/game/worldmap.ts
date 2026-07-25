@@ -11,6 +11,7 @@ import { ITEM_ICON } from './types';
 import type { LevelDef } from './levels';
 import { medalTimesFor } from './leveldata';
 import type { CustomLevelData } from './leveldata';
+import type { DailyLogEntry, DailyStats, DailyStripDay } from './dailylog';
 import {
   DAILY_ISLE,
   DAILY_SPOT,
@@ -46,6 +47,10 @@ export interface MapDailyState {
 export interface WorldMapDeps {
   campaigns: MapCampaignState[];
   daily: MapDailyState;
+  // the daily logbook, derived from the save by game/dailylog.ts
+  dailyLog: DailyLogEntry[]; // solved dailies, newest first
+  dailyStats: DailyStats;
+  dailyStrip: DailyStripDay[]; // recent days, oldest first
   customLevels: CustomLevelData[];
   shelf: HTMLElement | null; // trophy cartouche, prebuilt by main.ts
   resumeLabel: string | null; // "Resume — <level>" when a run is in progress
@@ -55,6 +60,7 @@ export interface WorldMapDeps {
   click: () => void; // UI click sound
   onPlayLevel: (index: number) => void;
   onPlayDaily: () => void;
+  onPlayPastDaily: (entry: DailyLogEntry) => void;
   onPlayCustom: (lvl: CustomLevelData) => void;
   onEditCustom: (lvl: CustomLevelData) => void;
   onCopyCustom: (lvl: CustomLevelData) => void;
@@ -143,26 +149,37 @@ function levelFactsEl(def: LevelDef): HTMLElement {
 // The daily is generated on demand, so we can't cheaply preview its order — but
 // we can still sell the challenge: how hard today's is, and that it's one shared
 // procedural mountain everyone races on the same day.
-function dailyFactsEl(daily: MapDailyState): HTMLElement {
+function diffStars(difficulty: number): string {
+  const d = Math.max(1, Math.min(5, difficulty));
+  return '★'.repeat(d) + '☆'.repeat(5 - d);
+}
+
+function diffLabel(difficulty: number): string {
+  return difficulty <= 2 ? t('daily.diff.easy') : difficulty >= 4 ? t('daily.diff.hard') : t('daily.diff.med');
+}
+
+function dailyFactsEl(daily: MapDailyState, stats: DailyStats): HTMLElement {
   const facts = document.createElement('div');
   facts.className = 'lv-facts';
 
-  const d = Math.max(1, Math.min(5, daily.difficulty));
   const diff = document.createElement('div');
   diff.className = 'lv-diff';
   const stars = document.createElement('span');
   stars.className = 'diff-stars';
-  stars.textContent = '★'.repeat(d) + '☆'.repeat(5 - d);
+  stars.textContent = diffStars(daily.difficulty);
   const lbl = document.createElement('span');
   lbl.className = 'diff-lbl';
-  lbl.textContent =
-    daily.difficulty <= 2 ? t('daily.diff.easy') : daily.difficulty >= 4 ? t('daily.diff.hard') : t('daily.diff.med');
+  lbl.textContent = diffLabel(daily.difficulty);
   diff.append(stars, lbl);
   facts.appendChild(diff);
 
   const tagRow = document.createElement('div');
   tagRow.className = 'lv-tags';
-  for (const txt of [`🎲 ${t('daily.tag.proc')}`, `🌍 ${t('daily.tag.shared')}`]) {
+  const tags = [`🎲 ${t('daily.tag.proc')}`, `🌍 ${t('daily.tag.shared')}`];
+  // a live streak is the reason to come back tomorrow — say it where the player
+  // decides whether to play today's daily at all
+  if (stats.current > 0) tags.push(`🔥 ${t('daily.log.streak', { n: stats.current })}`);
+  for (const txt of tags) {
     const tag = document.createElement('span');
     tag.className = 'lv-tag';
     tag.textContent = txt;
@@ -454,7 +471,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     popAnchor = null;
   };
   const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
-    closeDrawer(); // popover and drawer are mutually exclusive
+    closeDrawer(); // popover, drawer and logbook are mutually exclusive
+    closeLogbook();
     deps.click();
     if (pop) {
       pop.remove();
@@ -616,8 +634,18 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
           deps.daily.seed,
           null,
           deps.onPlayDaily,
-          dailyFactsEl(deps.daily)
+          dailyFactsEl(deps.daily, deps.dailyStats)
         );
+        // the lighthouse keeps the log: every past daily, its time and its
+        // medals. Secondary to Play — today's mountain stays the headline.
+        const log = document.createElement('button');
+        log.className = 'big-btn secondary pop-log';
+        log.textContent = `📖 ${t('daily.log.open')}`;
+        log.onclick = () => {
+          deps.click();
+          openLogbook();
+        };
+        card.appendChild(log);
       });
     wrap.appendChild(btn);
   }
@@ -669,7 +697,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     drawer = null;
   };
   const openDrawer = () => {
-    closePopover(); // drawer and popover are mutually exclusive
+    closePopover(); // drawer, popover and logbook are mutually exclusive
+    closeLogbook();
     if (drawer) {
       closeDrawer();
       return;
@@ -708,6 +737,141 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && drawer && !pop) closeDrawer();
+  });
+
+  // ---- daily logbook ----
+  // One row per solved daily — the only place a past day's time, medal and feat
+  // pins are readable (the lighthouse itself only ever knows today's seed).
+  const logRow = (entry: DailyLogEntry): HTMLElement => {
+    const row = document.createElement('div');
+    row.className = 'level-card daily-row';
+    row.innerHTML = `
+      <div class="lv-num cal-mini"></div>
+      <div class="lv-name"></div>
+      <div class="lv-desc"></div>
+      <div class="lv-foot"><div class="lv-status done">${t('status.done')}</div></div>
+    `;
+    // a tear-off calendar showing THAT day, like the lighthouse pin — a plain 📅
+    // emoji always draws a frozen "17", which reads as wrong data on a dated row
+    const cal = row.querySelector('.lv-num') as HTMLElement;
+    const calTop = document.createElement('span');
+    calTop.className = 'cal-top';
+    const calDay = document.createElement('span');
+    calDay.className = 'cal-day';
+    calDay.textContent = entry.label.slice(-2);
+    cal.append(calTop, calDay);
+    (row.querySelector('.lv-name') as HTMLElement).textContent = entry.label;
+    (row.querySelector('.lv-desc') as HTMLElement).textContent =
+      `${diffStars(entry.difficulty)} ${diffLabel(entry.difficulty)}`;
+    // same best-time line + medal/feat slots the level cards use, so a logged day
+    // reads exactly like a level card
+    deps.addMedalBits(row, entry.seed, null);
+    const actions = document.createElement('div');
+    actions.className = 'lv-actions';
+    const replay = document.createElement('button');
+    replay.className = 'lv-action-btn';
+    replay.textContent = '▶';
+    replay.title = t('daily.log.replay');
+    replay.setAttribute('aria-label', t('daily.log.replay'));
+    // the seed is the day, so an old daily regenerates identically — beating the
+    // old time updates the same record. The logbook is NOT closed here: booting a
+    // level clears the whole overlay anyway, and cancelling the abandon confirm
+    // must leave the player where they were (same as the my-levels drawer).
+    replay.onclick = () => {
+      deps.click();
+      deps.onPlayPastDaily(entry);
+    };
+    actions.appendChild(replay);
+    row.appendChild(actions);
+    return row;
+  };
+
+  let logbook: HTMLElement | null = null;
+  const closeLogbook = () => {
+    logbook?.remove();
+    logbook = null;
+  };
+  const openLogbook = () => {
+    closePopover();
+    closeDrawer();
+    if (logbook) {
+      closeLogbook();
+      return;
+    }
+    logbook = document.createElement('div');
+    logbook.className = 'panel custom-drawer daily-drawer';
+    logbook.setAttribute('role', 'dialog');
+    logbook.setAttribute('aria-label', t('daily.log.title'));
+
+    const head = document.createElement('div');
+    head.className = 'drawer-head';
+    const h = document.createElement('span');
+    h.textContent = `📖 ${t('daily.log.title')}`;
+    head.appendChild(h);
+    const x = document.createElement('button');
+    x.className = 'lv-action-btn drawer-close';
+    x.textContent = '✕';
+    x.onclick = () => {
+      deps.click();
+      closeLogbook();
+    };
+    head.appendChild(x);
+    logbook.appendChild(head);
+
+    const stats = document.createElement('div');
+    stats.className = 'log-stats';
+    const stat = (icon: string, txt: string) => {
+      const s = document.createElement('span');
+      s.className = 'log-stat';
+      s.textContent = `${icon} ${txt}`;
+      stats.appendChild(s);
+    };
+    stat('📅', t('daily.log.solved', { n: deps.dailyStats.solved }));
+    stat('🔥', t('daily.log.streak', { n: deps.dailyStats.current }));
+    stat('🏆', t('daily.log.longest', { n: deps.dailyStats.longest }));
+    logbook.appendChild(stats);
+
+    // the recent-days strip: a gap is a day that was never cleared, which is
+    // what makes a broken streak legible (a missed day leaves no record at all)
+    const strip = document.createElement('div');
+    strip.className = 'log-strip';
+    // role=list/listitem: without a role, an aria-label on a plain div is not
+    // reliably exposed, and a `title` on a non-interactive span is not announced
+    // at all — so each day carries its own label
+    strip.setAttribute('role', 'list');
+    strip.setAttribute('aria-label', t('daily.log.stripAria', { n: deps.dailyStrip.length }));
+    for (const day of deps.dailyStrip) {
+      const dot = document.createElement('span');
+      dot.className =
+        'log-dot' + (day.solved ? ` solved ${day.medal ?? 'none'}` : '') + (day.today ? ' today' : '');
+      const label = t(day.today ? 'daily.log.dayToday' : day.solved ? 'daily.log.dayDone' : 'daily.log.dayMissed', {
+        label: day.label,
+      });
+      dot.title = label;
+      dot.setAttribute('role', 'listitem');
+      dot.setAttribute('aria-label', label);
+      dot.textContent = day.label.slice(-2);
+      strip.appendChild(dot);
+    }
+    logbook.appendChild(strip);
+
+    if (!deps.dailyLog.length) {
+      const empty = document.createElement('div');
+      empty.className = 'drawer-empty';
+      empty.textContent = t('daily.log.empty');
+      logbook.appendChild(empty);
+    } else {
+      const list = document.createElement('div');
+      list.className = 'level-grid drawer-grid log-list';
+      for (const entry of deps.dailyLog) list.appendChild(logRow(entry));
+      logbook.appendChild(list);
+    }
+
+    ov.appendChild(logbook);
+    x.focus();
+  };
+  ov.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && logbook && !pop) closeLogbook();
   });
 
   // ---- legend bar ----

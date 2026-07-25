@@ -7,14 +7,14 @@ const mod = await bundleExports(`
   export { World } from './src/game/world.ts';
   export { findPath } from './src/game/nav.ts';
   export { T } from './src/game/types.ts';
-  export { canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft } from './src/game/world.ts';
+  export { canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft, ropeDropFor, liftTopFor } from './src/game/world.ts';
   export { Game } from './src/game/sim.ts';
   export { LEVELS } from './src/game/levels.ts';
   export { TOOL_DEFS } from './src/game/types.ts';
   export { t } from './src/engine/i18n.ts';
   export { verifyLevel, blankLevelData, encodeTiles, decodeTiles } from './src/game/leveldata.ts';
 `);
-const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
+const { World, findPath, T, canPlaceRamp, rampRunCells, bridgeRunCells, rampFacesLeft, rampCellsFaceLeft, ropeDropFor, liftTopFor, Game, LEVELS, TOOL_DEFS, verifyLevel, blankLevelData, encodeTiles, decodeTiles, t } = mod;
 
 let failures = 0;
 function check(name, cond) {
@@ -160,14 +160,18 @@ function stepWorld() {
   const open = rampRunCells(w, ax, surfaceY - 1, ax + 3, surfaceY - 4);
   check('ramp run builds fully with clear headroom', open.length === 4);
 
-  // Drop solid two cells above the anchor's stand cell — the hop from the anchor
-  // to the next tile has no headroom, so the run truncates to the anchor alone.
-  w.set(ax, surfaceY - 3, T.ROCK); // (8,11): transit cell of the first seam
-  const blocked = rampRunCells(w, ax, surfaceY - 1, ax + 3, surfaceY - 4);
-  check('ramp run truncates at a blocked transit headroom',
-    blocked.length === 1 && blocked[0].x === ax && blocked[0].y === surfaceY - 1);
+  // A low ceiling two cells above the anchor no longer clips the run: the hauler
+  // walks the ramp tiles themselves, which needs only the one cell of clearance
+  // canPlaceRamp already demands (card #59 — the old "transit headroom" rule was
+  // written for the walk-on-top-only era and truncated climbable runs).
+  w.set(ax, surfaceY - 3, T.ROCK); // (8,11): two above the anchor
+  const lowRoof = rampRunCells(w, ax, surfaceY - 1, ax + 3, surfaceY - 4);
+  check('ramp run is not clipped by a low ceiling over the anchor', lowRoof.length === 4);
+  for (const c of lowRoof) w.set(c.x, c.y, T.RAMP);
+  check('every tile of the low-ceiling run is reachable loaded',
+    lowRoof.every((c) => findPath(w, [], ax - 2, surfaceY - 1, new Set([w.key(c.x, c.y)]), true) !== null));
 
-  // A descending drag is walked/fallen down, so ascent headroom must not clip it.
+  // A descending drag off a plateau edge still lays its full run.
   // Plateau on the left (ground top at 10) dropping to a lower shelf on the right;
   // anchor hangs off the plateau edge and the run descends down-right.
   const w2 = new World(24, 20);
@@ -176,9 +180,9 @@ function stepWorld() {
     const top = x <= ax ? highY : lowY;
     for (let y = 0; y < w2.h; y++) w2.set(x, y, y < top ? T.AIR : y === top ? T.GRASS : T.DIRT);
   }
-  w2.set(ax + 1, highY - 2, T.ROCK); // solid at the cell an ascent seam would check
+  w2.set(ax + 1, highY - 2, T.ROCK); // a low roof over the anchor must not matter
   const down = rampRunCells(w2, ax + 1, highY, ax + 4, highY + 3);
-  check('descending ramp run is not clipped by ascent headroom', down.length === 4);
+  check('descending ramp run lays its full length', down.length === 4);
 }
 
 // --- Task 3: tool defs + sim placers ---
@@ -321,6 +325,111 @@ function stepWorld() {
   check('drag-into-right-wall truncates to one tile', clip2.length === 1);
   check('truncated tile climbs right (edge rule wins over the "\\" drag vector)',
     rampCellsFaceLeft(wc2, clip2) === false);
+}
+
+// --- Walkable diagonal (card #59): a ramp tile is passable AND standable, so it
+// never walls off the row it stands in — a smallie walks the slope itself
+// instead of only the flat cell above it. ---
+{
+  const surfaceY = 14;
+  const flat = () => {
+    const w = new World(24, 20);
+    for (let x = 0; x < w.w; x++)
+      for (let y = 0; y < w.h; y++) w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+    return w;
+  };
+
+  const w = flat();
+  w.set(10, surfaceY - 1, T.RAMP); // a lone ramp tile standing on the grass
+  check('a ramp cell is passable', w.isPassable(10, surfaceY - 1) === true);
+  check('a ramp cell is standable (you walk the slope itself)',
+    w.isStandable(10, surfaceY - 1) === true);
+
+  // A mid-chain tile has nothing under it — its own slope carries the walker.
+  const wc = flat();
+  wc.set(8, surfaceY - 1, T.RAMP);
+  wc.set(9, surfaceY - 2, T.RAMP);
+  wc.set(10, surfaceY - 3, T.RAMP);
+  check('a mid-chain ramp tile stands on its own slope',
+    wc.get(9, surfaceY - 1) === T.AIR && wc.isStandable(9, surfaceY - 2) === true);
+
+  // A loaded hauler crossing flat ground walks THROUGH the ramp cell rather than
+  // hopping over its top — the ramp is a slope in the floor, not a wall.
+  const across = findPath(w, [], 7, surfaceY - 1, new Set([w.key(13, surfaceY - 1)]), true);
+  check('a loaded hauler crosses a ramp on flat ground', across !== null);
+  check('the crossing passes through the ramp cell, not over it',
+    !!across && across.steps.some((s) => s.x === 10 && s.y === surfaceY - 1 && s.kind === 'walk'));
+
+  // Falling bodies still land ON a ramp — passable must not mean see-through.
+  check('a ramp still catches a fall', findPath(w, [], 10, surfaceY - 4,
+    new Set([w.key(10, surfaceY - 1)]), false) !== null);
+}
+
+// --- Switchback stacks (card #59): reversing legs gain height in a tight
+// footprint. The upper leg anchors on the cell directly ABOVE the lower leg's
+// top tile, so the turn only works because ramp tiles are walkable. ---
+{
+  const surfaceY = 16;
+  const w = new World(24, 22);
+  for (let x = 0; x < w.w; x++)
+    for (let y = 0; y < w.h; y++) w.set(x, y, y < surfaceY ? T.AIR : y === surfaceY ? T.GRASS : T.DIRT);
+
+  // leg 1: three tiles up-LEFT off the ground, (12,15) → (10,13)
+  const leg1 = rampRunCells(w, 12, surfaceY - 1, 10, surfaceY - 3);
+  check('switchback leg 1 lays 3 tiles up-left', leg1.length === 3);
+  for (const c of leg1) w.set(c.x, c.y, T.RAMP);
+
+  // leg 2: reverse direction — four tiles up-RIGHT anchored on the cell directly
+  // above leg 1's top tile, (10,12) → (13,9)
+  const leg2 = rampRunCells(w, 10, surfaceY - 4, 13, surfaceY - 7);
+  check('switchback leg 2 lays 4 tiles up-right off the lower leg', leg2.length === 4);
+  for (const c of leg2) w.set(c.x, c.y, T.RAMP);
+
+  // The stack climbs 7 rows inside 4 columns; a single 45° run would need 7.
+  const cols = new Set([...leg1, ...leg2].map((c) => c.x));
+  check('the switchback climbs 7 rows within 4 columns',
+    cols.size === 4 && leg1[0].y - leg2[leg2.length - 1].y === 6);
+
+  // A LOADED hauler climbs the whole zigzag: ground → the cell atop leg 2.
+  const top = new Set([w.key(13, surfaceY - 8)]);
+  check('a loaded hauler climbs the switchback', findPath(w, [], 16, surfaceY - 1, top, true) !== null);
+  // …and back down again (ramps carry cargo both ways, card #48).
+  const ground = new Set([w.key(16, surfaceY - 1)]);
+  check('a loaded hauler descends the switchback',
+    findPath(w, [], 13, surfaceY - 8, ground, true) !== null);
+
+  // Facing: each leg reads as one slope face, so the turn is a peak — the lower
+  // leg climbs left into it, the upper leg climbs right out of it.
+  check('switchback lower leg climbs left', leg1.every((c) => rampFacesLeft(w, c.x, c.y) === true));
+  check('switchback upper leg climbs right', leg2.every((c) => rampFacesLeft(w, c.x, c.y) === false));
+}
+
+// --- A ramp cell is walkable floor, not a building site. Anchors gate on
+// isStandable, which a ramp tile now satisfies — so they must exclude built
+// structure tiles explicitly, or a rope/hoist/lift lands inside a ramp and is
+// orphaned the moment that ramp is demolished (card #59 review). ---
+{
+  // plateau on the left (top row 11) dropping to low ground on the right (top 20)
+  const cliff = () => {
+    const w = new World(26, 24);
+    for (let x = 0; x < w.w; x++) {
+      const top = x <= 11 ? 11 : 20;
+      for (let y = 0; y < w.h; y++) w.set(x, y, y < top ? T.AIR : y === top ? T.GRASS : T.DIRT);
+    }
+    return w;
+  };
+
+  const wr = cliff();
+  check('bare cliff edge is a rope anchor (control)', ropeDropFor(wr, 11, 10) !== null);
+  wr.set(11, 10, T.RAMP); // a ramp tile laid on the very edge cell
+  check('a ramp cell is not a rope/hoist anchor', ropeDropFor(wr, 11, 10) === null);
+
+  const wl = cliff();
+  check('bare ground beside the wall is a lift base (control)', liftTopFor(wl, 12, 19) !== null);
+  wl.set(12, 19, T.RAMP);
+  check('a ramp cell is not a lift base', liftTopFor(wl, 12, 19) === null);
+  wl.set(12, 19, T.LADDER); // same reasoning — ropeDropFor already refused ladders
+  check('a ladder cell is not a lift base', liftTopFor(wl, 12, 19) === null);
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nall ok');
