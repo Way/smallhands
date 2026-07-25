@@ -36,6 +36,14 @@ function findChrome() {
   return undefined;
 }
 
+// A tap target measured against an exact pixel size is a coin flip: the HUD
+// sits at fractional offsets (the compact island is left:50% + translateX(-50%),
+// and `popin` adds a transient translateY while a popover opens), so a box that
+// IS 44px comes back from getBoundingClientRect as 43.99999237060547 about as
+// often as 44.00000762939453. Round before comparing — a float ulp is not a
+// smaller thumb target. Cost one flaky failure per ~10 runs, every run under load.
+const atLeast = (box, px) => !!box && Math.round(box.width) >= px && Math.round(box.height) >= px;
+
 let failed = false;
 function check(label, cond) {
   console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}`);
@@ -105,7 +113,7 @@ await page.tap('.fd-play');
 await page.waitForTimeout(400);
 const node = page.locator('.map-node:not(:disabled)').first();
 const nodeBox = await node.boundingBox();
-check('map node is a 44px+ touch target', nodeBox.width >= 44 && nodeBox.height >= 44);
+check('map node is a 44px+ touch target', atLeast(nodeBox, 44));
 await node.tap();
 await page.tap('.map-popover .pop-play');
 await page.waitForTimeout(500);
@@ -143,7 +151,7 @@ check('crew pill folds out on tap', await page.evaluate(() => {
   return crew.classList.contains('open') && getComputedStyle(row).display !== 'none';
 }));
 const roleBtn = await page.locator('.role-btn').first().boundingBox();
-check('role stepper is a 36px+ touch target', roleBtn.width >= 36 && roleBtn.height >= 36);
+check('role stepper is a 36px+ touch target', atLeast(roleBtn, 36));
 await page.tap('.objectives > h3');
 check('accordion: opening objectives closes crew', await page.evaluate(() => {
   return document.querySelector('.objectives').classList.contains('open') &&
@@ -179,7 +187,7 @@ check('speed popover starts closed', !(await speedPopShown()));
 await page.tap('.island .speed-trigger');
 check('speed popover opens on tap', await speedPopShown());
 const speedBtn = await page.locator('.speed-pop .speed-btn').first().boundingBox();
-check('speed buttons are 44px+ touch targets', speedBtn.width >= 44 && speedBtn.height >= 44);
+check('speed buttons are 44px+ touch targets', atLeast(speedBtn, 44));
 await page.tap('.island .speed-trigger');
 check('speed popover closes on second tap', !(await speedPopShown()));
 
