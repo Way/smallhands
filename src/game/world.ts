@@ -38,10 +38,13 @@ export class World {
   }
 
   // Can a smallhand's body occupy this cell?
+  // RAMP counts: a ramp is a diagonal slope in the floor, not a wall — its cell
+  // holds both the earth below the diagonal and walkable space above it, so a
+  // ramp never seals the row it stands in (card #59).
   isPassable(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return false;
     const t = this.get(x, y);
-    return t === T.AIR || t === T.LADDER;
+    return t === T.AIR || t === T.LADDER || t === T.RAMP;
   }
 
   // Does this cell provide floor support for the cell above it?
@@ -52,10 +55,14 @@ export class World {
     return this.extraSupport.has(this.idx(x, y));
   }
 
-  // Can a smallhand stand in this cell?
+  // Can a smallhand stand in this cell? A ladder is stood on anywhere along its
+  // column; a ramp carries the walker on its own slope, so (like a ladder) it
+  // needs no support underneath — that is what makes a switchback stack
+  // climbable, where each leg's tiles are the steps (card #59).
   isStandable(x: number, y: number): boolean {
     if (!this.isPassable(x, y)) return false;
-    if (this.get(x, y) === T.LADDER) return true;
+    const t = this.get(x, y);
+    if (t === T.LADDER || t === T.RAMP) return true;
     return this.isSupport(x, y + 1);
   }
 
@@ -89,7 +96,8 @@ export function canPlacePlatform(world: World, x: number, y: number): boolean {
 
 // A ramp tile is a support tile placed either with solid contact (the anchor of
 // a run) or diagonally adjacent to the previous ramp tile in the run. It always
-// needs clear headroom (the cell above, where a worker stands, must be passable).
+// needs one cell of clear headroom above: that cell is both the walker's space on
+// the slope and the clearance they step through to reach the next tile up.
 export function canPlaceRamp(
   world: World,
   x: number,
@@ -141,12 +149,12 @@ export function rampRunCells(
     const cx = ax + i * dx;
     const cy = ay + i * sy;
     if (!canPlaceRamp(world, cx, cy, prev)) break;
-    // Ascending (dragging up): a loaded hauler hops from prev's stand cell up to
-    // this one, which needs headroom two cells above prev (canPlaceRamp only
-    // clears the stand cell one above). Without it the ramp places but can't be
-    // climbed under a low ceiling — truncate the run at the last reachable tile.
-    // Descending runs are walked/fallen down, so they don't need this clearance.
-    if (prev && sy < 0 && !world.isPassable(prev.x, prev.y - 2)) break;
+    // No extra ascent clearance is needed: a hauler climbs the run by walking the
+    // ramp tiles themselves (they are standable, card #59), stepping from one tile
+    // up into the next, which needs only the single cell of headroom above each
+    // tile that canPlaceRamp already demands. The old rule asked for two cells —
+    // right when the only route was the flat cells on top of the run — and now
+    // just truncates runs that are in fact climbable under a low ceiling.
     cells.push({ x: cx, y: cy });
     prev = { x: cx, y: cy };
   }
@@ -338,8 +346,12 @@ export function footprintH(b: Building): number {
 // A lift is placed on a standable base cell and must have a cliff wall
 // directly beside it. It rises to the first ledge on that wall side.
 // Returns the top landing y, or null if the spot is invalid.
+// The base cell must be clear AIR, not merely standable: a built structure tile
+// (LADDER, RAMP) is standable but already occupied, and a machine anchored in one
+// is orphaned the moment that tile is demolished. Matches canPlaceBuilding's
+// AIR-footprint rule; ropeDropFor applies the same test.
 export function liftTopFor(world: World, x: number, y: number): number | null {
-  if (!world.isStandable(x, y)) return null;
+  if (world.get(x, y) !== T.AIR || !world.isStandable(x, y)) return null;
   for (const side of [-1, 1]) {
     if (!world.isSolid(x + side, y)) continue;
     // climb the wall upward until the wall side opens into a ledge
@@ -355,12 +367,13 @@ export function liftTopFor(world: World, x: number, y: number): number | null {
   return null;
 }
 
-// A rope anchor sits on a standable cliff-edge cell and hangs its rope over
-// the side into the adjacent air column, down to the first landing. Only
-// worth building when the drop is too far to simply hop down with cargo.
+// A rope anchor sits on a standable cliff-edge cell of clear AIR (see
+// liftTopFor — a ladder or ramp cell is standable but already built on) and hangs
+// its rope over the side into the adjacent air column, down to the first landing.
+// Only worth building when the drop is too far to simply hop down with cargo.
 // Returns the hanging side and bottom landing y, or null if invalid.
 export function ropeDropFor(world: World, x: number, y: number): { side: number; bottomY: number } | null {
-  if (!world.isStandable(x, y) || world.get(x, y) === T.LADDER) return null;
+  if (world.get(x, y) !== T.AIR || !world.isStandable(x, y)) return null;
   for (const side of [-1, 1]) {
     const dx = x + side;
     // the drop column starts as open air you would fall into

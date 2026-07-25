@@ -104,8 +104,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.ramp.label': ['Ramp', 'Rampe'],
   'tool.ramp.desc': [
-    'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands can walk it (unlike ladders).',
-    'Baue eine diagonale Rampe eine Ebene hinauf — von festem Boden aus nach oben oder unten ziehen. Beladene Smallhands können sie begehen (anders als Leitern).',
+    'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands walk it (unlike ladders) and it never blocks the way. Reverse a second run off the top to zigzag up a tight spot.',
+    'Baue eine diagonale Rampe eine Ebene hinauf — von festem Boden aus nach oben oder unten ziehen. Beladene Smallhands begehen sie (anders als Leitern), und sie versperrt nie den Weg. Setze oben eine zweite Strecke in die andere Richtung an, um im Zickzack durch Engstellen zu steigen.',
   ],
   'tool.sawmill.label': ['Sawmill', 'Sägewerk'],
   'tool.sawmill.desc': [

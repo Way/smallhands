@@ -464,11 +464,11 @@ function cargoReach(world: World, sx: number, sy: number): Set<number> {
     const y = Math.floor(key / world.w);
     for (const dx of [-1, 1]) {
       const nx = x + dx;
-      // walk / step up one (a ramp tile overhead counts as headroom — see nav.ts)
+      // walk / step up one (a ramp cell is passable headroom — see nav.ts)
       if (world.isStandable(nx, y)) visit(nx, y);
       if (
         world.isStandable(nx, y - 1) &&
-        (world.isPassable(x, y - 1) || world.get(x, y - 1) === T.RAMP) &&
+        world.isPassable(x, y - 1) &&
         world.get(nx, y - 1) !== T.LADDER
       ) {
         visit(nx, y - 1);
@@ -498,6 +498,8 @@ function cargoReach(world: World, sx: number, sy: number): Set<number> {
         bx += dx;
       }
     }
+    // step down onto a ramp directly below (cargo included — see nav.ts)
+    if (world.get(x, y + 1) === T.RAMP) visit(x, y + 1);
     // a lift could be built here
     const topY = liftTopFor(world, x, y);
     if (topY !== null) visit(x, topY);

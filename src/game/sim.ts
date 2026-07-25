@@ -2187,8 +2187,9 @@ export class Game {
         this.rescueWorker(w);
         continue;
       }
-      // A support tile (ramp or bridge) was built into the worker's cell —
-      // pop them up on top of the new tile instead of entombing them.
+      // A solid tile (a bridge deck) was built into the worker's cell — pop them
+      // up on top of it instead of entombing them. Ramps never reach here: a ramp
+      // cell is passable, so the worker just stands on the new slope (card #59).
       if (!this.world.isPassable(w.cx, w.cy)) {
         let freed = false;
         for (let ny = w.cy - 1; ny >= w.cy - 3; ny--) {

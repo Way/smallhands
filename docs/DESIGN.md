@@ -239,10 +239,12 @@ Tier gates: tier 2 needs 4 Marks in the branch, tier 3 needs 8. Total tree
 - 🔜 **Weekly Expedition** — one ★5 generated level with a fixed seed and a
   twist rule (e.g. "ladders cost 2 logs", "no ramps or bridges"). Twists
   rotate from a hand-written list; the generator already supports tool
-  restriction via `allowedTools`. Note a Ramp is mechanically a Bridge tile
-  (`T.RAMP` is just `'platform'`'s diagonal-placement sibling), so a twist
-  meant to force lifts/ropes must exclude both `'platform'` and `'ramp'` —
-  banning only one still lets the other bridge the gap.
+  restriction via `allowedTools`. Note a Ramp overlaps a Bridge in *purpose* —
+  both are drag-laid support tiles that beat a gap — even though they are no
+  longer the same physics (since card #59 a `T.RAMP` cell is passable and stands
+  on its own slope, while a `T.PLATFORM` deck is neither). So a twist meant to
+  force lifts/ropes must exclude both `'platform'` and `'ramp'` — banning only
+  one still lets the other bridge the gap.
 - 🧭 **Order Rush** — score-attack mode: endless stream of small caravan
   orders on a fixed map, 10 minutes, score = deliveries. Leans on the daily
   seed infra.
