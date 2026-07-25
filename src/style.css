@@ -859,6 +859,58 @@ body.in-game #frontdoor { display: none; }
   color: #1c2333;
   font-weight: 700;
 }
+/* ---- report a problem (game/report-ui.ts) ---- */
+/* Wider than the options box because the markdown preview needs the room, and
+   capped in height so a long report scrolls inside the panel instead of pushing
+   the buttons off a short screen. */
+.report-box {
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.report-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.report-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.report-preview {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all; /* the share code is one very long token */
+  user-select: text;
+}
+.report-status {
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--accent2);
+  text-align: center;
+}
+
 .seg-btn.danger {
   border: 1px solid rgba(255, 122, 107, 0.5);
   border-radius: 8px;

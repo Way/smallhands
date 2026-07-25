@@ -117,6 +117,14 @@ function recordKey(): string {
   return currentCustom ? currentCustom.id : `c${LEVELS[currentLevelIdx].id}`;
 }
 
+// How a bug report names the level. Untranslated on purpose — the report body
+// is read by maintainers, not players (see game/report.ts).
+function reportLevelLabel(): string {
+  if (currentCustom) return `custom level "${currentCustom.name}"`;
+  const def = LEVELS[currentLevelIdx];
+  return `campaign ${def.campaign ?? 1} · level ${currentLevelIdx + 1}`;
+}
+
 // medal + feat slots as shown on level cards
 function medalSlotRow(key: string): HTMLElement {
   const rec = save.records[key];
@@ -1108,6 +1116,32 @@ function attachHud(): void {
       setSpeed(0);
       running = false;
       showOptions(resumeGame);
+    },
+    onReport: async () => {
+      // Same pause contract as the options overlay: freeze the run so the
+      // snapshot in the report matches what the player is looking at, and let
+      // resumeGame put the speed back on close.
+      prevSpeed = speed;
+      setSpeed(0);
+      running = false;
+      clearOverlay();
+      // Loaded on demand. The report and its offscreen renderer are dead weight
+      // for every player who never files one, and this is a menu click — there
+      // is no frame budget to protect here.
+      const { showReportOverlay } = await import('./game/report-ui');
+      // Two fast clicks can both get here while the chunk loads; without this
+      // the second stacks a duplicate overlay on the first.
+      if (uiRoot.querySelector('.report-box')) return;
+      showReportOverlay({
+        game: game!,
+        canvas,
+        levelLabel: reportLevelLabel(),
+        levelName: t(game!.level.name),
+        originCode: currentCustom ? encodeShareCode(currentCustom) : undefined,
+        speed: prevSpeed,
+        build: __BUILD__,
+        onClose: resumeGame,
+      });
     },
     onRestart: () =>
       confirmIfInProgress(

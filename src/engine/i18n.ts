@@ -400,6 +400,59 @@ export const D: Record<string, [string, string]> = {
   'menu.levels': ['Levels', 'Level'],
   'menu.restart': ['Restart', 'Neustart'],
   'menu.options': ['⚙ Options', '⚙ Optionen'],
+  // Label only — the burger menu puts the glyph in its own fixed-width slot, so
+  // an emoji in the string would push this row's text out of line with the rest.
+  'menu.report': ['Report a problem', 'Problem melden'],
+
+  // report overlay (game/report-ui.ts). The report body itself is always
+  // English — it is read by maintainers, not players — so only the surrounding
+  // controls are translated.
+  'report.title.bug': ['Report a problem', 'Problem melden'],
+  'report.title.feedback': ['Send feedback', 'Feedback senden'],
+  'report.title.idea': ['Suggest an idea', 'Idee vorschlagen'],
+  'report.intro': [
+    'Nothing is sent anywhere. Copy the report or save it to disk, then paste it wherever you like.',
+    'Es wird nichts verschickt. Kopiere den Bericht oder speichere ihn — und füge ihn ein, wo du magst.',
+  ],
+  'report.kind': ['Kind', 'Art'],
+  'report.kind.bug': ['Bug', 'Fehler'],
+  'report.kind.feedback': ['Feedback', 'Feedback'],
+  'report.kind.idea': ['Idea', 'Idee'],
+  'report.hint.bug': [
+    'Describe what you expected and what happened instead. The exact state of the map is attached automatically.',
+    'Beschreibe, was du erwartet hast und was stattdessen passiert ist. Der genaue Kartenzustand wird automatisch angehängt.',
+  ],
+  'report.hint.feedback': [
+    'Tell us how the level felt — too slow, too fiddly, unclear?',
+    'Erzähl uns, wie sich das Level angefühlt hat — zu langsam, zu fummelig, unklar?',
+  ],
+  'report.hint.idea': [
+    'What would you add or change?',
+    'Was würdest du ergänzen oder ändern?',
+  ],
+  'report.placeholder': ['What happened?', 'Was ist passiert?'],
+  'report.preview': [
+    'This is exactly what will be copied:',
+    'Genau das wird kopiert:',
+  ],
+  'report.copy': ['Copy report', 'Bericht kopieren'],
+  'report.download': ['Download bundle', 'Paket herunterladen'],
+  'report.close': ['Close', 'Schließen'],
+  'report.copied': ['Copied to clipboard.', 'In die Zwischenablage kopiert.'],
+  'report.copyFailed': [
+    'Could not reach the clipboard — the text is selected, press Ctrl/Cmd+C.',
+    'Zwischenablage nicht erreichbar — der Text ist markiert, drücke Strg/Cmd+C.',
+  ],
+  'report.downloaded': ['Sent {n} files to your downloads.', '{n} Dateien an deine Downloads geschickt.'],
+  'report.downloadedPartial': [
+    'Sent {n} files — a screenshot could not be captured on this device.',
+    '{n} Dateien geschickt — ein Screenshot war auf diesem Gerät nicht möglich.',
+  ],
+  'report.downloadUnsupported': [
+    'This browser cannot save files. Use Copy report instead — the text is selected below.',
+    'Dieser Browser kann keine Dateien speichern. Nutze stattdessen „Bericht kopieren“ — der Text ist unten markiert.',
+  ],
+
   'select.title': ['Choose a level', 'Wähle ein Level'],
   'shelf.gold': ['<b>{a}/{b}</b> campaign gold', '<b>{a}/{b}</b> Kampagnen-Gold'],
   'lvl10.name': ['The Turning Wheel', 'Das drehende Rad'],

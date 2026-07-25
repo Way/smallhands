@@ -1,14 +1,77 @@
 // Serializable custom-level format: created by the in-game editor or the
 // procedural generator, stored in localStorage and shareable as a text code.
 
-import { FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, ROLES, T, TOOL_DEFS } from './types';
-import type { ItemType, MedalTimes, NodeKind, ObjectiveReq, Role } from './types';
+import { BUILD_TIME, FOOTPRINTS, ITEM_TYPES, MAX_FALL_CARRY, NODE_YIELD, ROLES, T, TOOL_DEFS } from './types';
+import type {
+  BuildingKind,
+  ItemType,
+  MedalTimes,
+  NodeKind,
+  ObjectiveReq,
+  Role,
+  WeatherKind,
+  WeatherPhase,
+} from './types';
 import { BIOMES } from '../engine/biomes';
 import type { Biome } from '../engine/biomes';
 import { World, liftTopFor, ropeDropFor } from './world';
 import { settle } from './nav';
 import { t } from '../engine/i18n';
 import type { LevelDef } from './levels';
+
+// A building carried by a *snapshot* code (see game/report.ts): a level as it
+// stands mid-play, not as it starts. The editor never emits these — it has no
+// building tool — so the field is optional and an editor round-trip drops them.
+//
+// Lift/rope/hoist geometry IS stored, despite looking derivable. It is a pure
+// function of the terrain only *at placement time* — `liftTopFor`/`ropeDropFor`
+// run once in placeLift/placeRope and the sim never recomputes. Dig the ledge
+// away afterwards and the live lift keeps its original span, so recomputing on
+// load would hand back a different lift than the player had, precisely on the
+// dug-up maps where lift bugs get reported. The sim treats this as state; so
+// does the snapshot. Absent (authored levels, pre-#58 codes) still recomputes.
+export interface SnapshotBuilding {
+  kind: BuildingKind; // never 'townhall' or 'goal' — those have their own fields
+  x: number;
+  y: number;
+  ready: boolean;
+  progress?: number; // blueprints only: seconds of construction done so far
+  paused?: boolean; // producers only: player is holding conversion
+  // Producer buffers. A stalled producer is one of the commonest things a
+  // report is filed about, and "sawmill holding 2 logs" versus "sawmill empty"
+  // is the whole difference between reproducing it and not.
+  inputs?: Partial<Record<ItemType, number>>;
+  outputs?: Partial<Record<ItemType, number>>;
+  // Hoist only: the player's per-item routing, and what is sitting in the cars.
+  // Routing is not decoration — an unrouted hoist is inert, because both the
+  // sink graph and the load planner gate on it. A hoist restored without its
+  // routes reproduces as "nothing moves" no matter what the bug actually was.
+  sendDown?: ItemType[]; // items routed into the upper car
+  sendUp?: ItemType[]; // items routed into the lower car
+  upper?: Partial<Record<ItemType, number>>; // cargo in the car at the top station
+  lower?: Partial<Record<ItemType, number>>; // cargo in the car at the bottom station
+  // Placement-time geometry, stored rather than recomputed — see above.
+  liftTopY?: number;
+  ropeBottomY?: number;
+  ropeSide?: number; // -1 or 1
+}
+
+// The parts of a level's *type* that live on LevelDef rather than in the world
+// grid. Without these a snapshot of a flood level reloads as a calm day map and
+// the reported bug simply cannot happen again. Every field is optional and
+// omitted for a plain day level, so authored levels and old codes are unchanged.
+export interface SnapshotWorld {
+  night?: boolean;
+  startHour?: number; // 0..24 clock the level opens on
+  dayNightRate?: number; // LevelDef.dayNight.rate — live day→night cycle
+  flood?: { start: number; min: number };
+  weather?: WeatherPhase[]; // looping schedule
+  weatherIdx?: number; // which phase the run had reached
+  waterRow?: number; // the risen water table at snapshot time
+  keep?: Partial<Record<ItemType, number>>; // per-item hauling floors
+  digOrders?: number[]; // world tile indices the player marked to dig
+  groundItems?: { item: ItemType; x: number; y: number }[];
+}
 
 export interface CustomLevelData {
   v: 1;
@@ -18,7 +81,12 @@ export interface CustomLevelData {
   width: number;
   height: number;
   tiles: string; // run-length encoded terrain, see encodeTiles()
-  nodes: { kind: NodeKind; x: number; y: number }[];
+  // `yieldLeft` and `marked` are only set by snapshot codes; a freshly authored
+  // node omits both and starts at the full NODE_YIELD amount, unmarked.
+  // `marked` matters as much as the yield: only marked nodes are ever
+  // harvested, so a snapshot that loses the marks reloads with an idle crew and
+  // makes "marked but nobody came" look exactly like "never marked".
+  nodes: { kind: NodeKind; x: number; y: number; yieldLeft?: number; marked?: boolean }[];
   townhall: { x: number; y: number };
   goal: { x: number; y: number };
   objectives: ObjectiveReq[];
@@ -28,7 +96,25 @@ export interface CustomLevelData {
   startThLevel: number;
   seed?: string; // set when produced by the generator
   biome?: Biome; // terrain palette family; omit for the classic meadow look
+  buildings?: SnapshotBuilding[]; // snapshot codes only, see SnapshotBuilding
+  world?: SnapshotWorld; // snapshot codes only, see SnapshotWorld
 }
+
+// The building kinds a snapshot may carry, as a real allowlist. A bare
+// `BUILD_TIME[kind] !== undefined` test is NOT one: every object inherits
+// `constructor`, `toString` and friends, so "kind": "constructor" would pass,
+// get written to localStorage by the level importer, and place a building whose
+// footprint lookup resolves to an inherited function. Own keys only.
+export const CONSTRUCTIBLE: ReadonlySet<BuildingKind> = new Set(Object.keys(BUILD_TIME) as BuildingKind[]);
+
+// Collection caps for untrusted codes. Exported so the snapshot writer trims to
+// the same numbers: if the two sides disagree, a big painted dig region is
+// silently shortened on import and the reproduction quietly differs from the
+// report that describes it. See report.ts.
+export const MAX_SNAPSHOT_NODES = 200;
+export const MAX_SNAPSHOT_BUILDINGS = 200;
+export const MAX_SNAPSHOT_DIG_ORDERS = 4000;
+export const MAX_SNAPSHOT_GROUND_ITEMS = 200;
 
 export const MIN_W = 32;
 export const MAX_W = 160;
@@ -144,8 +230,12 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     width: data.width,
     height: data.height,
     objectives: data.objectives.filter((o) => o.amount > 0),
-    // custom levels are daytime levels — the lantern (a night tool) is left out
-    allowedTools: TOOL_DEFS.map((t) => t.id).filter((id) => id !== 'lantern'),
+    // Authored custom levels are daytime levels, so the lantern (a night tool)
+    // is left out — but a snapshot of a night level needs it, or the map it
+    // reproduces is unplayable in the dark it was reported in.
+    allowedTools: data.world?.night
+      ? TOOL_DEFS.map((t) => t.id)
+      : TOOL_DEFS.map((t) => t.id).filter((id) => id !== 'lantern'),
     startStock: { ...data.startStock },
     startRoles: { ...data.startRoles },
     startWorkers: data.startWorkers,
@@ -153,11 +243,75 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
     biome: data.biome,
     medals: medalTimesFor(data),
     camera: { x: Math.max(0, data.townhall.x - 6), y: Math.max(0, data.townhall.y - 6) },
+    // Level *type*, restored only from a snapshot (see SnapshotWorld). An
+    // authored custom level has no `world` block and stays a plain day map.
+    night: data.world?.night,
+    startHour: data.world?.startHour,
+    dayNight: data.world?.dayNightRate !== undefined ? { rate: data.world.dayNightRate } : undefined,
+    flood: data.world?.flood,
+    weather: data.world?.weather,
     build: (g) => {
       g.world.tiles = decodeTiles(data.tiles, data.width * data.height);
       g.addBuilding('townhall', data.townhall.x, data.townhall.y);
       g.addBuilding('goal', data.goal.x, data.goal.y);
-      for (const n of data.nodes) g.addNode(n.kind, n.x, n.y);
+      for (const n of data.nodes) {
+        g.addNode(n.kind, n.x, n.y, n.marked === true);
+        // Patch the partial yield afterwards rather than widening addNode's
+        // signature, which every hand-authored campaign level calls.
+        if (n.yieldLeft !== undefined) g.nodes[g.nodes.length - 1].yieldLeft = n.yieldLeft;
+      }
+      // Snapshot buildings. Terrain is already in place above, so the lift and
+      // rope geometry recomputes to exactly what it was when the snapshot was
+      // taken — see SnapshotBuilding on why it is not serialized.
+      for (const b of data.buildings ?? []) {
+        const built = g.addBuilding(b.kind, b.x, b.y, b.ready);
+        if (!b.ready) built.progress = b.progress ?? 0;
+        if (b.paused) built.paused = true;
+        if (b.inputs) built.inputs = { ...b.inputs };
+        if (b.outputs) built.outputs = { ...b.outputs };
+        if (b.upper) built.hoistUpper = { ...b.upper };
+        if (b.lower) built.hoistLower = { ...b.lower };
+        for (const item of b.sendDown ?? []) built.hoistSendDown[item] = true;
+        for (const item of b.sendUp ?? []) built.hoistSendUp[item] = true;
+        if (b.kind === 'lift') {
+          built.liftTopY = b.liftTopY ?? liftTopFor(g.world, b.x, b.y) ?? b.y;
+          built.liftCarY = b.y;
+          // A finished lift's top landing is held up by an extraSupport cell,
+          // which the sim only adds on the builder-completion path (see the
+          // 'built' branch of the construct task). Restoring a ready lift skips
+          // that path entirely, and liftTopFor guarantees the mast column is
+          // AIR — so without this the landing is unstandable and the lift the
+          // report is about cannot be used at all.
+          if (built.state === 'ready') g.world.extraSupport.add(g.world.idx(built.x, built.liftTopY + 1));
+        } else if (b.kind === 'rope' || b.kind === 'hoist') {
+          const drop = ropeDropFor(g.world, b.x, b.y);
+          built.ropeSide = b.ropeSide ?? drop?.side ?? built.ropeSide;
+          built.ropeBottomY = b.ropeBottomY ?? drop?.bottomY ?? built.ropeBottomY;
+        }
+      }
+      // Remaining snapshot state. These are plain Game fields the constructor
+      // does not touch after build(), so setting them here sticks.
+      const w = data.world;
+      if (!w) return;
+      if (w.waterRow !== undefined) g.waterRow = w.waterRow;
+      if (w.weatherIdx !== undefined) g.weatherIdx = w.weatherIdx;
+      if (w.keep) g.keep = { ...g.keep, ...w.keep };
+      for (const idx of w.digOrders ?? []) g.digOrders.add(idx);
+      // Placed at their reported cell rather than through dropItem, which
+      // re-settles the position and would quietly move the very item the
+      // report is about.
+      for (const gi of w.groundItems ?? []) {
+        g.groundItems.push({
+          id: g.id(),
+          item: gi.item,
+          x: gi.x,
+          y: gi.y,
+          reserved: false,
+          bounce: 0,
+          stranded: false,
+          idleFor: 0,
+        });
+      }
     },
   };
 }
@@ -212,16 +366,98 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     );
   };
   if (!inBounds(r.townhall) || !inBounds(r.goal)) return null;
+  const numRecord = <K extends string>(v: unknown, keys: readonly K[], max: number): Partial<Record<K, number>> => {
+    const out: Partial<Record<K, number>> = {};
+    if (typeof v === 'object' && v !== null) {
+      for (const k of keys) {
+        const n = (v as Record<string, unknown>)[k];
+        if (typeof n === 'number' && n > 0) out[k] = Math.min(max, Math.floor(n));
+      }
+    }
+    return out;
+  };
+  // An item bag that stays absent when empty, so authored levels and old codes
+  // keep serializing byte-identically.
+  const bagField = <K extends string>(key: K, v: unknown): Partial<Record<K, Partial<Record<ItemType, number>>>> => {
+    const bag = numRecord(v, ITEM_TYPES, 99);
+    return Object.keys(bag).length ? ({ [key]: bag } as Partial<Record<K, Partial<Record<ItemType, number>>>>) : {};
+  };
+  const itemList = (v: unknown): ItemType[] =>
+    Array.isArray(v) ? ITEM_TYPES.filter((i) => (v as unknown[]).includes(i)) : [];
+  // Hoist routes, with the invariant toggleHoistRoute enforces: an item may be
+  // routed in ONE direction, never both. The snapshot writer cannot produce a
+  // conflict, but a hand-edited code can, and this is the trust boundary — two
+  // opposing routes on one item is a perpetual-motion machine.
+  const routeFields = (
+    down: unknown,
+    up: unknown
+  ): { sendDown?: ItemType[]; sendUp?: ItemType[] } => {
+    const sendDown = itemList(down);
+    const sendUp = itemList(up).filter((i) => !sendDown.includes(i));
+    return { ...(sendDown.length ? { sendDown } : {}), ...(sendUp.length ? { sendUp } : {}) };
+  };
+  const intField = <K extends string>(key: K, v: unknown, min: number, max: number): Partial<Record<K, number>> => {
+    const n = clampInt(v, min, max);
+    return n === null ? {} : ({ [key]: n } as Partial<Record<K, number>>);
+  };
   const nodeKinds: NodeKind[] = ['tree', 'boulder', 'vein'];
   const nodes = Array.isArray(r.nodes)
     ? (r.nodes as unknown[])
-        .filter((n): n is { kind: NodeKind; x: number; y: number } => {
+        .filter((n): n is { kind: NodeKind; x: number; y: number; yieldLeft?: unknown } => {
           if (typeof n !== 'object' || n === null) return false;
           const q = n as Record<string, unknown>;
           return nodeKinds.includes(q.kind as NodeKind) && inBounds(q);
         })
-        .slice(0, 200)
-        .map((n) => ({ kind: n.kind, x: Math.floor(n.x), y: Math.floor(n.y) }))
+        .slice(0, MAX_SNAPSHOT_NODES)
+        .map((n) => {
+          // A snapshot node carries its remaining yield; an authored one omits
+          // it and the sim fills the full amount. 0 is meaningful and must
+          // survive: a spent node is never removed from game.nodes, it stays on
+          // as a stump, and clamping it up to 1 would hand back a live tree.
+          const left = clampInt(n.yieldLeft, 0, NODE_YIELD[n.kind].amount);
+          return {
+            kind: n.kind,
+            x: Math.floor(n.x),
+            y: Math.floor(n.y),
+            ...(left === null ? {} : { yieldLeft: left }),
+            ...((n as Record<string, unknown>).marked === true ? { marked: true as const } : {}),
+          };
+        })
+    : [];
+  // Snapshot buildings (see SnapshotBuilding). townhall/goal are absent from
+  // BUILD_TIME and so are filtered out here — they have their own fields and
+  // would otherwise be placed twice.
+  const buildings = Array.isArray(r.buildings)
+    ? (r.buildings as unknown[])
+        .filter((b): b is Record<string, unknown> => {
+          if (typeof b !== 'object' || b === null) return false;
+          const q = b as Record<string, unknown>;
+          return CONSTRUCTIBLE.has(q.kind as BuildingKind) && inBounds(q);
+        })
+        .slice(0, MAX_SNAPSHOT_BUILDINGS)
+        .map((b) => {
+          const kind = b.kind as BuildingKind;
+          const ready = b.ready !== false;
+          // Construction progress is seconds, not a whole number — clampInt
+          // would quietly floor a half-built blueprint back down.
+          const progress = ready ? null : clampFloat(b.progress, 0, BUILD_TIME[kind]!);
+          return {
+            kind,
+            x: Math.floor(b.x as number),
+            y: Math.floor(b.y as number),
+            ready,
+            ...(progress === null ? {} : { progress }),
+            ...(b.paused === true ? { paused: true } : {}),
+            ...bagField('inputs', b.inputs),
+            ...bagField('outputs', b.outputs),
+            ...bagField('upper', b.upper),
+            ...bagField('lower', b.lower),
+            ...routeFields(b.sendDown, b.sendUp),
+            ...intField('liftTopY', b.liftTopY, 0, height - 1),
+            ...intField('ropeBottomY', b.ropeBottomY, 0, height - 1),
+            ...(b.ropeSide === -1 || b.ropeSide === 1 ? { ropeSide: b.ropeSide } : {}),
+          };
+        })
     : [];
   const objectives = Array.isArray(r.objectives)
     ? (r.objectives as unknown[])
@@ -233,16 +469,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
         .slice(0, ITEM_TYPES.length)
         .map((o) => ({ item: o.item, amount: Math.min(99, Math.floor(o.amount)) }))
     : [];
-  const numRecord = <K extends string>(v: unknown, keys: readonly K[], max: number): Partial<Record<K, number>> => {
-    const out: Partial<Record<K, number>> = {};
-    if (typeof v === 'object' && v !== null) {
-      for (const k of keys) {
-        const n = (v as Record<string, unknown>)[k];
-        if (typeof n === 'number' && n > 0) out[k] = Math.min(max, Math.floor(n));
-      }
-    }
-    return out;
-  };
+  const world = sanitizeSnapshotWorld(r.world, width, height, numRecord);
   return {
     v: 1,
     id: typeof r.id === 'string' && r.id.length <= 40 ? r.id : makeLevelId(),
@@ -261,12 +488,96 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     startThLevel: clampInt(r.startThLevel, 1, 3) ?? 1,
     seed: typeof r.seed === 'string' ? r.seed.slice(0, 60) : undefined,
     biome: BIOMES.includes(r.biome as Biome) ? (r.biome as Biome) : undefined,
+    ...(buildings.length ? { buildings } : {}),
+    ...(world ? { world } : {}),
   };
+}
+
+// The snapshot-only `world` block (see SnapshotWorld). Returns null when there
+// is nothing worth carrying, so an authored level never grows an empty object.
+function sanitizeSnapshotWorld(
+  raw: unknown,
+  width: number,
+  height: number,
+  numRecord: <K extends string>(v: unknown, keys: readonly K[], max: number) => Partial<Record<K, number>>
+): SnapshotWorld | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const out: SnapshotWorld = {};
+
+  if (r.night === true) out.night = true;
+  const hour = clampFloat(r.startHour, 0, 24);
+  if (hour !== null) out.startHour = hour;
+  const rate = clampFloat(r.dayNightRate, 0, 24);
+  if (rate !== null && rate > 0) out.dayNightRate = rate;
+
+  if (typeof r.flood === 'object' && r.flood !== null) {
+    const f = r.flood as Record<string, unknown>;
+    const start = clampInt(f.start, 0, height - 1);
+    const min = clampInt(f.min, 0, height - 1);
+    if (start !== null && min !== null) out.flood = { start, min };
+  }
+
+  if (Array.isArray(r.weather)) {
+    const kinds: WeatherKind[] = ['clear', 'rain', 'storm'];
+    const phases = (r.weather as unknown[])
+      .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+      .map((p) => ({ kind: p.kind as WeatherKind, duration: clampFloat(p.duration, 1, 3600) }))
+      .filter((p): p is WeatherPhase => kinds.includes(p.kind) && p.duration !== null)
+      .slice(0, 24);
+    if (phases.length) {
+      out.weather = phases;
+      // Only meaningful against a schedule, and modulo'd by the sim anyway.
+      const idx = clampInt(r.weatherIdx, 0, phases.length - 1);
+      if (idx !== null) out.weatherIdx = idx;
+    }
+  }
+
+  const row = clampInt(r.waterRow, 0, height - 1);
+  if (row !== null) out.waterRow = row;
+
+  const keep = numRecord(r.keep, ITEM_TYPES, 99);
+  if (Object.keys(keep).length) out.keep = keep;
+
+  if (Array.isArray(r.digOrders)) {
+    const cells = width * height;
+    const orders = (r.digOrders as unknown[])
+      .map((v) => clampInt(v, 0, cells - 1))
+      .filter((v): v is number => v !== null)
+      .slice(0, MAX_SNAPSHOT_DIG_ORDERS);
+    if (orders.length) out.digOrders = orders;
+  }
+
+  if (Array.isArray(r.groundItems)) {
+    const items = (r.groundItems as unknown[])
+      .filter((g): g is Record<string, unknown> => typeof g === 'object' && g !== null)
+      .filter(
+        (g) =>
+          ITEM_TYPES.includes(g.item as ItemType) &&
+          typeof g.x === 'number' &&
+          typeof g.y === 'number' &&
+          g.x >= 0 &&
+          g.x < width &&
+          g.y >= 0 &&
+          g.y < height
+      )
+      .slice(0, MAX_SNAPSHOT_GROUND_ITEMS)
+      .map((g) => ({ item: g.item as ItemType, x: Math.floor(g.x as number), y: Math.floor(g.y as number) }));
+    if (items.length) out.groundItems = items;
+  }
+
+  return Object.keys(out).length ? out : null;
 }
 
 function clampInt(v: unknown, min: number, max: number): number | null {
   if (typeof v !== 'number' || !Number.isFinite(v)) return null;
   return Math.max(min, Math.min(max, Math.floor(v)));
+}
+
+// Same, for the values that are genuinely fractional (construction seconds).
+function clampFloat(v: unknown, min: number, max: number): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  return Math.max(min, Math.min(max, v));
 }
 
 // ---- verification ---------------------------------------------------------------
@@ -333,8 +644,14 @@ export function verifyLevel(data: CustomLevelData): VerifyReport {
   const objectives = data.objectives.filter((o) => o.amount > 0);
   if (objectives.length === 0) problems.push(t('verify.noObjectives'));
 
-  // resource budget: raw yield + starting stock vs. what the order needs
-  const yieldOf = (kind: NodeKind) => data.nodes.filter((n) => n.kind === kind).length * 4;
+  // Resource budget: raw yield + starting stock vs. what the order needs.
+  // A snapshot's nodes are part-harvested, so count what is actually left —
+  // budgeting a spent stump as a full tree would pass a level that can no
+  // longer be finished. Authored nodes have no yieldLeft and count in full.
+  const yieldOf = (kind: NodeKind) =>
+    data.nodes
+      .filter((n) => n.kind === kind)
+      .reduce((sum, n) => sum + (n.yieldLeft ?? NODE_YIELD[kind].amount), 0);
   const have = {
     log: (data.startStock.log ?? 0) + yieldOf('tree'),
     stone: (data.startStock.stone ?? 0) + yieldOf('boulder'),
