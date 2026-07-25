@@ -333,7 +333,10 @@ const D: Record<string, [string, string]> = {
   'hud.keep': ['Keep', 'Behalten'],
   'hud.keepAll': ['All', 'Alle'],
   'hud.keepReset': ['Reset', 'Zurücksetzen'],
-  'hud.keepNote': ['Haulers ship only the surplus to the caravan.', 'Träger liefern nur den Überschuss zur Karawane.'],
+  'hud.keepNote': [
+    'Kept units stay put — no caravan, no workshop. Only the surplus moves.',
+    'Behaltene Einheiten bleiben liegen — keine Karawane, keine Werkstatt. Nur der Überschuss geht raus.',
+  ],
   'hud.inStore': ['{name} · {n} in store', '{name} · {n} im Lager'],
   'hud.findOnMap': ['Find on map', 'Auf Karte finden'],
   'locate.none': ['No {name} source on this map.', 'Keine {name}-Quelle auf dieser Karte.'],

@@ -130,6 +130,103 @@ function findLadderCells(g, count) {
   check('no loose planks are left stranded', !g.groundItems.some((i) => i.item === 'plank'));
 }
 
+// ---- The floor is absolute: crafting can't eat the reserve either (card #64) -
+// The reported bug: reserve 1 iron and the forge still swallows it — the floor
+// gated only the caravan route, so every OTHER autonomous consumer (producer
+// feed, hoist loading, the digger's shovel) walked straight past it. A kept unit
+// must never leave the store on the sim's own initiative, whatever wants it.
+{
+  const g = new Game(LEVELS[2]); // level 3: forge site from the campaign proof
+  const forge = g.addBuilding('forge', 15, 21, true); // 1 plank + 1 iron -> spear
+  g.stock.iron = 2;
+  g.stock.plank = 4;
+  g.setKeep('iron', 1);
+
+  let floorBroken = false;
+  for (let i = 0; i < 60 * 40; i++) {
+    g.tick(1 / 60);
+    if (g.stock.iron < 1) floorBroken = true; // must hold every single frame
+  }
+  check('the store never dips below the iron floor while a forge is hungry', !floorBroken);
+  check('the reserved iron is still in store', g.stock.iron === 1);
+  check('only the surplus iron reached the forge',
+    (forge.inputs.iron ?? 0) + (forge.outputs.spear ?? 0) + g.stock.spear >= 1);
+
+  // releasing the floor is the ONLY thing that frees it
+  g.setKeep('iron', 0);
+  for (let i = 0; i < 60 * 40; i++) g.tick(1 / 60);
+  check('lowering the floor releases the last iron to the forge', g.stock.iron === 0);
+}
+
+// ---- Loose goods bank to the floor instead of feeding a producer ------------
+// A producer can be fed straight off the ground without the goods ever touching
+// the stockpile, so that route has to honour the floor too — below the floor the
+// loose units belong in the store, building the reserve up.
+{
+  const g = new Game(LEVELS[0]); // level 1: sawmill site from the campaign proof
+  const saw = g.addBuilding('sawmill', 33, 17, true); // 1 log -> 2 planks
+  g.stock.log = 0;
+  g.setKeep('log', 2);
+  const spot = g.workers[0];
+  for (let i = 0; i < 3; i++) g.dropItem('log', spot.cx, spot.cy);
+
+  for (let i = 0; i < 60 * 60; i++) g.tick(1 / 60); // 60s to settle
+  check('loose logs bank to the floor rather than feeding the sawmill', g.stock.log === 2);
+  check('only the surplus log was sawn',
+    (saw.inputs.log ?? 0) + (saw.outputs.plank ?? 0) / 2 <= 1);
+  check('no loose logs are left lying around', !g.groundItems.some((i) => i.item === 'log'));
+}
+
+// ---- Raising the floor cancels a haul already on its way to the store -------
+// The floor is re-read at the moment of pickup, not trusted from dispatch time:
+// a hauler dispatched a second before the player raised the floor must not be
+// the hole the reserved unit escapes through.
+{
+  const g = new Game(LEVELS[0]);
+  const saw = g.addBuilding('sawmill', 33, 17, true); // hungry sawmill, far from the store
+  g.stock.log = 1;
+
+  // Park every hauler at the sawmill so fetching the log is a LONG walk to the
+  // stockpile — that keeps the task observable in its 'toSource' leg instead of
+  // dispatching and picking up inside one tick.
+  const key = [...g.buildingApproach(saw)][0];
+  const sx = key % g.world.w;
+  const sy = (key - sx) / g.world.w;
+  for (const w of g.workers) {
+    w.role = 'hauler';
+    w.cx = sx; w.cy = sy; w.px = sx; w.py = sy;
+    w.task = null; w.path = []; w.stepIdx = 0; w.carrying = null;
+  }
+  g.desiredRoles = { hauler: g.workers.length, builder: 0, woodcutter: 0, miner: 0, digger: 0 };
+
+  let dispatched = false;
+  for (let i = 0; i < 60 * 20 && !dispatched; i++) {
+    g.tick(1 / 60);
+    dispatched = g.workers.some(
+      (w) => w.task?.kind === 'haul' && w.task.item === 'log' && w.task.source.t === 'stock' && w.task.phase === 'toSource'
+    );
+  }
+  check('a hauler was dispatched to fetch the log from store (setup)', dispatched);
+
+  g.setKeep('log', 1); // the player changes their mind mid-walk
+  for (let i = 0; i < 60 * 30; i++) g.tick(1 / 60);
+  check('the in-flight pickup is cancelled, the log stays in store', g.stock.log === 1);
+  check('nothing is left promised against the store', g.stockReserved.log === 0);
+}
+
+// ---- The player's own spend is the release valve, not a leak ----------------
+// Placement/upgrade costs are the player deliberately giving the goods up, so
+// they still spend the whole store — that is the documented purpose of the
+// floor (level 3's hint: keep stone back SO you can build the lift and forge).
+{
+  const g = new Game(LEVELS[0]);
+  const [cell] = findLadderCells(g, 1);
+  g.stock = { log: 1, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
+  g.setKeep('log', 5);
+  check('a kept log still builds a ladder when the player asks', g.placeLadder(cell.x, cell.y) === true);
+  check('the player spend went through', g.stock.log === 0);
+}
+
 // ---- Level 3 shape: stone is both the order and the build material ---------
 {
   const g = new Game(LEVELS[2]); // objectives include stone 8; goal at west edge
