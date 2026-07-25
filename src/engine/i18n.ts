@@ -335,7 +335,10 @@ export const D: Record<string, [string, string]> = {
   'hud.keep': ['Keep', 'Behalten'],
   'hud.keepAll': ['All', 'Alle'],
   'hud.keepReset': ['Reset', 'Zurücksetzen'],
-  'hud.keepNote': ['Haulers ship only the surplus to the caravan.', 'Träger liefern nur den Überschuss zur Karawane.'],
+  'hud.keepNote': [
+    'Kept units stay put — no caravan, no workshop. Only the surplus moves.',
+    'Behaltene Einheiten bleiben liegen — keine Karawane, keine Werkstatt. Nur der Überschuss geht raus.',
+  ],
   'hud.inStore': ['{name} · {n} in store', '{name} · {n} im Lager'],
   'hud.findOnMap': ['Find on map', 'Auf Karte finden'],
   'locate.none': ['No {name} source on this map.', 'Keine {name}-Quelle auf dieser Karte.'],
@@ -353,6 +356,7 @@ export const D: Record<string, [string, string]> = {
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
   'hud.speedMenu': ['Pause and speed', 'Pause und Tempo'],
+  'hud.menu': ['Menu', 'Menü'],
   'hud.speed': ['speed', 'Tempo'],
   'hud.pause': ['Pause', 'Pause'],
   'hud.resume': ['Resume', 'Weiter'],
@@ -390,8 +394,11 @@ export const D: Record<string, [string, string]> = {
   ],
   'resume.btn': ['▶ Resume', '▶ Weiter'],
   'btn.levels': ['Levels', 'Level'],
-  'menu.levels': ['☰ Levels', '☰ Level'],
-  'menu.restart': ['↺ Restart', '↺ Neustart'],
+  // the HUD menu rows draw their own glyph in a fixed icon slot, so these two
+  // are plain labels. menu.options keeps its ⚙ — the world map's top bar uses
+  // it as a single-string text button.
+  'menu.levels': ['Levels', 'Level'],
+  'menu.restart': ['Restart', 'Neustart'],
   'menu.options': ['⚙ Options', '⚙ Optionen'],
   'select.title': ['Choose a level', 'Wähle ein Level'],
   'shelf.gold': ['<b>{a}/{b}</b> campaign gold', '<b>{a}/{b}</b> Kampagnen-Gold'],

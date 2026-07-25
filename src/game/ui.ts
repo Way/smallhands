@@ -13,6 +13,7 @@ import {
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
+  WX_ICON,
 } from './types';
 import type {
   Building,
@@ -25,7 +26,6 @@ import type {
   Role,
   ShortfallRow,
   Tool,
-  WeatherKind,
 } from './types';
 import { drawIconTo } from '../engine/sprites';
 import { t, tOr } from '../engine/i18n';
@@ -48,12 +48,6 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   hoist: 'hoist_post',
   lantern: 'lantern',
   demolish: 'icon_demolish',
-};
-
-const WX_ICON: Record<WeatherKind, string> = {
-  clear: '☀️',
-  rain: '🌧️',
-  storm: '🌩️',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -80,7 +74,13 @@ function icon(name: string, size = 20, parent?: HTMLElement): HTMLCanvasElement 
 // closure per level. Wired once for the page instead.
 function closeIslandPopovers(): void {
   document.querySelectorAll<HTMLElement>('.island-pop:not([hidden])').forEach((p) => (p.hidden = true));
-  document.querySelectorAll('.island-btn.active').forEach((b) => {
+  // every trigger in the pill, not just the .island-btn zones: the clock's sky
+  // glyph opens the forecast too and is NOT a zone button (card #62). Keying off
+  // aria-expanded — which popover() sets on whatever it is handed, in lockstep
+  // with .active — is what keeps this honest for the next trigger that isn't an
+  // .island-btn either. It must stay this narrow: a blanket `.island .active`
+  // would also wipe the speed popover's current-rate highlight.
+  document.querySelectorAll('.island [aria-expanded="true"]').forEach((b) => {
     b.classList.remove('active');
     b.setAttribute('aria-expanded', 'false');
   });
@@ -168,7 +168,6 @@ export class Hud {
   private wxNext: HTMLElement | null = null;
   private wxSig = '';
   private objSum: HTMLElement | null = null;
-  private wxSum: HTMLElement | null = null;
   private clockEl!: HTMLElement;
   private clockIcEl!: HTMLElement;
   private clockBoxEl!: HTMLElement;
@@ -332,7 +331,8 @@ export class Hud {
   // ---- the island: one pill at top centre, [speed] · [clock] · [☰] ----------
   // Three zones share a single surface (Dynamic-Island style) rather than
   // floating as three separate widgets. Each end zone is a trigger that drops
-  // its own popover; the clock in the middle is a passive readout.
+  // its own popover; the clock in the middle is a readout whose sky glyph also
+  // triggers the forecast, but only where there is a forecast (card #62).
   //
   // Popovers are TAP/CLICK toggled on every pointer type — no hover reveal.
   // Hover-to-open made the island twitchy to cross with the mouse (the panels
@@ -394,34 +394,40 @@ export class Hud {
     speedTrigger.setAttribute('aria-label', t('hud.speedMenu'));
     this.speedTrigger = speedTrigger;
 
-    // weather zone: current-conditions icon sitting beside the clock. The full
-    // forecast (deterministic, so it IS the strategy layer) drops in a popover —
-    // hover on desktop, tap on touch. Only levels with a schedule get the zone.
-    let weatherTrigger: HTMLButtonElement | null = null;
-    if (this.game.weatherSchedule) {
-      weatherTrigger = el('button', 'island-btn weather-trigger', island);
-      weatherTrigger.title = t('hud.weather');
-      weatherTrigger.setAttribute('aria-label', t('hud.weather'));
-      this.wxSum = el('span', 'wx-ic', weatherTrigger); // updated with the live icon
-    }
-
     // centre zone: the diegetic time-of-day clock. It reads the world's hour
-    // (game.timeOfDay), NOT the run's score timer — a sun/moon glyph plus the
-    // wall-clock hour. Static today (noon by day, night on night maps); a moving
-    // day→night cycle is a later phase (card #36).
+    // (game.timeOfDay), NOT the run's score timer — a sky glyph plus the
+    // wall-clock hour. Static on most maps (noon by day, night on night maps);
+    // the cycle levels advance it live (LevelDef.dayNight).
     const clock = el('div', 'clock', island);
     this.clockBoxEl = clock;
     clock.title = this.clockTitleText();
     this.clockTitleSig = clock.title;
-    this.clockIcEl = el('span', 'clock-ic', clock);
-    this.clockIcEl.textContent = dayNightIcon(this.game.timeOfDay);
+
+    // ONE sky glyph, never two. The forecast used to own its own island zone
+    // with its own ☀️, which duplicated the clock's day glyph pixel-for-pixel
+    // whenever the weather was clear — two suns, 10px apart (card #62). So the
+    // clock's own icon IS the forecast trigger: a real button on a level with a
+    // weather schedule (hover on desktop, tap on touch), a passive span
+    // everywhere else, where there is no forecast to open. Its own title
+    // shadows the clock box's time-of-day tooltip, so hovering the glyph talks
+    // about the sky and hovering the digits about the clock.
+    let wxTrigger: HTMLButtonElement | null = null;
+    if (this.game.weatherSchedule) {
+      wxTrigger = el('button', 'clock-ic wx-trigger', clock);
+      wxTrigger.title = t('hud.weather');
+      wxTrigger.setAttribute('aria-label', t('hud.weather'));
+      this.clockIcEl = wxTrigger;
+    } else {
+      this.clockIcEl = el('span', 'clock-ic', clock);
+    }
+    this.clockIcEl.textContent = this.skyIcon();
     this.clockEl = el('span', 'clock-time', clock);
     this.clockEl.textContent = fmtClock(this.game.timeOfDay);
 
     // right zone: the burger
     const menuTrigger = el('button', 'island-btn menu-trigger', island);
     menuTrigger.textContent = '☰';
-    menuTrigger.setAttribute('aria-label', t('menu.levels'));
+    menuTrigger.setAttribute('aria-label', t('hud.menu'));
 
     // ---- speed popover: play/pause, then the rate ----
     const speedPop = this.popover(speedTrigger, 'speed-pop', false);
@@ -439,23 +445,30 @@ export class Hud {
     }
 
     // ---- menu popover: levels / restart / options ----
+    // Menu ROWS, not the generic .speed-btn chips — a bordered box per entry
+    // read as three stacked outlines with no hierarchy. The glyph lives in its
+    // own fixed-width slot (never in the label string) so the three labels line
+    // up on one edge whatever width the emoji font gives the icon.
     const menuPop = this.popover(menuTrigger, 'menu-pop', true);
-    const menu = el('button', 'speed-btn', menuPop);
-    menu.textContent = t('menu.levels');
-    menu.onclick = () => this.cbs.onMenu();
-    const restart = el('button', 'speed-btn', menuPop);
-    restart.textContent = t('menu.restart');
-    restart.onclick = () => this.cbs.onRestart();
-    const opts = el('button', 'speed-btn', menuPop);
-    opts.textContent = `⚙ ${t('opt.title')}`;
-    opts.title = t('opt.title');
-    opts.onclick = () => this.cbs.onOptions();
+    const menuItem = (glyph: string, label: string, cls = ''): HTMLButtonElement => {
+      const b = el('button', `menu-item${cls ? ` ${cls}` : ''}`, menuPop);
+      const ic = el('span', 'menu-ic', b);
+      ic.textContent = glyph;
+      ic.setAttribute('aria-hidden', 'true'); // decorative — the label names the action
+      el('span', 'menu-label', b).textContent = label;
+      return b;
+    };
+    menuItem('☰', t('menu.levels')).onclick = () => this.cbs.onMenu();
+    // restart discards the run in progress: the one row that warns on hover
+    menuItem('↺', t('menu.restart'), 'danger').onclick = () => this.cbs.onRestart();
+    el('div', 'ctrl-divider', menuPop); // level actions above · settings below
+    menuItem('⚙', t('opt.title')).onclick = () => this.cbs.onOptions();
 
     // ---- weather popover: current phase + countdown, then the next two ----
     // No actions inside (closeOnAction=false); it is purely a readout. The
     // update() loop fills wxNow/wxNext, same as the old right-column panel did.
-    if (weatherTrigger) {
-      const wxPop = this.popover(weatherTrigger, 'weather-pop', false);
+    if (wxTrigger) {
+      const wxPop = this.popover(wxTrigger, 'weather-pop', false);
       const row = el('div', 'wx-row', wxPop);
       this.wxNow = el('div', 'wx-now', row);
       this.wxNext = el('div', 'wx-next', row);
@@ -467,8 +480,8 @@ export class Hud {
       // hover devices get a tooltip feel: open on enter, close on leave. Touch
       // falls back to the tap-toggle popover() already wired.
       if (this.hoverOk) {
-        weatherTrigger.onmouseenter = () => this.openPopover(wxPop);
-        weatherTrigger.onmouseleave = () => this.openPopover(null);
+        wxTrigger.onmouseenter = () => this.openPopover(wxPop);
+        wxTrigger.onmouseleave = () => this.openPopover(null);
       }
     }
 
@@ -1228,17 +1241,29 @@ export class Hud {
     return `${t('hud.clockTitle')}\n${t('hud.clockElapsed', { t: fmtTime(this.game.time) })}`;
   }
 
+  // The island's one sky glyph (card #62). An active weather phase wins — the
+  // pill should show what the sky is DOING while it rains — but a clear sky, and
+  // every level without a schedule, falls back to the day/night glyph, so dusk
+  // and night are never traded away for a second sun. The two features are on
+  // disjoint levels today; this keeps a future rain-at-dusk level honest.
+  private skyIcon(): string {
+    const g = this.game;
+    if (g.weatherSchedule && g.weather !== 'clear') return WX_ICON[g.weather];
+    return dayNightIcon(g.timeOfDay);
+  }
+
   update(): void {
     const g = this.game;
     // runs every frame; the diegetic clock turns over only when the HH:MM (or
-    // the day/night glyph) actually changes — held constant today, live once a
-    // day→night cycle advances g.timeOfDay (card #36)
+    // the sky glyph — day/night, or the live weather phase) actually changes:
+    // held constant on a fixed-sky level, live once a day→night cycle advances
+    // g.timeOfDay or a weather schedule flips the phase
     const clock = fmtClock(g.timeOfDay);
     if (clock !== this.clockSig) {
       this.clockSig = clock;
       this.clockEl.textContent = clock;
     }
-    const clockIc = dayNightIcon(g.timeOfDay);
+    const clockIc = this.skyIcon();
     if (clockIc !== this.clockIcSig) {
       this.clockIcSig = clockIc;
       this.clockIcEl.textContent = clockIc;
@@ -1288,7 +1313,6 @@ export class Hud {
       const sig = `${g.weatherIdx}:${rem}`;
       if (sig !== this.wxSig) {
         this.wxSig = sig;
-        if (this.wxSum) this.wxSum.textContent = WX_ICON[g.weather]; // island icon
         this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${t(`weather.${g.weather}`)}</span><b>${rem}s</b>`;
         const sched = g.weatherSchedule;
         let html = `<span class="wx-then">${t('hud.then')}</span>`;
