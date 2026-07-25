@@ -181,8 +181,11 @@ body.in-game #frontdoor { display: none; }
 /* on a dynamic-weather level the sky glyph IS the forecast trigger (card #62),
    so it is a real button — keyboard and touch reach it — but visually still
    just the glyph: it only grows to a thumb-sized 24px target (which lands
-   inside the island's 42px row, no reflow) and lights up on hover/open. */
-.clock button.clock-ic {
+   inside the island's 42px row, no reflow) and lights up on hover/open.
+   Keyed on .wx-trigger, not the tag: "is a button" must not be what makes
+   something the forecast, or the next button in the clock zone would inherit
+   the target, the hover fill and the coarse-pointer tap disc by accident. */
+.clock .wx-trigger {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -198,8 +201,8 @@ body.in-game #frontdoor { display: none; }
   cursor: pointer;
   transition: opacity 0.12s, background 0.12s;
 }
-.clock button.clock-ic:hover,
-.clock button.clock-ic.active { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+.clock .wx-trigger:hover,
+.clock .wx-trigger.active { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 /* fixed-width digits: the seconds turn over every tick and must not shuffle */
 .clock .clock-time { font-variant-numeric: tabular-nums; min-width: 38px; }
 
@@ -1170,7 +1173,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 @media (prefers-reduced-motion: reduce) {
   .stamp, .newrec, .confetti { animation: none; }
   .island-pop { animation: none; }
-  .island-btn, .zoom-btn { transition: none; }
+  /* the sky glyph is a first-class island trigger (card #62), so it drops its
+     hover fade with the zone buttons rather than keeping a lone 0.12s tween */
+  .island-btn, .zoom-btn, .clock .wx-trigger { transition: none; }
 }
 
 /* ---- world map level select ------------------------------------------------
@@ -1802,8 +1807,8 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
      primary control (card #62). It can't just grow: the clock's row leaves
      exactly 24px of content height, so a bigger box would stretch the pill.
      Keep the box, hang the hit area off an invisible ::after instead. */
-  .clock button.clock-ic { position: relative; }
-  .clock button.clock-ic::after { content: ''; position: absolute; inset: -10px; }
+  .clock .wx-trigger { position: relative; }
+  .clock .wx-trigger::after { content: ''; position: absolute; inset: -10px; }
   .zoom-btn { width: 46px; height: 44px; font-size: 20px; }
   .th-upgrade { padding: 10px 8px; }
   .tooltip .tt-btn { padding: 11px 24px; font-size: 14px; }

@@ -16,8 +16,14 @@ const { fmtClock, LEVELS } = await bundleExports(`
   export { LEVELS } from './src/game/levels.ts';
 `);
 // first level with a dynamic-weather schedule — the only place the clock's sky
-// glyph doubles as the forecast trigger (card #62)
+// glyph doubles as the forecast trigger (card #62) — and the first non-clear
+// phase in it, read from the schedule so a reshuffle can't quietly turn the
+// "glyph follows the weather" assert into a no-op
 const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.length >= 2);
+if (wxIdx < 0) throw new Error('no dynamic-weather level to test the sky glyph against');
+const wxPhase = LEVELS[wxIdx].weather.findIndex((p) => p.kind !== 'clear');
+if (wxPhase < 0) throw new Error(`level ${wxIdx} has a weather schedule with no non-clear phase`);
+const wxGlyph = { rain: '🌧️', storm: '🌩️' }[LEVELS[wxIdx].weather[wxPhase].kind];
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -124,6 +130,9 @@ const island = () =>
       legacy: !!pill.querySelector('.weather-trigger'),
       popBuilt: !!pop,
       popOpen: pop ? !pop.hidden : false,
+      // the class, not the tag, is what marks the glyph as the forecast trigger
+      // — the styling and the tap disc key off it
+      isTrigger: trigger?.classList.contains('wx-trigger') ?? false,
       // the glyph is not an .island-btn, so a reset that only sweeps those
       // leaves it lit and announced as expanded forever
       lit: trigger?.classList.contains('active') ?? false,
@@ -141,8 +150,8 @@ await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
 await page.waitForTimeout(400);
 isl = await island();
 check('weather map: still exactly one sky glyph', isl.count === 1 && isl.glyphs === 1);
-check('weather map: the glyph is the forecast button', isl.tag === 'BUTTON');
-await page.hover('.clock button.clock-ic');
+check('weather map: the glyph is the forecast button', isl.tag === 'BUTTON' && isl.isTrigger);
+await page.hover('.clock .wx-trigger');
 await page.waitForTimeout(150);
 isl = await island();
 check('weather map: hovering the glyph opens the forecast', isl.popOpen);
@@ -155,12 +164,15 @@ check('weather map: leaving the glyph closes the forecast', !isl.popOpen);
 // or it stays lit (and aria-expanded="true") for the rest of the level
 check('weather map: the closed glyph drops .active and aria-expanded', !isl.lit && isl.expanded === 'false');
 
-// ...and the same sweep must NOT strip the speed popover's current-rate mark
-await page.evaluate(() => window.__smallhands.setSpeed(1));
-await page.click('.island .speed-trigger');
+// ...and the same sweep must NOT strip the speed popover's current-rate mark.
+// Freeze the sim and click in-page: a running level keeps re-widening the
+// resource digits, which slides the island's centre grid track under a real
+// mouse click ("element is not stable"). ⏸ still marks the resume rate.
+await page.evaluate(() => window.__smallhands.setSpeed(0));
+await page.evaluate(() => document.querySelector('.island .speed-trigger').click());
 await page.waitForTimeout(120);
 check('speed popover marks the live rate', (await island()).rateLit === 1);
-await page.click('#game-canvas'); // outside-click dismissal
+await page.evaluate(() => document.getElementById('game-canvas').click()); // outside-click dismissal
 await page.waitForTimeout(120);
 isl = await island();
 check('dismissing the pill leaves the rate mark alone', isl.rateLit === 1);
@@ -168,10 +180,10 @@ check('dismissing the pill clears the glyph state too', !isl.lit && isl.expanded
 // the glyph tracks the live phase (weather/weatherRemaining are getters over
 // the sim's private phase clock, so drive the index; tests/weather.mjs covers
 // the advance itself)
-await page.evaluate(() => (window.__smallhands.game.weatherIdx = 1));
+await page.evaluate((i) => (window.__smallhands.game.weatherIdx = i), wxPhase);
 await page.waitForTimeout(250);
 isl = await island();
-check('weather map: the glyph follows a non-clear phase', isl.text === '🌧️' || isl.text === '🌩️');
+check(`weather map: the glyph follows the ${LEVELS[wxIdx].weather[wxPhase].kind} phase`, isl.text === wxGlyph);
 check('weather map: rain does not add a second glyph', isl.count === 1 && isl.glyphs === 1);
 
 await browser.close();

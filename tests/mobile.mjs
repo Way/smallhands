@@ -21,6 +21,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 // glyph is a tappable forecast trigger (card #62)
 const { LEVELS } = await bundleExports(`export { LEVELS } from './src/game/levels.ts';`);
 const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.length >= 2);
+if (wxIdx < 0) throw new Error('no dynamic-weather level to test the sky glyph against');
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -383,11 +384,11 @@ const wxOpen = () => page.evaluate(() => {
   const p = document.querySelector('.weather-pop');
   return !!p && !p.hidden;
 });
-const glyph = await page.locator('.clock button.clock-ic').boundingBox();
+const glyph = await page.locator('.clock .wx-trigger').boundingBox();
 check('weather map: the sky glyph is the pill\'s forecast trigger', !!glyph);
-await page.tap('.clock button.clock-ic');
+await page.tap('.clock .wx-trigger');
 check('tapping the glyph opens the forecast', await wxOpen());
-await page.tap('.clock button.clock-ic');
+await page.tap('.clock .wx-trigger');
 check('tapping the glyph again closes it', !(await wxOpen()));
 await page.touchscreen.tap(glyph.x - 8, glyph.y + glyph.height / 2);
 await page.waitForTimeout(120);
