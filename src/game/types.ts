@@ -394,6 +394,16 @@ export function fmtClock(hour: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+// The island's two glyph vocabularies live side by side, and here rather than
+// in the HUD, so anything that has to know what the pill can render (the tests
+// do) can import them without pulling in the DOM. Together they are exactly the
+// range of Hud.skyIcon(): a weather phase where one is running, else the hour.
+export const WX_ICON: Record<WeatherKind, string> = {
+  clear: '☀️',
+  rain: '🌧️',
+  storm: '🌩️',
+};
+
 // A sun/dusk/moon glyph for the hour, so the clock reads day vs night at a
 // glance. Bands: night before dawn and after dusk, a dawn/dusk sliver either
 // side of daytime. Forward-compatible with a moving clock (later phase).
