@@ -13,6 +13,7 @@ import {
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
+  WX_ICON,
 } from './types';
 import type {
   Building,
@@ -25,7 +26,6 @@ import type {
   Role,
   ShortfallRow,
   Tool,
-  WeatherKind,
 } from './types';
 import { drawIconTo } from '../engine/sprites';
 import { t, tOr } from '../engine/i18n';
@@ -48,12 +48,6 @@ export const TOOL_ICON: Partial<Record<Tool, string>> = {
   hoist: 'hoist_post',
   lantern: 'lantern',
   demolish: 'icon_demolish',
-};
-
-const WX_ICON: Record<WeatherKind, string> = {
-  clear: '☀️',
-  rain: '🌧️',
-  storm: '🌩️',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(

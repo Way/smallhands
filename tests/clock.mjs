@@ -10,11 +10,17 @@ import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 import { bundleExports } from './bundle.mjs';
 
-// the real formatter, so this can't drift from what the HUD renders
-const { fmtClock, LEVELS } = await bundleExports(`
-  export { fmtClock } from './src/game/types.ts';
+// the real formatter and the real glyph tables, so this can't drift from what
+// the HUD renders — a new WeatherKind (or a new day/night band) must not be able
+// to turn the sky-glyph asserts below into no-ops
+const { fmtClock, dayNightIcon, WX_ICON, LEVELS } = await bundleExports(`
+  export { fmtClock, dayNightIcon, WX_ICON } from './src/game/types.ts';
   export { LEVELS } from './src/game/levels.ts';
 `);
+// every glyph Hud.skyIcon() can produce: the hour bands plus the weather kinds
+const SKY_GLYPHS = [
+  ...new Set([...Array(24).keys()].map(dayNightIcon).concat(Object.values(WX_ICON))),
+];
 // first level with a dynamic-weather schedule — the only place the clock's sky
 // glyph doubles as the forecast trigger (card #62) — and the first non-clear
 // phase in it, read from the schedule so a reshuffle can't quietly turn the
@@ -23,7 +29,8 @@ const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.leng
 if (wxIdx < 0) throw new Error('no dynamic-weather level to test the sky glyph against');
 const wxPhase = LEVELS[wxIdx].weather.findIndex((p) => p.kind !== 'clear');
 if (wxPhase < 0) throw new Error(`level ${wxIdx} has a weather schedule with no non-clear phase`);
-const wxGlyph = { rain: '🌧️', storm: '🌩️' }[LEVELS[wxIdx].weather[wxPhase].kind];
+const wxKind = LEVELS[wxIdx].weather[wxPhase].kind;
+const wxGlyph = WX_ICON[wxKind];
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -114,11 +121,11 @@ check('restart clock still shows the day time of day', (await clockText()) === '
 // is now a single glyph: passive where there is no forecast, the forecast's own
 // trigger where there is one.
 const island = () =>
-  page.evaluate(() => {
+  page.evaluate((sky) => {
     const pill = document.querySelector('.island');
     const ics = pill.querySelectorAll('.clock-ic');
     const glyphs = [...pill.querySelectorAll('*')].filter(
-      (e) => /^(☀️|🌙|🌇|🌧️|🌩️)$/u.test(e.textContent.trim()) && !e.closest('.island-pop')
+      (e) => sky.includes(e.textContent.trim()) && !e.closest('.island-pop')
     );
     const pop = document.querySelector('.weather-pop');
     const trigger = pill.querySelector('.clock .clock-ic');
@@ -139,7 +146,7 @@ const island = () =>
       expanded: trigger?.getAttribute('aria-expanded'),
       rateLit: [...document.querySelectorAll('.speed-pop .speed-btn.active')].length,
     };
-  });
+  }, SKY_GLYPHS);
 
 let isl = await island();
 check('day map: exactly one sky glyph on the pill', isl.count === 1 && isl.glyphs === 1);
@@ -183,7 +190,7 @@ check('dismissing the pill clears the glyph state too', !isl.lit && isl.expanded
 await page.evaluate((i) => (window.__smallhands.game.weatherIdx = i), wxPhase);
 await page.waitForTimeout(250);
 isl = await island();
-check(`weather map: the glyph follows the ${LEVELS[wxIdx].weather[wxPhase].kind} phase`, isl.text === wxGlyph);
+check(`weather map: the glyph follows the ${wxKind} phase`, isl.text === wxGlyph);
 check('weather map: rain does not add a second glyph', isl.count === 1 && isl.glyphs === 1);
 
 await browser.close();
