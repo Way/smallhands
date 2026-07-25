@@ -328,7 +328,7 @@ function stepWorld() {
 }
 
 // --- Walkable diagonal (card #59): a ramp tile is passable AND standable, so it
-// never walls off the row it stands in — a smallhand walks the slope itself
+// never walls off the row it stands in — a smallie walks the slope itself
 // instead of only the flat cell above it. ---
 {
   const surfaceY = 14;

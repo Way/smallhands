@@ -438,7 +438,7 @@ function floodPassable(world: World, sx: number, sy: number): Set<number> {
   return seen;
 }
 
-// Where can a CARRYING smallhand get to from (sx, sy), assuming the player
+// Where can a CARRYING smallie get to from (sx, sy), assuming the player
 // builds whatever helps: platforms bridging any air corridor that starts at
 // a standable cell, cargo lifts on every valid cliff face, and rope anchors
 // on every valid cliff edge (cargo may slide DOWN ropes).

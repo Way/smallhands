@@ -12,6 +12,26 @@
 - `src/engine/` — engine
 - `src/game/` — game
 
+## Terminology (card #60)
+
+Four registers, deliberately layered — don't collapse them into one word:
+
+| Register | Word | Use |
+|---|---|---|
+| The game / product | **Smallhands** | Title, logo, save keys (`smallhands-save-v1`), the `window.__smallhands` hook, export format. Never renamed. |
+| The species | **smallie** · **smallies** | The inhabitants. Lowercase in EN (a species, like *lemmings*); capitalised in DE (`der Smallie`, `die Smallies`) as a loanword, never translated. |
+| The collective | **crew** · *Trupp* | "your autonomous crew" — a group, not a species name. |
+| The counting noun | **hands** | Keeps the game's own metaphor alive: "many hands make the mountain small", DE tagline "Kleine Hände". |
+
+Roles (Builder, Digger, Hauler, Miner) are **jobs**, not species — they stay as they are.
+No identifier is named after either the brand or the species: the sim entity is `Worker`,
+and it stays that way. Copy says *smallie*, code says `worker`, brand says *Smallhands*.
+
+`tests/terminology.mjs` enforces all of the above — it walks both copy tables (EN and DE)
+and sweeps the tree, so a half-renamed pair fails loudly instead of shipping. The brand is
+always plural, so the guard reads any singular form of it as a creature reference the
+rename missed.
+
 ## Placement models
 
 The sim (`src/game/sim.ts`) places things into the world through **three intentionally
@@ -51,7 +71,7 @@ there is no builder-reachability chicken-and-egg. See the movement contract tabl
 
 **A ramp is a walkable diagonal, not a wall (card #59).** `T.RAMP` is *passable* and
 self-supporting in `isStandable` — the cell holds earth below its diagonal and walking space
-above it, so a smallhand walks **into** a ramp cell instead of only on the flat cell above,
+above it, so a smallie walks **into** a ramp cell instead of only on the flat cell above,
 and a ramp never seals the row it is built in. Two consequences worth knowing before touching
 `nav.ts`:
 

@@ -338,7 +338,7 @@ function findLadderCells(g, count) {
   check('storm also slows harvest', g.workFactor < 1);
 }
 
-// ---- the rising tide: floods, sinks goods, rescues smallhands, then stops ----
+// ---- the rising tide: floods, sinks goods, rescues smallies, then stops ----
 {
   const g = new Game(LEVELS[7]); // The Rising Tide; basin floor stands at row 25
   const w = g.workers[0];
@@ -351,7 +351,7 @@ function findLadderCells(g, count) {
   g.riseWater();
   check('the first rise floods the basin floor', g.world.get(31, 25) === T.WATER);
   check('goods caught by the tide sink', !g.groundItems.some((i) => i.id === 9999));
-  check('a smallhand caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
+  check('a smallie caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
   g.riseWater();
   check('the second rise laps one row higher', g.world.get(31, 24) === T.WATER);
   g.riseWater();
@@ -426,7 +426,7 @@ function findLadderCells(g, count) {
   check('the town fire still holds its own light', g.isLit(6, g.buildings.find((b) => b.kind === 'townhall').y + 1) === true);
 }
 
-// ---- no smallhand prison under a ramp -----------------------------------------
+// ---- no smallie prison under a ramp -----------------------------------------
 // A ramp run laid against a wall roofs over the floor pocket beneath its
 // diagonal. Workers standing there when it lands must still be able to step out
 // onto the ramp — a ramp cell is passable, so it is headroom like any air cell
@@ -443,7 +443,7 @@ function findLadderCells(g, count) {
   // a worker in the pocket under the diagonal (x46..49, row 20)
   const targets = new Set([g.world.key(50, 15)]); // the terrace above
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
-  check('a smallhand under the ramp can still climb out', path !== null);
+  check('a smallie under the ramp can still climb out', path !== null);
 
   // A worker whose very cell becomes a RAMP is not entombed and is not moved
   // either: a ramp cell is walkable, so they simply stand on the new slope.
@@ -460,7 +460,7 @@ function findLadderCells(g, count) {
   park(w, 45, 20); // (45,20) is one of the ramp tiles just laid
   check('the ramp really covers the test cell', g.world.get(45, 20) === T.RAMP);
   g.tick(1 / 60);
-  check('a smallhand built over by a ramp stays put on the slope',
+  check('a smallie built over by a ramp stays put on the slope',
     w.cx === 45 && w.cy === 20 && g.world.isStandable(45, 20));
 
   // A BRIDGE tile is still a solid deck, so it keeps the pop-up rescue: the
@@ -470,7 +470,7 @@ function findLadderCells(g, count) {
   g.world.set(46, 20, T.PLATFORM); // drop a deck straight onto them
   check('a bridge tile really covers the second test cell', g.world.isPassable(46, 20) === false);
   g.tick(1 / 60);
-  check('a smallhand built over by a bridge pops up on top',
+  check('a smallie built over by a bridge pops up on top',
     w2.cy < 20 && g.world.isStandable(w2.cx, w2.cy));
 }
 
@@ -891,7 +891,7 @@ function spentNode(id, kind, x, y) {
   const w = g.workers[0];
   w.carrying = 'iron';
   const r = g.locateItem('iron');
-  check('iron in a smallhand\'s hands is located at that smallhand',
+  check('iron in a smallie\'s hands is located at that smallie',
     !!r && r.kind === 'item' && r.x === w.cx && r.y === w.cy);
 }
 

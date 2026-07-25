@@ -37,7 +37,7 @@ export class World {
     return t === T.DIRT || t === T.GRASS || t === T.ROCK || t === T.BEDROCK;
   }
 
-  // Can a smallhand's body occupy this cell?
+  // Can a smallie's body occupy this cell?
   // RAMP counts: a ramp is a diagonal slope in the floor, not a wall — its cell
   // holds both the earth below the diagonal and walkable space above it, so a
   // ramp never seals the row it stands in (card #59).
@@ -55,7 +55,7 @@ export class World {
     return this.extraSupport.has(this.idx(x, y));
   }
 
-  // Can a smallhand stand in this cell? A ladder is stood on anywhere along its
+  // Can a smallie stand in this cell? A ladder is stood on anywhere along its
   // column; a ramp carries the walker on its own slope, so (like a ladder) it
   // needs no support underneath — that is what makes a switchback stack
   // climbable, where each leg's tiles are the steps (card #59).

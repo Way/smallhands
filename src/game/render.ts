@@ -1729,7 +1729,7 @@ export class Renderer {
       dctx.arc(sx, sy, r, 0, Math.PI * 2);
       dctx.fill();
     }
-    // each smallhand carries a tiny hand-lamp so the crew stays readable
+    // each smallie carries a tiny hand-lamp so the crew stays readable
     for (const w of game.workers) {
       const sx = (w.px + 0.5) * scale - cam.x;
       const sy = (w.py + 0.5) * scale - cam.y;

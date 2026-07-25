@@ -4,7 +4,7 @@ A browser-based puzzle-strategy builder about **indirect control and visible log
 inspired by the classic 90s problem-solving strategy genre (Lemmings-style creature
 management crossed with The Settlers-style production chains).
 
-You never control the smallhands directly. You shape the world — ladders, platforms,
+You never control the smallies directly. You shape the world — ladders, platforms,
 cargo lifts, workshops — and your tiny autonomous crew gathers, hauls, builds and
 crafts on its own. Every level is a delivery puzzle: route the right goods to the goal.
 
@@ -14,14 +14,14 @@ self-contained static site (~22 kB gzipped).
 
 ## Core mechanics
 
-- **Indirect control** — smallhands pick their own jobs based on their role
+- **Indirect control** — smallies pick their own jobs based on their role
   (hauler / builder / woodcutter / miner). You set role counts, mark resources,
   and place buildings; they do the rest.
-- **The ladder rule** — a smallhand carrying goods *refuses ladders*. Empty hands
+- **The ladder rule** — a smallie carrying goods *refuses ladders*. Empty hands
   climb anywhere; cargo needs another way up.
 - **Cargo lifts** — hoist a loaded worker straight up a cliff face. Up only!
 - **Rope anchors** — the mirror image of the lift: anchored at a cliff edge,
-  smallhands slide *down* the rope, cargo and all. Down only!
+  smallies slide *down* the rope, cargo and all. Down only!
 - **Counterweight hoists** — two cargo cars on a pulley at a cliff edge, and
   one law: *the heavier side sinks*. Route goods up by sending ballast down
   (stone counts double); nothing is consumed, only relocated.
@@ -46,7 +46,7 @@ self-contained static site (~22 kB gzipped).
     deterministic and shown in the HUD, so planning around it *is* the puzzle.
   - **The rising tide** — in flood levels every rainfall raises the water one
     permanent step; loot the lowlands before they drown, then bridge the lake.
-  - **Night & lanterns** — smallhands only harvest and build in the light.
+  - **Night & lanterns** — smallies only harvest and build in the light.
     Lantern posts (1 log + 1 stone) can be raised anywhere, pushing the
     frontier of light toward the far resources.
 - **Medals & personal bests** — every level has gold/silver/bronze time
@@ -76,7 +76,7 @@ Beyond the campaign, the level select offers a **Workshop** row:
   plus larger **shape motifs** — ridges to cross, flat-topped mesas, canyons
   with real estate at the bottom, terraced climbs — with ragged notched lips
   on tall cliffs, and the level's name tells you which one you got. The land
-  is then rolled with gentle 1-tile relief — hills every smallhand simply
+  is then rolled with gentle 1-tile relief — hills every smallie simply
   walks over, cargo included, while cliffs stay the only real barriers
   (adjacent columns never differ by exactly 2, so every wall is worth a
   lift). Each seed also draws one of five **biomes** (meadow, autumn, chalk,

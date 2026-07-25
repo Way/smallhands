@@ -79,7 +79,7 @@ function findFfmpeg() {
 // One line per mechanic, headline states the rule, sub lands the consequence.
 const COPY = {
   de: {
-    hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallhands benutzen sie' },
+    hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallies benutzen sie' },
     build: { h: 'Nur leere Hände können klettern.', sub: 'Fracht braucht einen anderen Weg nach oben' },
     hoist: { h: 'Schwerkraft als Spielelement.', sub: 'Ballast runter, Fracht rauf' },
     storm: { h: 'Stürme ziehen nach Plan auf.', sub: 'Regen bremst die Äxte; Böen blockieren die Aufzüge' },
@@ -90,7 +90,7 @@ const COPY = {
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
   },
   en: {
-    hook: { h: 'No direct control.', sub: 'You build the world — the smallhands use it' },
+    hook: { h: 'No direct control.', sub: 'You build the world — the smallies use it' },
     build: { h: 'Only empty hands can climb.', sub: 'Cargo needs another way up' },
     hoist: { h: 'Gravity as a game mechanic.', sub: 'Ballast down, cargo up' },
     storm: { h: 'Storms roll in on the forecast.', sub: 'Rain slows the axes; gusts lock the lifts' },

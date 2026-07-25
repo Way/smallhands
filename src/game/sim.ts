@@ -362,7 +362,7 @@ export class Game {
 
   // Is the tile lit? True whenever it isn't dark enough to matter (all day, and
   // through the early dusk up to NIGHT_WORK_DARK). Once night takes hold,
-  // smallhands only harvest and raise buildings within a light source — lanterns
+  // smallies only harvest and raise buildings within a light source — lanterns
   // themselves are the exception, so the player can push the frontier of light.
   isLit(x: number, y: number): boolean {
     if (this.nightAmount() < NIGHT_WORK_DARK) return true;
@@ -1189,7 +1189,7 @@ export class Game {
   }
 
   // Where units of `item` physically sit right now — dropped on the ground, in a
-  // smallhand's hands, or parked in a building buffer (producer in/out, hoist
+  // smallie's hands, or parked in a building buffer (producer in/out, hoist
   // car). Ranked stranded-first (the actionable one: it needs a lift, not a
   // miner), then by straight-line from the town hall. The store is deliberately
   // NOT searched here: it is the least useful answer, so locateItem keeps it as
@@ -2168,7 +2168,7 @@ export class Game {
   }
 
   // Raise the water table one row: AIR at or below the new row floods, goods
-  // in the water are lost, and smallhands caught wading scramble home.
+  // in the water are lost, and smallies caught wading scramble home.
   riseWater(): void {
     const f = this.level.flood;
     if (!f) return;
@@ -2196,7 +2196,7 @@ export class Game {
     this.onEvent({ type: 'flood', row: next, rescued });
   }
 
-  // A smallhand caught by the water scrambles back to the town hall, dropping
+  // A smallie caught by the water scrambles back to the town hall, dropping
   // whatever they carried into the drink.
   private rescueWorker(w: Worker): void {
     if (w.task) this.abortTask(w); // drops cargo — over water it sinks
