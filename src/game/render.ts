@@ -1729,7 +1729,7 @@ export class Renderer {
       dctx.arc(sx, sy, r, 0, Math.PI * 2);
       dctx.fill();
     }
-    // each smallhand carries a tiny hand-lamp so the crew stays readable
+    // each smallie carries a tiny hand-lamp so the crew stays readable
     for (const w of game.workers) {
       const sx = (w.px + 0.5) * scale - cam.x;
       const sy = (w.py + 0.5) * scale - cam.y;
@@ -1750,9 +1750,27 @@ export class Renderer {
     const { ctx } = this;
     for (const w of game.workers) {
       if (w.spawnT > 0.3) continue;
-      const px = w.px * TILE + TILE / 2;
-      const py = w.py * TILE + TILE;
       const step = w.stepIdx < w.path.length ? w.path[w.stepIdx] : null;
+      // Walking a ramp means walking its diagonal (card #59): the cell is half
+      // earth, so lift the feet to the slope's midline instead of sinking them
+      // into it. Blended over the step in progress so stepping onto or off a
+      // slope glides rather than snapping half a tile.
+      const lift = (cx: number, cy: number) => (game.world.get(cx, cy) === T.RAMP ? TILE / 2 : 0);
+      let foot = lift(w.cx, w.cy);
+      if (step) {
+        const to = lift(step.x, step.y);
+        if (to !== foot) {
+          // Follow the ROW when the step changes rows: a fall or a rope slide
+          // travels horizontally first and only then drops (tickMove zeroes dy
+          // while dx is unspent), so blending on the horizontal component would
+          // float the walker up half a tile before they leave the old row.
+          const rows = Math.abs(step.y - w.cy);
+          const done = rows > 0 ? Math.abs(w.py - w.cy) / rows : Math.abs(w.px - w.cx);
+          foot += (to - foot) * Math.min(1, Math.max(0, done));
+        }
+      }
+      const px = w.px * TILE + TILE / 2;
+      const py = w.py * TILE + TILE - foot;
       let body = 'ling_walk_a';
       if (w.working) {
         body = Math.sin(w.animT * 10) > 0 ? 'ling_work' : 'ling_walk_a';

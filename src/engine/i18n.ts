@@ -44,7 +44,9 @@ export function tOr(key: string, fallbackKey: string, vars?: Record<string, stri
 
 // ---- the dictionary: [english, german] ---------------------------------------
 
-const D: Record<string, [string, string]> = {
+// Exported so the headless suites can walk every pair (see tests/terminology.mjs),
+// the same way frontdoor-copy.ts exports its S table for tests/frontdoor-data.mjs.
+export const D: Record<string, [string, string]> = {
   // items
   'item.log': ['Log', 'Stamm'],
   'item.plank': ['Plank', 'Brett'],
@@ -94,8 +96,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.ladder.label': ['Ladder', 'Leiter'],
   'tool.ladder.desc': [
-    'Build a ladder from 1 log per rung — or planks if you have no logs. Drag up a wall to raise a whole ladder at once. Smallhands climb ladders, but never while carrying goods!',
-    'Baue eine Leiter — 1 Stamm je Sprosse, oder Bretter, wenn keine Stämme mehr da sind. Zieh an einer Wand hoch, um eine ganze Leiter auf einmal zu bauen. Smallhands klettern Leitern, aber nie mit Fracht!',
+    'Build a ladder from 1 log per rung — or planks if you have no logs. Drag up a wall to raise a whole ladder at once. Smallies climb ladders, but never while carrying goods!',
+    'Baue eine Leiter — 1 Stamm je Sprosse, oder Bretter, wenn keine Stämme mehr da sind. Zieh an einer Wand hoch, um eine ganze Leiter auf einmal zu bauen. Smallies klettern Leitern, aber nie mit Fracht!',
   ],
   'tool.platform.label': ['Bridge', 'Brücke'],
   'tool.platform.desc': [
@@ -104,8 +106,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.ramp.label': ['Ramp', 'Rampe'],
   'tool.ramp.desc': [
-    'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallhands can walk it (unlike ladders).',
-    'Baue eine diagonale Rampe eine Ebene hinauf — von festem Boden aus nach oben oder unten ziehen. Beladene Smallhands können sie begehen (anders als Leitern).',
+    'Build a diagonal ramp to climb a layer — drag up or down from solid ground. Loaded smallies walk it (unlike ladders) and it never blocks the way. Reverse a second run off the top to zigzag up a tight spot.',
+    'Baue eine diagonale Rampe eine Ebene hinauf — von festem Boden aus nach oben oder unten ziehen. Beladene Smallies begehen sie (anders als Leitern), und sie versperrt nie den Weg. Setze oben eine zweite Strecke in die andere Richtung an, um im Zickzack durch Engstellen zu steigen.',
   ],
   'tool.sawmill.label': ['Sawmill', 'Sägewerk'],
   'tool.sawmill.desc': [
@@ -119,8 +121,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.rope.label': ['Rope Anchor', 'Seilanker'],
   'tool.rope.desc': [
-    'Anchors a rope at a cliff edge. Smallhands slide DOWN it — cargo and all. Down only!',
-    'Verankert ein Seil an einer Klippenkante. Smallhands rutschen daran HINAB — samt Fracht. Nur abwärts!',
+    'Anchors a rope at a cliff edge. Smallies slide DOWN it — cargo and all. Down only!',
+    'Verankert ein Seil an einer Klippenkante. Smallies rutschen daran HINAB — samt Fracht. Nur abwärts!',
   ],
   'tool.hoist.label': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
   // Short chip label — the toolbar button is a 52px square, too small for the
@@ -132,8 +134,8 @@ const D: Record<string, [string, string]> = {
   ],
   'tool.lantern.label': ['Lantern', 'Laterne'],
   'tool.lantern.desc': [
-    'Raises a lantern post that lights the night around it. Smallhands harvest and build only where there is light — but brave builders will raise a lantern anywhere.',
-    'Errichtet einen Laternenpfahl, der die Nacht ringsum erhellt. Smallhands ernten und bauen nur im Licht — aber mutige Baumeister errichten eine Laterne überall.',
+    'Raises a lantern post that lights the night around it. Smallies harvest and build only where there is light — but brave builders will raise a lantern anywhere.',
+    'Errichtet einen Laternenpfahl, der die Nacht ringsum erhellt. Smallies ernten und bauen nur im Licht — aber mutige Baumeister errichten eine Laterne überall.',
   ],
   'tool.forge.label': ['Forge', 'Schmiede'],
   'tool.forge.desc': [
@@ -165,12 +167,12 @@ const D: Record<string, [string, string]> = {
   // ---- campaign levels ---------------------------------------------------------
   'lvl1.name': ['First Steps', 'Erste Schritte'],
   'lvl1.desc': [
-    'Meet your smallhands. Chop wood, saw planks, and load the trade caravan.',
-    'Lerne deine Smallhands kennen. Fälle Holz, säge Bretter und belade die Handelskarawane.',
+    'Meet your smallies. Chop wood, saw planks, and load the trade caravan.',
+    'Lerne deine Smallies kennen. Fälle Holz, säge Bretter und belade die Handelskarawane.',
   ],
   'lvl1.hint.welcome': [
-    'Welcome, overseer! You never control the <b>smallhands</b> directly — you shape the world, they do the work. Select the <b>Harvest</b> tool and mark a few trees.',
-    'Willkommen, Vorsteher! Du steuerst die <b>Smallhands</b> nie direkt — du formst die Welt, sie erledigen die Arbeit. Wähle das <b>Ernten</b>-Werkzeug und markiere ein paar Bäume.',
+    'Welcome, overseer! You never control the <b>smallies</b> directly — you shape the world, they do the work. Select the <b>Harvest</b> tool and mark a few trees.',
+    'Willkommen, Vorsteher! Du steuerst die <b>Smallies</b> nie direkt — du formst die Welt, sie erledigen die Arbeit. Wähle das <b>Ernten</b>-Werkzeug und markiere ein paar Bäume.',
   ],
   'lvl1.hint.sawmill': [
     'Logs are piling up! Place a <b>Sawmill</b> (costs 6 logs) on flat ground. A builder will construct it, then haulers will feed it logs — 1 log becomes 2 planks.',
@@ -182,11 +184,11 @@ const D: Record<string, [string, string]> = {
   ],
   'lvl2.name': ['The Cliff Shrine', 'Der Klippenschrein'],
   'lvl2.desc': [
-    'The shrine sits on a high ledge — and loaded smallhands refuse ladders. Send goods up anyway.',
-    'Der Schrein thront auf einem hohen Felsvorsprung — und beladene Smallhands verweigern Leitern. Bring die Waren trotzdem hinauf.',
+    'The shrine sits on a high ledge — and loaded smallies refuse ladders. Send goods up anyway.',
+    'Der Schrein thront auf einem hohen Felsvorsprung — und beladene Smallies verweigern Leitern. Bring die Waren trotzdem hinauf.',
   ],
   'lvl2.hint.ledge': [
-    'The shrine is <b>7 tiles up</b> that cliff. Ladders get empty-handed smallhands up and down — but a hauler carrying stone <b>will not touch a ladder</b>.',
+    'The shrine is <b>7 tiles up</b> that cliff. Ladders get empty-handed smallies up and down — but a hauler carrying stone <b>will not touch a ladder</b>.',
     'Der Schrein liegt <b>7 Felder</b> über der Klippe. Leitern bringen leere Hände hinauf und hinab — aber ein Träger mit Stein <b>rührt keine Leiter an</b>.',
   ],
   'lvl2.hint.lift': [
@@ -228,17 +230,17 @@ const D: Record<string, [string, string]> = {
     'Tipp: Aufzüge brauchen nur Rathaus 2 — aber jede Terrasse braucht ihren eigenen. Verlagere die Produktion lieber <b>den Berg hinauf</b>, statt alles von unten zu schleppen.',
   ],
   'lvl4.hint.ramp': [
-    'Short steps a lift refuses? Build a <b>Ramp</b> — drag a diagonal from solid ground. Loaded smallhands walk ramps (unlike ladders), up <i>and</i> down.',
-    'Kleine Stufen, die ein Aufzug verschmäht? Baue eine <b>Rampe</b> — ziehe eine Diagonale von festem Boden aus. Beladene Smallhands begehen Rampen (anders als Leitern), hinauf <i>und</i> hinab.',
+    'Short steps a lift refuses? Build a <b>Ramp</b> — drag a diagonal from solid ground. Loaded smallies walk ramps (unlike ladders), up <i>and</i> down.',
+    'Kleine Stufen, die ein Aufzug verschmäht? Baue eine <b>Rampe</b> — ziehe eine Diagonale von festem Boden aus. Beladene Smallies begehen Rampen (anders als Leitern), hinauf <i>und</i> hinab.',
   ],
   'lvl5.name': ['The Ford', 'Die Furt'],
   'lvl5.desc': [
-    'A river splits the valley — smallhands cannot swim, and goods dropped in the water are gone for good.',
-    'Ein Fluss teilt das Tal — Smallhands können nicht schwimmen, und Waren im Wasser sind für immer verloren.',
+    'A river splits the valley — smallies cannot swim, and goods dropped in the water are gone for good.',
+    'Ein Fluss teilt das Tal — Smallies können nicht schwimmen, und Waren im Wasser sind für immer verloren.',
   ],
   'lvl5.hint.river': [
-    'A <b>river</b> cuts the valley in two. Smallhands cannot swim — and anything dropped in the water <b>sinks forever</b>. The caravan waits on the far side.',
-    'Ein <b>Fluss</b> zerschneidet das Tal. Smallhands können nicht schwimmen — und alles, was ins Wasser fällt, <b>versinkt für immer</b>. Die Karawane wartet am anderen Ufer.',
+    'A <b>river</b> cuts the valley in two. Smallies cannot swim — and anything dropped in the water <b>sinks forever</b>. The caravan waits on the far side.',
+    'Ein <b>Fluss</b> zerschneidet das Tal. Smallies können nicht schwimmen — und alles, was ins Wasser fällt, <b>versinkt für immer</b>. Die Karawane wartet am anderen Ufer.',
   ],
   'lvl5.hint.bridge': [
     "Span the river with the <b>Bridge</b> tool: start on the bank's edge and <b>drag straight across</b> the water. One plank per tile — save enough!",
@@ -259,12 +261,12 @@ const D: Record<string, [string, string]> = {
   ],
   'lvl7.name': ['Lantern Ridge', 'Laternengrat'],
   'lvl7.desc': [
-    'Night on the ridge. Smallhands work only in the light — push the darkness back, lantern by lantern.',
-    'Nacht über dem Grat. Smallhands arbeiten nur im Licht — dräng die Dunkelheit zurück, Laterne um Laterne.',
+    'Night on the ridge. Smallies work only in the light — push the darkness back, lantern by lantern.',
+    'Nacht über dem Grat. Smallies arbeiten nur im Licht — dräng die Dunkelheit zurück, Laterne um Laterne.',
   ],
   'lvl7.hint.dark': [
-    'It is <b>pitch dark</b> beyond the town fires. Smallhands only harvest and build <b>in the light</b> — but a builder will raise a <b>Lantern</b> (1 log + 1 stone) anywhere. Chain lanterns toward the iron.',
-    'Jenseits der Stadtfeuer ist es <b>stockfinster</b>. Smallhands ernten und bauen nur <b>im Licht</b> — aber ein Baumeister errichtet eine <b>Laterne</b> (1 Stamm + 1 Stein) überall. Verkette Laternen bis zum Eisen.',
+    'It is <b>pitch dark</b> beyond the town fires. Smallies only harvest and build <b>in the light</b> — but a builder will raise a <b>Lantern</b> (1 log + 1 stone) anywhere. Chain lanterns toward the iron.',
+    'Jenseits der Stadtfeuer ist es <b>stockfinster</b>. Smallies ernten und bauen nur <b>im Licht</b> — aber ein Baumeister errichtet eine <b>Laterne</b> (1 Stamm + 1 Stein) überall. Verkette Laternen bis zum Eisen.',
   ],
   'lvl7.hint.forge2': [
     'The caravan wants <b>spears</b>: light a path to the veins, then build a <b>Forge</b> in a lit spot — 1 plank + 1 iron each.',
@@ -280,8 +282,8 @@ const D: Record<string, [string, string]> = {
     'Sturmwolken hängen über dem Tiefland — <b>jeder Regen hebt das Wasser eine Stufe</b>, und es sinkt nie wieder. Die Vorhersage sagt dir genau, wann. Das Becken ertrinkt zuerst!',
   ],
   'lvl8.hint.rampout': [
-    'The hills are three tiles apart — <b>ramps</b> carry loaded smallhands up and down. Anyone caught by the tide scrambles home, dropping their load into the drink.',
-    'Zwischen den Ebenen liegen drei Felder Höhe — <b>Rampen</b> tragen beladene Smallhands hinauf und hinab. Wen die Flut erwischt, der rettet sich heim — und seine Last versinkt.',
+    'The hills are three tiles apart — <b>ramps</b> carry loaded smallies up and down. Anyone caught by the tide scrambles home, dropping their load into the drink.',
+    'Zwischen den Ebenen liegen drei Felder Höhe — <b>Rampen</b> tragen beladene Smallies hinauf und hinab. Wen die Flut erwischt, der rettet sich heim — und seine Last versinkt.',
   ],
   'lvl8.hint.bridge2': [
     'Once the basin drowns, the only road east is a <b>bridge at shelf height</b> across the new lake. Anchor it on the shelf edge and drag straight over.',
@@ -320,8 +322,8 @@ const D: Record<string, [string, string]> = {
   ],
   'hud.paused': ['Paused', 'Pausiert'],
   'hud.clockTitle': [
-    'Time of day on this map. Some maps start at night, where smallhands only work in lantern light.',
-    'Tageszeit auf dieser Karte. Manche Karten beginnen bei Nacht, wo Smallhands nur im Laternenlicht arbeiten.',
+    'Time of day on this map. Some maps start at night, where smallies only work in lantern light.',
+    'Tageszeit auf dieser Karte. Manche Karten beginnen bei Nacht, wo Smallies nur im Laternenlicht arbeiten.',
   ],
   'hud.clockElapsed': ['Running for {t}', 'Läuft seit {t}'],
   'hud.zoomIn': ['Zoom in (+)', 'Vergrößern (+)'],
@@ -333,7 +335,10 @@ const D: Record<string, [string, string]> = {
   'hud.keep': ['Keep', 'Behalten'],
   'hud.keepAll': ['All', 'Alle'],
   'hud.keepReset': ['Reset', 'Zurücksetzen'],
-  'hud.keepNote': ['Haulers ship only the surplus to the caravan.', 'Träger liefern nur den Überschuss zur Karawane.'],
+  'hud.keepNote': [
+    'Kept units stay put — no caravan, no workshop. Only the surplus moves.',
+    'Behaltene Einheiten bleiben liegen — keine Karawane, keine Werkstatt. Nur der Überschuss geht raus.',
+  ],
   'hud.inStore': ['{name} · {n} in store', '{name} · {n} im Lager'],
   'hud.findOnMap': ['Find on map', 'Auf Karte finden'],
   'locate.none': ['No {name} source on this map.', 'Keine {name}-Quelle auf dieser Karte.'],
@@ -351,6 +356,7 @@ const D: Record<string, [string, string]> = {
   'hud.tapExtend': ['Tap further along to extend', 'Tippe weiter entlang, um zu verlängern'],
   'hud.tiles': ['{a}/{b} tiles', '{a}/{b} Felder'],
   'hud.speedMenu': ['Pause and speed', 'Pause und Tempo'],
+  'hud.menu': ['Menu', 'Menü'],
   'hud.speed': ['speed', 'Tempo'],
   'hud.pause': ['Pause', 'Pause'],
   'hud.resume': ['Resume', 'Weiter'],
@@ -388,10 +394,15 @@ const D: Record<string, [string, string]> = {
   ],
   'resume.btn': ['▶ Resume', '▶ Weiter'],
   'btn.levels': ['Levels', 'Level'],
-  'menu.levels': ['☰ Levels', '☰ Level'],
-  'menu.restart': ['↺ Restart', '↺ Neustart'],
+  // the HUD menu rows draw their own glyph in a fixed icon slot, so these two
+  // are plain labels. menu.options keeps its ⚙ — the world map's top bar uses
+  // it as a single-string text button.
+  'menu.levels': ['Levels', 'Level'],
+  'menu.restart': ['Restart', 'Neustart'],
   'menu.options': ['⚙ Options', '⚙ Optionen'],
-  'menu.report': ['🐞 Report', '🐞 Melden'],
+  // Label only — the burger menu puts the glyph in its own fixed-width slot, so
+  // an emoji in the string would push this row's text out of line with the rest.
+  'menu.report': ['Report a problem', 'Problem melden'],
 
   // report overlay (game/report-ui.ts). The report body itself is always
   // English — it is read by maintainers, not players — so only the surrounding
@@ -518,8 +529,8 @@ const D: Record<string, [string, string]> = {
     'Die Adern liegen <b>tief unter der Wiese</b>. Ziehe das <b>Grab</b>-Werkzeug senkrecht hinab für einen Schacht, dann seitwärts der Ader entlang — dein Gräber sinkt mit dem Schacht, während er gräbt, und trägt schon einen Spaten.',
   ],
   'lvl14.hint.liftup': [
-    'Iron is piling up in the dark — and <b>loaded smallhands cannot climb ladders</b>. Build a <b>Cargo Lift</b> on the shaft floor: your shaft is its mast.',
-    'Das Eisen stapelt sich im Dunkeln — und <b>beladene Smallhands klettern keine Leitern</b>. Baue einen <b>Lastenaufzug</b> auf den Schachtboden: dein Schacht ist sein Mast.',
+    'Iron is piling up in the dark — and <b>loaded smallies cannot climb ladders</b>. Build a <b>Cargo Lift</b> on the shaft floor: your shaft is its mast.',
+    'Das Eisen stapelt sich im Dunkeln — und <b>beladene Smallies klettern keine Leitern</b>. Baue einen <b>Lastenaufzug</b> auf den Schachtboden: dein Schacht ist sein Mast.',
   ],
   'lvl14.hint.mast': [
     'The lift is turning — but its head-frame <b>decks over the well</b>, so nobody can hop in anymore. Run a <b>ladder</b> down the shaft beside the mast: empty hands climb down for the next load, cargo rides up.',
@@ -560,8 +571,8 @@ const D: Record<string, [string, string]> = {
     'Der <b>Sturm</b> hat jede Bremse gepackt — Aufzug und Rad stehen still. Grabe, säge und schmiede durch die Böen; verschiffe in der Ruhe.',
   ],
   'lvl16.hint.crew': [
-    'Town Hall level 3 would add three more smallhands. Costly — but many hands make the mountain small.',
-    'Rathaus-Stufe 3 brächte drei weitere Smallhands. Teuer — doch viele Hände machen den Berg klein.',
+    'Town Hall level 3 would add three more smallies. Costly — but many hands make the mountain small.',
+    'Rathaus-Stufe 3 brächte drei weitere Smallies. Teuer — doch viele Hände machen den Berg klein.',
   ],
   'lvl17.name': ['The Waning Light', 'Das schwindende Licht'],
   'lvl17.desc': [
@@ -624,6 +635,20 @@ const D: Record<string, [string, string]> = {
   'daily.diff.hard': ['Hard', 'Schwer'],
   'daily.tag.proc': ['Procedural', 'Prozedural'],
   'daily.tag.shared': ['Shared seed', 'Gemeinsamer Seed'],
+  'daily.log.open': ['Logbook', 'Logbuch'],
+  'daily.log.title': ['Daily logbook', 'Tages-Logbuch'],
+  'daily.log.empty': [
+    'No daily cleared yet — finish one and the lighthouse starts keeping your log.',
+    'Noch keine Tages-Challenge geschafft — schließe eine ab, dann führt der Leuchtturm dein Logbuch.',
+  ],
+  'daily.log.solved': ['{n} cleared', '{n} geschafft'],
+  'daily.log.streak': ['{n}-day streak', 'Serie: {n} Tage'],
+  'daily.log.longest': ['best run {n}', 'längste Serie: {n}'],
+  'daily.log.replay': ['Play this day again', 'Diesen Tag erneut spielen'],
+  'daily.log.stripAria': ['The last {n} days', 'Die letzten {n} Tage'],
+  'daily.log.dayDone': ['{label} — cleared', '{label} — geschafft'],
+  'daily.log.dayMissed': ['{label} — missed', '{label} — verpasst'],
+  'daily.log.dayToday': ['{label} — today', '{label} — heute'],
   'gen.cardName': ['Generate a level', 'Level generieren'],
   'editor.cardName': ['Level editor', 'Level-Editor'],
   'import.cardName': ['Import code', 'Code importieren'],
@@ -713,12 +738,12 @@ const D: Record<string, [string, string]> = {
     '🌩️ <b>Sturm!</b> Die Lastenaufzüge verriegeln ihre Bremsen, bis er vorüberzieht.',
   ],
   'toast.flood.one': [
-    '🌊 <b>The tide swallows the low ground!</b> A smallhand scrambled home, dropping their load.',
-    '🌊 <b>Die Flut verschlingt das Tiefland!</b> Ein Smallhand rettete sich nach Hause und verlor seine Last.',
+    '🌊 <b>The tide swallows the low ground!</b> A smallie scrambled home, dropping their load.',
+    '🌊 <b>Die Flut verschlingt das Tiefland!</b> Ein Smallie rettete sich nach Hause und verlor seine Last.',
   ],
   'toast.flood.many': [
-    '🌊 <b>The tide swallows the low ground!</b> {n} smallhands scrambled home, dropping their loads.',
-    '🌊 <b>Die Flut verschlingt das Tiefland!</b> {n} Smallhands retteten sich nach Hause und verloren ihre Lasten.',
+    '🌊 <b>The tide swallows the low ground!</b> {n} smallies scrambled home, dropping their loads.',
+    '🌊 <b>Die Flut verschlingt das Tiefland!</b> {n} Smallies retteten sich nach Hause und verloren ihre Lasten.',
   ],
   'inspect.left': ['<b>{name}</b> — {n} left.', '<b>{name}</b> — noch {n}.'],
   'inspect.marked': ['Marked for harvest.', 'Zum Abbau markiert.'],
@@ -923,8 +948,8 @@ const D: Record<string, [string, string]> = {
     '{kind} bei ({x}, {y}) ist vom Rathaus abgeschottet — kein Luftweg verbindet sie.',
   ],
   'verify.goalUnreachable': [
-    'Loaded smallhands can never reach the caravan from the Town Hall — even with platforms and lifts. Goods cannot be delivered.',
-    'Beladene Smallhands erreichen die Karawane vom Rathaus aus nie — selbst mit Brücken und Aufzügen. Waren können nicht geliefert werden.',
+    'Loaded smallies can never reach the caravan from the Town Hall — even with platforms and lifts. Goods cannot be delivered.',
+    'Beladene Smallies erreichen die Karawane vom Rathaus aus nie — selbst mit Brücken und Aufzügen. Waren können nicht geliefert werden.',
   ],
   'verify.stranded': [
     'Goods harvested at the {kind} ({x}, {y}) may never reach the stockpile — check for a lift-able cliff face or a platform route.',

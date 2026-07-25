@@ -13,8 +13,15 @@
 // `npm run preview`). Mirrors tests/e2e.mjs for browser launch.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { bundleExports } from './bundle.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
+
+// first level with a dynamic-weather schedule — the only place the clock's sky
+// glyph is a tappable forecast trigger (card #62)
+const { LEVELS } = await bundleExports(`export { LEVELS } from './src/game/levels.ts';`);
+const wxIdx = LEVELS.findIndex((l) => Array.isArray(l.weather) && l.weather.length >= 2);
+if (wxIdx < 0) throw new Error('no dynamic-weather level to test the sky glyph against');
 
 function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -28,6 +35,14 @@ function findChrome() {
   }
   return undefined;
 }
+
+// A tap target measured against an exact pixel size is a coin flip: the HUD
+// sits at fractional offsets (the compact island is left:50% + translateX(-50%),
+// and `popin` adds a transient translateY while a popover opens), so a box that
+// IS 44px comes back from getBoundingClientRect as 43.99999237060547 about as
+// often as 44.00000762939453. Round before comparing — a float ulp is not a
+// smaller thumb target. Cost one flaky failure per ~10 runs, every run under load.
+const atLeast = (box, px) => !!box && Math.round(box.width) >= px && Math.round(box.height) >= px;
 
 let failed = false;
 function check(label, cond) {
@@ -98,7 +113,7 @@ await page.tap('.fd-play');
 await page.waitForTimeout(400);
 const node = page.locator('.map-node:not(:disabled)').first();
 const nodeBox = await node.boundingBox();
-check('map node is a 44px+ touch target', nodeBox.width >= 44 && nodeBox.height >= 44);
+check('map node is a 44px+ touch target', atLeast(nodeBox, 44));
 await node.tap();
 await page.tap('.map-popover .pop-play');
 await page.waitForTimeout(500);
@@ -136,7 +151,7 @@ check('crew pill folds out on tap', await page.evaluate(() => {
   return crew.classList.contains('open') && getComputedStyle(row).display !== 'none';
 }));
 const roleBtn = await page.locator('.role-btn').first().boundingBox();
-check('role stepper is a 36px+ touch target', roleBtn.width >= 36 && roleBtn.height >= 36);
+check('role stepper is a 36px+ touch target', atLeast(roleBtn, 36));
 await page.tap('.objectives > h3');
 check('accordion: opening objectives closes crew', await page.evaluate(() => {
   return document.querySelector('.objectives').classList.contains('open') &&
@@ -172,7 +187,7 @@ check('speed popover starts closed', !(await speedPopShown()));
 await page.tap('.island .speed-trigger');
 check('speed popover opens on tap', await speedPopShown());
 const speedBtn = await page.locator('.speed-pop .speed-btn').first().boundingBox();
-check('speed buttons are 44px+ touch targets', speedBtn.width >= 44 && speedBtn.height >= 44);
+check('speed buttons are 44px+ touch targets', atLeast(speedBtn, 44));
 await page.tap('.island .speed-trigger');
 check('speed popover closes on second tap', !(await speedPopShown()));
 
@@ -365,6 +380,27 @@ check('inspecting the blueprint shows its build %', (await hintPct()) === 1);
 await page.evaluate((id) => { window.__smallhands.game.buildings.find((b) => b.id === id).progress = 0.18; }, bp.id);
 await page.waitForTimeout(120);
 check('build % updates in 1% steps (not frozen in a 5% bucket)', (await hintPct()) === 3);
+
+// ---- the forecast glyph is a thumb target (card #62) --------------------------
+// On touch the clock's sky glyph is the ONLY way into the forecast — there is no
+// hover fallback — and the glyph box is deliberately only 24px so it fits the
+// pill's row. The 44px disc therefore comes from an invisible ::after inset, so
+// assert the behaviour: a tap OUTSIDE the box, inside the disc, still opens it.
+await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
+await page.waitForTimeout(500);
+const wxOpen = () => page.evaluate(() => {
+  const p = document.querySelector('.weather-pop');
+  return !!p && !p.hidden;
+});
+const glyph = await page.locator('.clock .wx-trigger').boundingBox();
+check('weather map: the sky glyph is the pill\'s forecast trigger', !!glyph);
+await page.tap('.clock .wx-trigger');
+check('tapping the glyph opens the forecast', await wxOpen());
+await page.tap('.clock .wx-trigger');
+check('tapping the glyph again closes it', !(await wxOpen()));
+await page.touchscreen.tap(glyph.x - 8, glyph.y + glyph.height / 2);
+await page.waitForTimeout(120);
+check('the 24px glyph still carries a 44px tap disc', await wxOpen());
 
 if (process.env.SHOT_PATH) await page.screenshot({ path: process.env.SHOT_PATH });
 await browser.close();

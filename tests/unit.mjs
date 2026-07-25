@@ -130,6 +130,103 @@ function findLadderCells(g, count) {
   check('no loose planks are left stranded', !g.groundItems.some((i) => i.item === 'plank'));
 }
 
+// ---- The floor is absolute: crafting can't eat the reserve either (card #64) -
+// The reported bug: reserve 1 iron and the forge still swallows it — the floor
+// gated only the caravan route, so every OTHER autonomous consumer (producer
+// feed, hoist loading, the digger's shovel) walked straight past it. A kept unit
+// must never leave the store on the sim's own initiative, whatever wants it.
+{
+  const g = new Game(LEVELS[2]); // level 3: forge site from the campaign proof
+  const forge = g.addBuilding('forge', 15, 21, true); // 1 plank + 1 iron -> spear
+  g.stock.iron = 2;
+  g.stock.plank = 4;
+  g.setKeep('iron', 1);
+
+  let floorBroken = false;
+  for (let i = 0; i < 60 * 40; i++) {
+    g.tick(1 / 60);
+    if (g.stock.iron < 1) floorBroken = true; // must hold every single frame
+  }
+  check('the store never dips below the iron floor while a forge is hungry', !floorBroken);
+  check('the reserved iron is still in store', g.stock.iron === 1);
+  check('only the surplus iron reached the forge',
+    (forge.inputs.iron ?? 0) + (forge.outputs.spear ?? 0) + g.stock.spear >= 1);
+
+  // releasing the floor is the ONLY thing that frees it
+  g.setKeep('iron', 0);
+  for (let i = 0; i < 60 * 40; i++) g.tick(1 / 60);
+  check('lowering the floor releases the last iron to the forge', g.stock.iron === 0);
+}
+
+// ---- Loose goods bank to the floor instead of feeding a producer ------------
+// A producer can be fed straight off the ground without the goods ever touching
+// the stockpile, so that route has to honour the floor too — below the floor the
+// loose units belong in the store, building the reserve up.
+{
+  const g = new Game(LEVELS[0]); // level 1: sawmill site from the campaign proof
+  const saw = g.addBuilding('sawmill', 33, 17, true); // 1 log -> 2 planks
+  g.stock.log = 0;
+  g.setKeep('log', 2);
+  const spot = g.workers[0];
+  for (let i = 0; i < 3; i++) g.dropItem('log', spot.cx, spot.cy);
+
+  for (let i = 0; i < 60 * 60; i++) g.tick(1 / 60); // 60s to settle
+  check('loose logs bank to the floor rather than feeding the sawmill', g.stock.log === 2);
+  check('only the surplus log was sawn',
+    (saw.inputs.log ?? 0) + (saw.outputs.plank ?? 0) / 2 <= 1);
+  check('no loose logs are left lying around', !g.groundItems.some((i) => i.item === 'log'));
+}
+
+// ---- Raising the floor cancels a haul already on its way to the store -------
+// The floor is re-read at the moment of pickup, not trusted from dispatch time:
+// a hauler dispatched a second before the player raised the floor must not be
+// the hole the reserved unit escapes through.
+{
+  const g = new Game(LEVELS[0]);
+  const saw = g.addBuilding('sawmill', 33, 17, true); // hungry sawmill, far from the store
+  g.stock.log = 1;
+
+  // Park every hauler at the sawmill so fetching the log is a LONG walk to the
+  // stockpile — that keeps the task observable in its 'toSource' leg instead of
+  // dispatching and picking up inside one tick.
+  const key = [...g.buildingApproach(saw)][0];
+  const sx = key % g.world.w;
+  const sy = (key - sx) / g.world.w;
+  for (const w of g.workers) {
+    w.role = 'hauler';
+    w.cx = sx; w.cy = sy; w.px = sx; w.py = sy;
+    w.task = null; w.path = []; w.stepIdx = 0; w.carrying = null;
+  }
+  g.desiredRoles = { hauler: g.workers.length, builder: 0, woodcutter: 0, miner: 0, digger: 0 };
+
+  let dispatched = false;
+  for (let i = 0; i < 60 * 20 && !dispatched; i++) {
+    g.tick(1 / 60);
+    dispatched = g.workers.some(
+      (w) => w.task?.kind === 'haul' && w.task.item === 'log' && w.task.source.t === 'stock' && w.task.phase === 'toSource'
+    );
+  }
+  check('a hauler was dispatched to fetch the log from store (setup)', dispatched);
+
+  g.setKeep('log', 1); // the player changes their mind mid-walk
+  for (let i = 0; i < 60 * 30; i++) g.tick(1 / 60);
+  check('the in-flight pickup is cancelled, the log stays in store', g.stock.log === 1);
+  check('nothing is left promised against the store', g.stockReserved.log === 0);
+}
+
+// ---- The player's own spend is the release valve, not a leak ----------------
+// Placement/upgrade costs are the player deliberately giving the goods up, so
+// they still spend the whole store — that is the documented purpose of the
+// floor (level 3's hint: keep stone back SO you can build the lift and forge).
+{
+  const g = new Game(LEVELS[0]);
+  const [cell] = findLadderCells(g, 1);
+  g.stock = { log: 1, plank: 0, stone: 0, iron: 0, spear: 0, shovel: 0 };
+  g.setKeep('log', 5);
+  check('a kept log still builds a ladder when the player asks', g.placeLadder(cell.x, cell.y) === true);
+  check('the player spend went through', g.stock.log === 0);
+}
+
 // ---- Level 3 shape: stone is both the order and the build material ---------
 {
   const g = new Game(LEVELS[2]); // objectives include stone 8; goal at west edge
@@ -241,7 +338,7 @@ function findLadderCells(g, count) {
   check('storm also slows harvest', g.workFactor < 1);
 }
 
-// ---- the rising tide: floods, sinks goods, rescues smallhands, then stops ----
+// ---- the rising tide: floods, sinks goods, rescues smallies, then stops ----
 {
   const g = new Game(LEVELS[7]); // The Rising Tide; basin floor stands at row 25
   const w = g.workers[0];
@@ -254,7 +351,7 @@ function findLadderCells(g, count) {
   g.riseWater();
   check('the first rise floods the basin floor', g.world.get(31, 25) === T.WATER);
   check('goods caught by the tide sink', !g.groundItems.some((i) => i.id === 9999));
-  check('a smallhand caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
+  check('a smallie caught by the tide scrambles home', w.cy === 19 && g.world.get(w.cx, w.cy) !== T.WATER);
   g.riseWater();
   check('the second rise laps one row higher', g.world.get(31, 24) === T.WATER);
   g.riseWater();
@@ -329,10 +426,11 @@ function findLadderCells(g, count) {
   check('the town fire still holds its own light', g.isLit(6, g.buildings.find((b) => b.kind === 'townhall').y + 1) === true);
 }
 
-// ---- no smallhand prison under a ramp -----------------------------------------
+// ---- no smallie prison under a ramp -----------------------------------------
 // A ramp run laid against a wall roofs over the floor pocket beneath its
-// diagonal. Workers standing there when it lands must still be able to step
-// out onto the ramp (a ramp tile overhead counts as headroom in the nav).
+// diagonal. Workers standing there when it lands must still be able to step out
+// onto the ramp — a ramp cell is passable, so it is headroom like any air cell
+// (card #59; there is no longer a ramp-specific clause in the nav).
 {
   const g = new Game(LEVELS[8]); // Tempest Summit (night): wall at x50, terrace floor row 20
   g.stock.plank = 10;
@@ -345,19 +443,35 @@ function findLadderCells(g, count) {
   // a worker in the pocket under the diagonal (x46..49, row 20)
   const targets = new Set([g.world.key(50, 15)]); // the terrace above
   const path = findPath(g.world, g.transits, 48, 20, targets, false);
-  check('a smallhand under the ramp can still climb out', path !== null);
+  check('a smallie under the ramp can still climb out', path !== null);
 
-  // a worker whose very cell was built over pops up on top of the new tile
+  // A worker whose very cell becomes a RAMP is not entombed and is not moved
+  // either: a ramp cell is walkable, so they simply stand on the new slope.
+  const park = (w, x, y) => {
+    w.cx = x;
+    w.cy = y;
+    w.px = x;
+    w.py = y;
+    w.task = null;
+    w.path = [];
+    w.stepIdx = 0;
+  };
   const w = g.workers[0];
-  w.cx = 45;
-  w.cy = 20; // this cell is now a ramp tile
-  w.px = 45;
-  w.py = 20;
-  w.task = null;
-  w.path = [];
-  w.stepIdx = 0;
+  park(w, 45, 20); // (45,20) is one of the ramp tiles just laid
+  check('the ramp really covers the test cell', g.world.get(45, 20) === T.RAMP);
   g.tick(1 / 60);
-  check('a smallhand built over by a ramp pops up on top', g.world.isStandable(w.cx, w.cy));
+  check('a smallie built over by a ramp stays put on the slope',
+    w.cx === 45 && w.cy === 20 && g.world.isStandable(45, 20));
+
+  // A BRIDGE tile is still a solid deck, so it keeps the pop-up rescue: the
+  // worker is lifted onto the first standable cell above instead of entombed.
+  const w2 = g.workers[1];
+  park(w2, 46, 20);
+  g.world.set(46, 20, T.PLATFORM); // drop a deck straight onto them
+  check('a bridge tile really covers the second test cell', g.world.isPassable(46, 20) === false);
+  g.tick(1 / 60);
+  check('a smallie built over by a bridge pops up on top',
+    w2.cy < 20 && g.world.isStandable(w2.cx, w2.cy));
 }
 
 // ---- i18n: keys translate, params substitute, unknown text passes through -----
@@ -777,7 +891,7 @@ function spentNode(id, kind, x, y) {
   const w = g.workers[0];
   w.carrying = 'iron';
   const r = g.locateItem('iron');
-  check('iron in a smallhand\'s hands is located at that smallhand',
+  check('iron in a smallie\'s hands is located at that smallie',
     !!r && r.kind === 'item' && r.x === w.cx && r.y === w.cy);
 }
 

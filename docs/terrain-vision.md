@@ -19,6 +19,17 @@ grammar of the whole game and the new terrain must be designed *around* them:
 | Step **down** 1 tile | ✅ | ✅ |
 | Drop down ≥ 2 tiles | ❌ (ladder/ramp/rope) | ❌ (ramp/rope) |
 | Ladders | ✅ | ❌ (the ladder rule) |
+| Walk **into** a ramp cell (through / along the slope) | ✅ | ✅ |
+| Step **down** onto a ramp directly below | ✅ | ✅ |
+
+A ramp tile is a **walkable diagonal**, not a wall (card #59): its cell is
+passable and stands on its own slope, so a ramp never seals the row it is built
+in, and the tiles of a ramp run *are* the steps. That is what makes a
+**switchback** work — reverse a second run off the cell directly above the first
+run's top tile and the stack climbs in a tight footprint (7 rows inside 4
+columns, where a single 45° run would need 7). The straight-down step exists
+only downward, so a vertical column of ramps is a cargo chute, never a free
+cargo elevator.
 
 Two consequences that shape everything:
 
@@ -58,7 +69,7 @@ part that lags behind it.
 ### The complaint, precisely
 
 - Flats are ruler-flat, cliffs are sheer → **harsh, artificial silhouettes**.
-- When a smallhand does hop a 1-tile step, the step is a blocky right angle
+- When a smallie does hop a 1-tile step, the step is a blocky right angle
   taller than the sprite itself — it *reads* as climbing furniture, not
   walking a hillside bank.
 - Every level is the same three words: flat, cliff, pit.
@@ -102,7 +113,7 @@ Construction sketch (all seeded, deterministic):
    Pads are also where resource nodes prefer to cluster loosely.
 
 This single change answers the "1-level steps" wish directly: gentle banks and
-rises become the *default fabric* of the land, the smallhands stroll over them
+rises become the *default fabric* of the land, the smallies stroll over them
 (cargo included), and the only hard edges left are the ones the puzzle put
 there on purpose.
 
@@ -184,7 +195,7 @@ sprite in the air tile beside the step (pure decoration — collision unchanged;
 eye reads as a bank). With micro relief everywhere, the whole level reads as
 rolling hills while the sim stays blocky. The little hop animation now happens
 "up a bank" instead of "onto a crate". Also fixes the current visual of a
-smallhand scaling a right angle taller than itself.
+smallie scaling a right angle taller than itself.
 
 ### 4.3 Strata & cliff-face character
 
@@ -206,7 +217,7 @@ Deterministic (`tileHash`-driven) props on grass tiles, density ~1 in 5,
 biome-scaled: grass tufts (2–3 variants, gentle sway reusing the tree-sway
 shear with tiny amplitude, honoring reduced-motion), flowers, pebbles,
 mushrooms clustered near trees, reeds beside water, tiny cairns near cliff
-lips. Rules: props never obscure a smallhand's silhouette (max ~6 px, muted
+lips. Rules: props never obscure a smallie's silhouette (max ~6 px, muted
 palette, drawn *behind* workers), never spawn on reserved build pads or the
 goal/TH aprons — readability is a mechanic in this game.
 

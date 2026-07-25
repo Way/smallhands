@@ -76,7 +76,7 @@ await page.waitForTimeout(500);
 if (!(await page.$('.toolbar:not(.editor-toolbar)'))) await fail('playtest did not start a game HUD');
 console.log('editor: playtest boots the game');
 await page.click('.island .menu-trigger'); // the burger drops the menu popover
-await page.click('.menu-pop .speed-btn:has-text("Levels")'); // returns to editor while playtesting
+await page.click('.menu-pop .menu-item:has-text("Levels")'); // returns to editor while playtesting
 await page.waitForTimeout(400);
 if (!(await page.$('.editor-panel'))) await fail('menu during playtest should return to the editor');
 console.log('editor: playtest returns to the editor');

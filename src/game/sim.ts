@@ -362,7 +362,7 @@ export class Game {
 
   // Is the tile lit? True whenever it isn't dark enough to matter (all day, and
   // through the early dusk up to NIGHT_WORK_DARK). Once night takes hold,
-  // smallhands only harvest and raise buildings within a light source — lanterns
+  // smallies only harvest and raise buildings within a light source — lanterns
   // themselves are the exception, so the player can push the frontier of light.
   isLit(x: number, y: number): boolean {
     if (this.nightAmount() < NIGHT_WORK_DARK) return true;
@@ -412,6 +412,24 @@ export class Game {
 
   available(item: ItemType): number {
     return this.stock[item] - this.stockReserved[item];
+  }
+
+  // How many units the sim may move OUT of the store on its own initiative:
+  // what's on hand, minus what a hauler already promised to carry, minus the
+  // player's keep floor. THE one policy for every autonomous consumer — the
+  // caravan, a producer's input buffer, a hoist car, a Digger's shovel. The
+  // floor is absolute: while `keep` units sit in store, nothing the sim decides
+  // to do can take them, whoever is asking and however badly a recipe wants
+  // them (card #64 — "reserve 1 iron" yet the forge swallowed it, because the
+  // floor gated only the caravan route and every other route read `available`).
+  //
+  // Deliberately NOT applied to the player's own spend (placement costs, the
+  // town-hall upgrade — see canAfford/payCost, which read raw `stock`): paying
+  // for a build IS the player releasing the goods, and holding material back
+  // for exactly that is what the floor is FOR (level 3's hint: keep stone back
+  // so it builds your lift and forge instead of shipping out).
+  spare(item: ItemType): number {
+    return this.available(item) - this.keep[item];
   }
 
   // Why a ready producer (sawmill/forge/workshop) is or isn't converting right
@@ -1171,7 +1189,7 @@ export class Game {
   }
 
   // Where units of `item` physically sit right now — dropped on the ground, in a
-  // smallhand's hands, or parked in a building buffer (producer in/out, hoist
+  // smallie's hands, or parked in a building buffer (producer in/out, hoist
   // car). Ranked stranded-first (the actionable one: it needs a lift, not a
   // miner), then by straight-line from the town hall. The store is deliberately
   // NOT searched here: it is the least useful answer, so locateItem keeps it as
@@ -1395,7 +1413,7 @@ export class Game {
         // WITHOUT passing through the stockpile, so unless they honour the floor
         // too, freshly produced/dropped goods sail straight past it and keep is
         // silently ignored ("all planks keep get delivered to target").
-        const surplus = this.available(o.item) - this.keep[o.item];
+        const surplus = this.spare(o.item);
         if (surplus > 0) {
           cands.push({ source: { t: 'stock' }, sink: { t: 'goal', id: goal.id }, item: o.item, priority: 0 });
         }
@@ -1432,12 +1450,19 @@ export class Game {
         const item = k as ItemType;
         const have = (b.inputs[item] ?? 0) + (b.inbound[item] ?? 0);
         if (have >= (need as number) * 2) continue; // keep a small buffer
-        if (this.available(item) > 0) {
+        // The floor outranks a hungry recipe: only the surplus is fed in, and
+        // below the floor even a loose unit lying at the door banks to the store
+        // first (same two-route rule as the goal above — a producer can be fed
+        // straight off the ground, so gating stock alone would leak).
+        const surplus = this.spare(item);
+        if (surplus > 0) {
           cands.push({ source: { t: 'stock' }, sink: { t: 'input', id: b.id }, item, priority: 1 });
         }
-        for (const gi of this.groundItems) {
-          if (gi.reserved || gi.item !== item) continue;
-          cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+        if (surplus >= 0) {
+          for (const gi of this.groundItems) {
+            if (gi.reserved || gi.item !== item) continue;
+            cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'input', id: b.id }, item, priority: 1 });
+          }
         }
       }
     }
@@ -1471,9 +1496,12 @@ export class Game {
       }
       for (const want of wants) {
         const sink: Sink = { t: 'hoist', id: b.id, car: want.car };
-        if (this.available(want.item) > 0) {
+        // a car is a way OUT of the store, ballast included — same floor rule
+        const surplus = this.spare(want.item);
+        if (surplus > 0) {
           cands.push({ source: { t: 'stock' }, sink, item: want.item, priority: 1 });
         }
+        if (surplus < 0) continue;
         // loose items load directly — that's how plateau stone becomes ballast
         // without a detour through the town hall. Items resting at this hoist's
         // OTHER station are excluded, or a cycle's output would ride straight
@@ -1601,7 +1629,7 @@ export class Game {
     }
     if (!best) return false;
     if (!w.hasShovel) {
-      if (this.available('shovel') <= 0) return false; // no shovel to dig with
+      if (this.spare('shovel') <= 0) return false; // none to dig with, or all kept
       this.stock.shovel--; // claim one as permanent equipment
       w.hasShovel = true;
     }
@@ -1730,7 +1758,12 @@ export class Game {
               ok = true;
             }
           } else if (task.source.t === 'stock') {
-            if (this.stock[task.item] > 0) {
+            // Last gate before the unit physically leaves the store, re-read at
+            // pickup rather than trusted from dispatch time: the player can raise
+            // the floor while this hauler is still walking over, and a promise
+            // made a second ago must not be what breaks it. `ok = false` aborts
+            // and unreserves, so the unit simply stays put (card #64).
+            if (this.stock[task.item] - this.keep[task.item] > 0) {
               this.stock[task.item]--;
               this.stockReserved[task.item] = Math.max(0, this.stockReserved[task.item] - 1);
               ok = true;
@@ -2135,7 +2168,7 @@ export class Game {
   }
 
   // Raise the water table one row: AIR at or below the new row floods, goods
-  // in the water are lost, and smallhands caught wading scramble home.
+  // in the water are lost, and smallies caught wading scramble home.
   riseWater(): void {
     const f = this.level.flood;
     if (!f) return;
@@ -2163,7 +2196,7 @@ export class Game {
     this.onEvent({ type: 'flood', row: next, rescued });
   }
 
-  // A smallhand caught by the water scrambles back to the town hall, dropping
+  // A smallie caught by the water scrambles back to the town hall, dropping
   // whatever they carried into the drink.
   private rescueWorker(w: Worker): void {
     if (w.task) this.abortTask(w); // drops cargo — over water it sinks
@@ -2187,8 +2220,9 @@ export class Game {
         this.rescueWorker(w);
         continue;
       }
-      // A support tile (ramp or bridge) was built into the worker's cell —
-      // pop them up on top of the new tile instead of entombing them.
+      // A solid tile (a bridge deck) was built into the worker's cell — pop them
+      // up on top of it instead of entombing them. Ramps never reach here: a ramp
+      // cell is passable, so the worker just stands on the new slope (card #59).
       if (!this.world.isPassable(w.cx, w.cy)) {
         let freed = false;
         for (let ny = w.cy - 1; ny >= w.cy - 3; ny--) {

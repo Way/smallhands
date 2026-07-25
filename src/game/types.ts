@@ -242,10 +242,10 @@ export const SLIDE_SPEED = 5.5; // rope descent — gravity does the work
 // Everyone — empty-handed or loaded — takes a single step down for free;
 // anything deeper needs a Ladder (empty), a Ramp (either) or a Rope (cargo
 // down). No more free multi-tile "hop" off a cliff in either state.
-export const MAX_FALL = 1; // tiles a smallhand may drop when not carrying
-export const MAX_FALL_CARRY = 1; // tiles a smallhand may drop while carrying
+export const MAX_FALL = 1; // tiles a smallie may drop when not carrying
+export const MAX_FALL_CARRY = 1; // tiles a smallie may drop while carrying
 
-export const WORKER_SPAWN_INTERVAL = 2.5; // seconds between new smallhands
+export const WORKER_SPAWN_INTERVAL = 2.5; // seconds between new smallies
 export const BUILDER_SPEED = 1; // progress per second
 
 // Seconds a Digger takes to remove one tile, by terrain kind. Rock is the slog;
@@ -394,6 +394,16 @@ export function fmtClock(hour: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+// The island's two glyph vocabularies live side by side, and here rather than
+// in the HUD, so anything that has to know what the pill can render (the tests
+// do) can import them without pulling in the DOM. Together they are exactly the
+// range of Hud.skyIcon(): a weather phase where one is running, else the hour.
+export const WX_ICON: Record<WeatherKind, string> = {
+  clear: '☀️',
+  rain: '🌧️',
+  storm: '🌩️',
+};
+
 // A sun/dusk/moon glyph for the hour, so the clock reads day vs night at a
 // glance. Bands: night before dawn and after dusk, a dawn/dusk sliver either
 // side of daytime. Forward-compatible with a moving clock (later phase).
@@ -421,7 +431,7 @@ export function nightAmountAt(hour: number): number {
   return 1; // 21..24 and 00..05 — night
 }
 
-// Above this night intensity the open ground goes dark: smallhands only work
+// Above this night intensity the open ground goes dark: smallies only work
 // within a light source (see Game.isLit). Below it the whole map is lit, so the
 // early dusk stays fully workable — the player's window to string lanterns.
 export const NIGHT_WORK_DARK = 0.5;

@@ -178,6 +178,31 @@ body.in-game #frontdoor { display: none; }
   color: var(--text);
 }
 .clock .clock-ic { font-size: 12px; opacity: 0.75; }
+/* on a dynamic-weather level the sky glyph IS the forecast trigger (card #62),
+   so it is a real button — keyboard and touch reach it — but visually still
+   just the glyph: it only grows to a thumb-sized 24px target (which lands
+   inside the island's 42px row, no reflow) and lights up on hover/open.
+   Keyed on .wx-trigger, not the tag: "is a button" must not be what makes
+   something the forecast, or the next button in the clock zone would inherit
+   the target, the hover fill and the coarse-pointer tap disc by accident. */
+.clock .wx-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s;
+}
+.clock .wx-trigger:hover,
+.clock .wx-trigger.active { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 /* fixed-width digits: the seconds turn over every tick and must not shuffle */
 .clock .clock-time { font-variant-numeric: tabular-nums; min-width: 38px; }
 
@@ -415,12 +440,10 @@ body.in-game #frontdoor { display: none; }
   overflow: visible; /* popovers hang out of it */
 }
 /* hairline seams between zones: a left border on every zone but the first
-   (speed) draws exactly one line per boundary — speed | weather | clock | menu */
-.island > .weather-trigger,
+   (speed) draws exactly one line per boundary — speed | clock | menu. The
+   forecast has no zone of its own; it hangs off the clock's glyph (card #62). */
 .island > .clock,
 .island > .menu-trigger { border-left: 1px solid var(--panel-border); }
-/* the weather zone is icon-only: a touch tighter than the text buttons */
-.island-btn.weather-trigger { min-width: 0; padding: 0 10px; font-size: 15px; }
 
 .island-btn {
   display: flex;
@@ -518,7 +541,62 @@ body.in-game #frontdoor { display: none; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.menu-pop .speed-btn { width: 100%; text-align: left; padding: 0 10px; }
+/* ---- the ☰ menu: rows, not chips -------------------------------------------
+   The three entries used to be .speed-btn chips stretched full width, which
+   drew a bordered box around each one — three stacked outlines competing with
+   the popover's own border and no hierarchy between them. Menu rows instead:
+   no chrome at rest, the hover fill alone carries the affordance, and a fixed
+   icon column keeps the labels on one vertical edge. */
+.menu-pop { padding: 6px; gap: 1px; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+/* fixed slot: ☰ ↺ ⚙ render at wildly different widths, and a flowing glyph
+   would step every label along by a different amount */
+.menu-ic {
+  flex: none;
+  width: 16px;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-dim);
+  opacity: 0.75;
+  transition: color 0.12s, opacity 0.12s;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.menu-item:hover .menu-ic,
+.menu-item:focus-visible .menu-ic { color: var(--accent); opacity: 1; }
+/* the fill alone is a mouse affordance; keyboard focus also needs a ring */
+.menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.menu-item:active { background: rgba(255, 255, 255, 0.13); }
+/* restart throws away the run in progress — warn on the hover, not at rest */
+.menu-item.danger:hover,
+.menu-item.danger:focus-visible { background: rgba(255, 122, 107, 0.14); color: var(--danger); }
+.menu-item.danger:hover .menu-ic,
+.menu-item.danger:focus-visible .menu-ic { color: var(--danger); }
+.menu-item.danger:focus-visible { outline-color: var(--danger); }
+/* the seam between the level actions and settings needs more air than the
+   speed popover's, where it separates two tight control rows */
+.menu-pop .ctrl-divider { margin: 5px 8px; }
 
 /* ---- zoom: bottom right, the Google-Maps corner ---- */
 .zoombar {
@@ -1202,7 +1280,9 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 @media (prefers-reduced-motion: reduce) {
   .stamp, .newrec, .confetti { animation: none; }
   .island-pop { animation: none; }
-  .island-btn, .zoom-btn { transition: none; }
+  /* the sky glyph is a first-class island trigger (card #62), so it drops its
+     hover fade with the zone buttons rather than keeping a lone 0.12s tween */
+  .island-btn, .zoom-btn, .clock .wx-trigger { transition: none; }
 }
 
 /* ---- world map level select ------------------------------------------------
@@ -1741,6 +1821,54 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .custom-drawer { animation: none; }
 }
 
+/* ---- daily logbook: the lighthouse's record of past dailies ---- */
+.log-stats {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  font-size: 13px; font-weight: 700; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* the recent-days strip: solved days are filled in their medal colour, missed
+   days stay dashed-empty, so a broken streak is visible as a gap */
+.log-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.log-dot {
+  width: 28px; height: 28px; border-radius: 7px;
+  border: 1px dashed #3b4a63; background: rgba(0, 0, 0, 0.25);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.log-dot.solved { border-style: solid; border-color: var(--panel-border-light); color: var(--text); }
+.log-dot.solved.none { background: rgba(111, 214, 111, 0.16); color: var(--accent2); }
+.log-dot.solved.gold { background: #c8971e; border-color: #f0d27a; color: #2a1e05; }
+.log-dot.solved.silver { background: #9aa7b4; border-color: #d6dee6; color: #1f242c; }
+.log-dot.solved.bronze { background: #a4682f; border-color: #d79b62; color: #241304; }
+.log-dot.today { box-shadow: 0 0 0 2px var(--accent); }
+.log-list { justify-content: flex-start; }
+.daily-row { cursor: default; }
+.daily-row:hover { transform: none; border-color: var(--panel-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 8px rgba(0, 0, 0, 0.28); }
+/* the row's own tear-off calendar, matching the lighthouse pin */
+.daily-row .lv-num.cal-mini {
+  width: 30px; height: 32px;
+  border: 2px solid #40372a; border-radius: 5px;
+  background: #f6eecf; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.daily-row .cal-top {
+  height: 9px; flex: 0 0 auto;
+  background: linear-gradient(#ff8f80, #e0554a);
+  border-bottom: 2px solid #40372a;
+}
+.daily-row .cal-day {
+  flex: 1; display: grid; place-items: center;
+  font-size: 14px; font-weight: 800; line-height: 1; color: var(--map-ink);
+}
+/* keep the date clear of the replay button in the corner */
+.daily-row .lv-name { padding-right: 30px; }
+.daily-row .lv-name { font-variant-numeric: tabular-nums; }
+.daily-row .lv-desc { margin-bottom: 8px; }
+/* the logbook button sits under Play in the lighthouse popover */
+.pop-log { margin-top: 8px; }
+
 /* ================================ mobile ================================
    The desktop HUD stays untouched; everything below layers the touch game on
    top. Three concerns, three scopes:
@@ -1827,8 +1955,28 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .res-pop { min-width: 190px; padding: 10px 12px; }
   .res-chip { min-height: 34px; }
   .speed-btn { min-width: 44px; height: 44px; font-size: 14px; }
+  .menu-item { height: 44px; font-size: 14px; } /* the menu rows are thumb targets too */
   .play-btn { height: 46px; font-size: 14px; }
   .island-btn { min-width: 52px; font-size: 15px; }
+  /* the sky glyph is the ONLY route to the forecast on touch — there is no
+     hover fallback — so it must carry a full 44px thumb disc like every other
+     primary control (card #62). It can't just grow: the clock's row leaves
+     exactly 24px of content height, so a bigger box would stretch the pill.
+     Keep the box, hang the hit area off an invisible ::after instead — derived
+     from the two sizes so the disc can't silently stop being 44px.
+     The 10px of overhang is currently FLUSH with .clock's own compact padding
+     (8px 10px, ~700 lines down in the compact block): trim that padding and the
+     disc would reach into the speed zone. The z-index below is the seatbelt —
+     the real zone buttons win the hit test, so the worst case is a clipped
+     disc, never a tap on ⏸ that opens the forecast instead. */
+  .clock .wx-trigger { position: relative; }
+  .clock .wx-trigger::after {
+    content: '';
+    position: absolute;
+    inset: calc((44px - 24px) / -2);
+  }
+  /* stacked above the glyph's invisible disc, whatever the clock's padding does */
+  .island-btn { position: relative; z-index: 1; }
   .zoom-btn { width: 46px; height: 44px; font-size: 20px; }
   .th-upgrade { padding: 10px 8px; }
   .tooltip .tt-btn { padding: 11px 24px; font-size: 14px; }
