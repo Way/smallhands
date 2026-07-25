@@ -313,6 +313,107 @@ function playedGame() {
   );
 }
 
+// ---- harvest marks survive -----------------------------------------------------------
+//
+// Only marked nodes are ever harvested (sim.ts gates task assignment on it), so
+// a snapshot that loses the marks reloads with an idle crew — and makes "marked
+// but nobody came" indistinguishable from "never marked".
+{
+  const g = new Game(LEVELS[0]);
+  g.nodes[0].marked = true;
+  g.nodes[1].marked = true;
+  const back = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(g)))));
+  check(
+    'marked nodes come back marked',
+    back.nodes.filter((n) => n.marked).length === 2 &&
+      back.nodes.find((n) => n.x === g.nodes[0].x && n.y === g.nodes[0].y).marked === true
+  );
+  check('unmarked nodes stay unmarked', back.nodes.filter((n) => !n.marked).length === g.nodes.length - 2);
+
+  const md = formatReport(collectReport(g, CONTEXT));
+  check('the report says how many nodes are marked', md.includes('Marked for harvest: 2 of'));
+  check('and flags them individually', md.includes('MARKED'));
+}
+
+// ---- hoist routing and cargo survive ---------------------------------------------------
+//
+// Routing is not decoration: both the sink graph and the load planner gate on
+// it, so a hoist restored without routes is inert and reproduces as "nothing
+// moves" whatever the actual bug was.
+{
+  const g = new Game(LEVELS[0]);
+  const h = g.addBuilding('hoist', 20, 16, true);
+  h.hoistSendDown.plank = true;
+  h.hoistSendUp.stone = true;
+  h.hoistUpper = { plank: 2 };
+  h.hoistLower = { stone: 1 };
+
+  const back = new Game(levelDefFromData(decodeShareCode(encodeShareCode(snapshotLevelData(g)))));
+  const hb = back.buildings.find((b) => b.kind === 'hoist');
+  check('hoist routing survives', !!hb && hb.hoistSendDown.plank === true && hb.hoistSendUp.stone === true);
+  check('routes not set stay unset', !!hb && !hb.hoistSendDown.stone && !hb.hoistSendUp.plank);
+  check('car cargo survives', !!hb && hb.hoistUpper.plank === 2 && hb.hoistLower.stone === 1);
+
+  const md = formatReport(collectReport(g, CONTEXT));
+  check('the report prints the routes beside the cargo', md.includes('route↓[plank]') && md.includes('route↑[stone]'));
+}
+
+// ---- the player's own text cannot break the report -------------------------------------
+//
+// The message is interpolated into markdown verbatim. A bare ``` in it would
+// otherwise open a fence that swallows the rest of the document — including the
+// share code underneath.
+{
+  // Walk the document the way a markdown renderer does: a line that is a run of
+  // >= 3 backticks opens a fence, and a run at least as long closes it. Anything
+  // weaker than this scanner (a substring check) passes even when the document
+  // is broken, because the text is all still *present* — just fenced wrongly.
+  const scanFences = (md) => {
+    let open = null; // length of the fence currently holding the document
+    const codeLines = [];
+    for (const line of md.split('\n')) {
+      const m = /^(`{3,})\s*[a-z]*$/.exec(line.trim());
+      if (m) {
+        if (open === null) open = m[1].length;
+        else if (m[1].length >= open) open = null;
+        continue;
+      }
+      if (line.includes('SMH1.')) codeLines.push({ line, fenced: open !== null });
+    }
+    return { balanced: open === null, codeLines };
+  };
+
+  const g = new Game(LEVELS[0]);
+  for (const hostile of ['```', 'look:\n```js\nboom()\n```\nend', '`````\nnested\n`````', '~~~', 'plain text']) {
+    const md = formatReport(collectReport(g, { ...CONTEXT, message: hostile }));
+    const { balanced, codeLines } = scanFences(md);
+    check(
+      `a message containing ${JSON.stringify(hostile.slice(0, 12))} leaves the share code fenced`,
+      balanced && codeLines.length === 1 && codeLines[0].fenced
+    );
+    check(`  ...and the message itself survives verbatim`, md.includes(hostile.trim()));
+  }
+}
+
+// ---- caps agree on both sides ----------------------------------------------------------
+//
+// If the writer emits more than the sanitizer admits, a big painted dig region
+// is silently shortened on import and the reproduction quietly stops matching
+// the report that describes it.
+{
+  const g = new Game(LEVELS[0]);
+  const want = 900; // more than the old 400-order sanitize cap
+  for (let i = 0; i < want; i++) g.digOrders.add(i);
+  const snap = snapshotLevelData(g);
+  const back = decodeShareCode(encodeShareCode(snap));
+  check(
+    `dig orders are not silently truncated on import (${snap.world.digOrders.length} out, ${back.world.digOrders.length} in)`,
+    snap.world.digOrders.length === back.world.digOrders.length && back.world.digOrders.length === want
+  );
+  const loaded = new Game(levelDefFromData(back));
+  check('and they all arrive in the game', loaded.digOrders.size === want);
+}
+
 // ---- loose run state survives --------------------------------------------------------
 {
   const g = new Game(LEVELS[0]);

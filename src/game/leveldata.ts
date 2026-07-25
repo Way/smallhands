@@ -39,6 +39,14 @@ export interface SnapshotBuilding {
   // is the whole difference between reproducing it and not.
   inputs?: Partial<Record<ItemType, number>>;
   outputs?: Partial<Record<ItemType, number>>;
+  // Hoist only: the player's per-item routing, and what is sitting in the cars.
+  // Routing is not decoration — an unrouted hoist is inert, because both the
+  // sink graph and the load planner gate on it. A hoist restored without its
+  // routes reproduces as "nothing moves" no matter what the bug actually was.
+  sendDown?: ItemType[]; // items routed into the upper car
+  sendUp?: ItemType[]; // items routed into the lower car
+  upper?: Partial<Record<ItemType, number>>; // cargo in the car at the top station
+  lower?: Partial<Record<ItemType, number>>; // cargo in the car at the bottom station
 }
 
 // The parts of a level's *type* that live on LevelDef rather than in the world
@@ -66,9 +74,12 @@ export interface CustomLevelData {
   width: number;
   height: number;
   tiles: string; // run-length encoded terrain, see encodeTiles()
-  // `yieldLeft` is only set by snapshot codes; a freshly authored node omits it
-  // and starts at the full NODE_YIELD amount.
-  nodes: { kind: NodeKind; x: number; y: number; yieldLeft?: number }[];
+  // `yieldLeft` and `marked` are only set by snapshot codes; a freshly authored
+  // node omits both and starts at the full NODE_YIELD amount, unmarked.
+  // `marked` matters as much as the yield: only marked nodes are ever
+  // harvested, so a snapshot that loses the marks reloads with an idle crew and
+  // makes "marked but nobody came" look exactly like "never marked".
+  nodes: { kind: NodeKind; x: number; y: number; yieldLeft?: number; marked?: boolean }[];
   townhall: { x: number; y: number };
   goal: { x: number; y: number };
   objectives: ObjectiveReq[];
@@ -88,6 +99,15 @@ export interface CustomLevelData {
 // get written to localStorage by the level importer, and place a building whose
 // footprint lookup resolves to an inherited function. Own keys only.
 export const CONSTRUCTIBLE: ReadonlySet<BuildingKind> = new Set(Object.keys(BUILD_TIME) as BuildingKind[]);
+
+// Collection caps for untrusted codes. Exported so the snapshot writer trims to
+// the same numbers: if the two sides disagree, a big painted dig region is
+// silently shortened on import and the reproduction quietly differs from the
+// report that describes it. See report.ts.
+export const MAX_SNAPSHOT_NODES = 200;
+export const MAX_SNAPSHOT_BUILDINGS = 200;
+export const MAX_SNAPSHOT_DIG_ORDERS = 4000;
+export const MAX_SNAPSHOT_GROUND_ITEMS = 200;
 
 export const MIN_W = 32;
 export const MAX_W = 160;
@@ -228,7 +248,7 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
       g.addBuilding('townhall', data.townhall.x, data.townhall.y);
       g.addBuilding('goal', data.goal.x, data.goal.y);
       for (const n of data.nodes) {
-        g.addNode(n.kind, n.x, n.y);
+        g.addNode(n.kind, n.x, n.y, n.marked === true);
         // Patch the partial yield afterwards rather than widening addNode's
         // signature, which every hand-authored campaign level calls.
         if (n.yieldLeft !== undefined) g.nodes[g.nodes.length - 1].yieldLeft = n.yieldLeft;
@@ -242,6 +262,10 @@ export function levelDefFromData(data: CustomLevelData): LevelDef {
         if (b.paused) built.paused = true;
         if (b.inputs) built.inputs = { ...b.inputs };
         if (b.outputs) built.outputs = { ...b.outputs };
+        if (b.upper) built.hoistUpper = { ...b.upper };
+        if (b.lower) built.hoistLower = { ...b.lower };
+        for (const item of b.sendDown ?? []) built.hoistSendDown[item] = true;
+        for (const item of b.sendUp ?? []) built.hoistSendUp[item] = true;
         if (b.kind === 'lift') {
           built.liftTopY = liftTopFor(g.world, b.x, b.y) ?? b.y;
           built.liftCarY = b.y;
@@ -346,6 +370,12 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
     const bag = numRecord(v, ITEM_TYPES, 99);
     return Object.keys(bag).length ? ({ [key]: bag } as Partial<Record<K, Partial<Record<ItemType, number>>>>) : {};
   };
+  // A list of item names, deduped against the known set and absent when empty.
+  const itemListField = <K extends string>(key: K, v: unknown): Partial<Record<K, ItemType[]>> => {
+    if (!Array.isArray(v)) return {};
+    const items = ITEM_TYPES.filter((i) => (v as unknown[]).includes(i));
+    return items.length ? ({ [key]: items } as Partial<Record<K, ItemType[]>>) : {};
+  };
   const nodeKinds: NodeKind[] = ['tree', 'boulder', 'vein'];
   const nodes = Array.isArray(r.nodes)
     ? (r.nodes as unknown[])
@@ -354,7 +384,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
           const q = n as Record<string, unknown>;
           return nodeKinds.includes(q.kind as NodeKind) && inBounds(q);
         })
-        .slice(0, 200)
+        .slice(0, MAX_SNAPSHOT_NODES)
         .map((n) => {
           // A snapshot node carries its remaining yield; an authored one omits
           // it and the sim fills the full amount. 0 is meaningful and must
@@ -366,6 +396,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
             x: Math.floor(n.x),
             y: Math.floor(n.y),
             ...(left === null ? {} : { yieldLeft: left }),
+            ...((n as Record<string, unknown>).marked === true ? { marked: true as const } : {}),
           };
         })
     : [];
@@ -379,7 +410,7 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
           const q = b as Record<string, unknown>;
           return CONSTRUCTIBLE.has(q.kind as BuildingKind) && inBounds(q);
         })
-        .slice(0, 200)
+        .slice(0, MAX_SNAPSHOT_BUILDINGS)
         .map((b) => {
           const kind = b.kind as BuildingKind;
           const ready = b.ready !== false;
@@ -395,6 +426,10 @@ export function sanitizeLevelData(raw: unknown): CustomLevelData | null {
             ...(b.paused === true ? { paused: true } : {}),
             ...bagField('inputs', b.inputs),
             ...bagField('outputs', b.outputs),
+            ...bagField('upper', b.upper),
+            ...bagField('lower', b.lower),
+            ...itemListField('sendDown', b.sendDown),
+            ...itemListField('sendUp', b.sendUp),
           };
         })
     : [];
@@ -483,7 +518,7 @@ function sanitizeSnapshotWorld(
     const orders = (r.digOrders as unknown[])
       .map((v) => clampInt(v, 0, cells - 1))
       .filter((v): v is number => v !== null)
-      .slice(0, 400);
+      .slice(0, MAX_SNAPSHOT_DIG_ORDERS);
     if (orders.length) out.digOrders = orders;
   }
 
@@ -500,7 +535,7 @@ function sanitizeSnapshotWorld(
           g.y >= 0 &&
           g.y < height
       )
-      .slice(0, 200)
+      .slice(0, MAX_SNAPSHOT_GROUND_ITEMS)
       .map((g) => ({ item: g.item as ItemType, x: Math.floor(g.x as number), y: Math.floor(g.y as number) }));
     if (items.length) out.groundItems = items;
   }

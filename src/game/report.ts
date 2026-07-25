@@ -18,7 +18,16 @@
 import { BUILD_TIME, ITEM_TYPES, NODE_YIELD, ROLES } from './types';
 import type { Building, BuildingKind, ItemType, Role } from './types';
 import type { Game, Worker } from './sim';
-import { CONSTRUCTIBLE, encodeShareCode, encodeTiles, makeLevelId } from './leveldata';
+import {
+  CONSTRUCTIBLE,
+  MAX_SNAPSHOT_BUILDINGS,
+  MAX_SNAPSHOT_DIG_ORDERS,
+  MAX_SNAPSHOT_GROUND_ITEMS,
+  MAX_SNAPSHOT_NODES,
+  encodeShareCode,
+  encodeTiles,
+  makeLevelId,
+} from './leveldata';
 import type { CustomLevelData, SnapshotBuilding, SnapshotWorld } from './leveldata';
 
 export type ReportKind = 'bug' | 'feedback' | 'idea';
@@ -102,7 +111,15 @@ export interface ReportData {
     outputs: string;
     detail: string; // kind-specific extras (lift span, hoist cars, …)
   }[];
-  nodes: { kind: string; x: number; y: number; yieldLeft: number; max: number; workerId: number | null }[];
+  nodes: {
+    kind: string;
+    x: number;
+    y: number;
+    yieldLeft: number;
+    max: number;
+    marked: boolean;
+    workerId: number | null;
+  }[];
   groundItems: { item: ItemType; x: number; y: number; reserved: boolean; stranded: boolean }[];
   digOrders: { x: number; y: number }[];
   code: string; // live snapshot share code
@@ -135,6 +152,7 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
   // placed twice. Same set the sanitizer admits on the way back in.
   const buildings: SnapshotBuilding[] = game.buildings
     .filter((b) => CONSTRUCTIBLE.has(b.kind))
+    .slice(0, MAX_SNAPSHOT_BUILDINGS)
     .map((b) => ({
       kind: b.kind,
       x: b.x,
@@ -144,6 +162,10 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
       ...(b.paused ? { paused: true as const } : {}),
       ...(hasItems(b.inputs) ? { inputs: { ...b.inputs } } : {}),
       ...(hasItems(b.outputs) ? { outputs: { ...b.outputs } } : {}),
+      ...(hasItems(b.hoistUpper) ? { upper: { ...b.hoistUpper } } : {}),
+      ...(hasItems(b.hoistLower) ? { lower: { ...b.hoistLower } } : {}),
+      ...(routed(b.hoistSendDown).length ? { sendDown: routed(b.hoistSendDown) } : {}),
+      ...(routed(b.hoistSendUp).length ? { sendUp: routed(b.hoistSendUp) } : {}),
     }));
 
   // Level type and loose run state. Only emitted when there is something to
@@ -161,9 +183,11 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
   const keep: Partial<Record<ItemType, number>> = {};
   for (const item of ITEM_TYPES) if (game.keep[item] > 0) keep[item] = game.keep[item];
   if (Object.keys(keep).length) snapWorld.keep = keep;
-  if (game.digOrders.size) snapWorld.digOrders = [...game.digOrders];
+  if (game.digOrders.size) snapWorld.digOrders = [...game.digOrders].slice(0, MAX_SNAPSHOT_DIG_ORDERS);
   if (game.groundItems.length) {
-    snapWorld.groundItems = game.groundItems.slice(0, 200).map((g) => ({ item: g.item, x: g.x, y: g.y }));
+    snapWorld.groundItems = game.groundItems
+      .slice(0, MAX_SNAPSHOT_GROUND_ITEMS)
+      .map((g) => ({ item: g.item, x: g.x, y: g.y }));
   }
 
   return {
@@ -174,7 +198,9 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
     width: level.width,
     height: level.height,
     tiles: encodeTiles(world.tiles),
-    nodes: game.nodes.map((n) => ({ kind: n.kind, x: n.x, y: n.y, yieldLeft: n.yieldLeft })),
+    nodes: game.nodes
+      .slice(0, MAX_SNAPSHOT_NODES)
+      .map((n) => ({ kind: n.kind, x: n.x, y: n.y, yieldLeft: n.yieldLeft, ...(n.marked ? { marked: true } : {}) })),
     townhall: { x: townhall.x, y: townhall.y },
     // A level always has a goal in practice; fall back to the townhall cell
     // rather than throwing, so a report never fails on a half-built world.
@@ -192,6 +218,10 @@ export function snapshotLevelData(game: Game, displayName?: string): CustomLevel
 
 function hasItems(bag: Partial<Record<ItemType, number>>): boolean {
   return ITEM_TYPES.some((i) => (bag[i] ?? 0) > 0);
+}
+
+function routed(routes: Partial<Record<ItemType, boolean>>): ItemType[] {
+  return ITEM_TYPES.filter((i) => routes[i]);
 }
 
 // ---- collection --------------------------------------------------------------
@@ -282,6 +312,9 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
       y: n.y,
       yieldLeft: n.yieldLeft,
       max: NODE_YIELD[n.kind].amount,
+      // Only marked nodes are ever harvested, so an unmarked node is the whole
+      // explanation for an idle woodcutter — it has to be visible here.
+      marked: n.marked,
       workerId: n.workerId,
     })),
     groundItems: game.groundItems.map((g) => ({
@@ -322,7 +355,18 @@ export function formatReport(d: ReportData): string {
 
   push(`## What happened`);
   push();
-  push(c.message.trim() || '_(no description given)_');
+  // Fenced, and fenced with a run longer than anything the player typed. A bare
+  // ``` in their message would otherwise open a block that swallows the rest of
+  // the report — including the share code below it.
+  const message = c.message.trim();
+  if (message) {
+    const f = fenceFor(message);
+    push(f);
+    push(message);
+    push(f);
+  } else {
+    push('_(no description given)_');
+  }
   push();
 
   push(`## Run state`);
@@ -400,10 +444,17 @@ export function formatReport(d: ReportData): string {
 
   push(`## Resource nodes (${d.nodes.length})`);
   push();
+  push(`Marked for harvest: ${d.nodes.filter((n) => n.marked).length} of ${d.nodes.length}. Nothing unmarked is ever worked.`);
+  push();
   push(
     d.nodes.length
       ? d.nodes
-          .map((n) => `${n.kind} ${n.x},${n.y} ${n.yieldLeft}/${n.max}${n.workerId !== null ? ` (worker ${n.workerId})` : ''}`)
+          .map(
+            (n) =>
+              `${n.kind} ${n.x},${n.y} ${n.yieldLeft}/${n.max}${n.marked ? ' MARKED' : ''}${
+                n.workerId !== null ? ` (worker ${n.workerId})` : ''
+              }`
+          )
           .join(' · ')
       : '_(none left)_'
   );
@@ -434,14 +485,15 @@ export function formatReport(d: ReportData): string {
   push();
   push('**Restored:** terrain (every dug cell, ladder, ramp and platform), buildings and');
   push('blueprints with their construction progress, producer buffers and paused flags,');
-  push('node yields including spent stumps, loose ground items, dig orders, stock, keep');
-  push('floors, role targets, town-hall level, and the level type — night, day/night rate,');
-  push('weather schedule and phase, flood range and the current water row.');
+  push('hoist routing and car cargo, node yields including spent stumps and which nodes are');
+  push('marked for harvest, loose ground items, dig orders, stock, keep floors, role targets,');
+  push('town-hall level, and the level type — night, day/night rate, weather schedule and');
+  push('phase, flood range and the current water row.');
   push();
   push('**Not restored** — read these off the tables above instead: worker positions, their');
   push('tasks and what they are carrying (the crew respawns at the town hall), objective');
-  push('progress, in-flight reservations, lift car and hoist cycle positions, and elapsed');
-  push('time. A snapshot is the world, not the exact instant.');
+  push('progress, in-flight reservations, an in-progress town-hall upgrade, lift car and');
+  push('hoist cycle positions, and elapsed time. A snapshot is the world, not the instant.');
   push();
   push('```');
   push(d.code);
@@ -466,6 +518,13 @@ export function formatReport(d: ReportData): string {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// A code fence guaranteed to survive whatever is inside it: at least three
+// backticks, and always one more than the longest run the content contains.
+function fenceFor(text: string): string {
+  const longest = (text.match(/`+/g) ?? []).reduce((m, run) => Math.max(m, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
 }
 
 // 0..24 hour-of-day to a wall clock the reader can match against the HUD.
@@ -519,11 +578,18 @@ function describeBuilding(b: Building): string {
       }`;
     case 'rope':
       return `drops ${b.y}→${b.ropeBottomY}, side ${b.ropeSide}`;
-    case 'hoist':
-      return `drops ${b.y}→${b.ropeBottomY}, upper {${bag(b.hoistUpper, b.hoistUpperIn)}}, lower {${bag(
-        b.hoistLower,
-        b.hoistLowerIn
-      )}}${b.hoistBusy ? ', cycling' : ''}`;
+    case 'hoist': {
+      // An unrouted car is inert, so the routes belong in the readout next to
+      // the cargo — "cargo sitting in a car with no route" is a complete
+      // explanation on its own.
+      const down = routed(b.hoistSendDown);
+      const up = routed(b.hoistSendUp);
+      return `drops ${b.y}→${b.ropeBottomY}, upper {${bag(b.hoistUpper, b.hoistUpperIn)}} route↓[${
+        down.join(',') || 'none'
+      }], lower {${bag(b.hoistLower, b.hoistLowerIn)}} route↑[${up.join(',') || 'none'}]${
+        b.hoistBusy ? ', cycling' : ''
+      }`;
+    }
     default:
       return '—';
   }
