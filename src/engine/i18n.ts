@@ -335,6 +335,12 @@ export const D: Record<string, [string, string]> = {
   'hud.keep': ['Keep', 'Behalten'],
   'hud.keepAll': ['All', 'Alle'],
   'hud.keepReset': ['Reset', 'Zurücksetzen'],
+  // in-row end-stop labels — the full 'hud.keepAll'/'hud.keepReset' wording rides
+  // along as each button's title/aria-label, so the pills stay one short word.
+  // Deliberately Min, not '0': a literal 0 sits right beside the value and reads
+  // as the count rather than as a jump-to-nothing.
+  'hud.keepResetShort': ['Min', 'Min'],
+  'hud.keepAllShort': ['Max', 'Max'],
   'hud.keepNote': [
     'Kept units stay put — no caravan, no workshop. Only the surplus moves.',
     'Behaltene Einheiten bleiben liegen — keine Karawane, keine Werkstatt. Nur der Überschuss geht raus.',

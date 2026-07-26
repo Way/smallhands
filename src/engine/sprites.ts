@@ -1152,6 +1152,25 @@ export function buildAtlas(): void {
     'RR..........RR',
   ]);
 
+  // map pin: the universal "here it is" marker — a teardrop with a light hole,
+  // worn by the keep popover's find-on-map button (card #68)
+  makeSprite('icon_pin', { p: '#b33f31', P: '#ff7a6b', d: '#ffe6de' }, [
+    '.....pppp.....',
+    '...ppPPPPpp...',
+    '..pPPPPPPPPp..',
+    '..pPPddddPPp..',
+    '..pPPddddPPp..',
+    '..pPPddddPPp..',
+    '..pPPPPPPPPp..',
+    '...pPPPPPPp...',
+    '....pPPPPp....',
+    '.....pPPp.....',
+    '.....pPPp.....',
+    '......pp......',
+    '..............',
+    '..............',
+  ]);
+
   // living-world icons for the front-door "world that fights back" band ------
   // crescent moon: the turning day. Cool silver disc with a shaded terminator
   // (c) carving the crescent out of the right side.
