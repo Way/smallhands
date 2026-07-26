@@ -31,24 +31,40 @@ self-contained static site (~22 kB gzipped).
   iron veins → forge (plank + iron → spear).
 - **Town Hall progression** — upgrade to unlock the forge and cargo lift and to
   grow your crew.
-- **Three handcrafted campaigns** — twelve levels, each verified completable
-  end-to-end. Campaign 1 (four levels) teaches the logistics core, from a
+- **Four handcrafted campaigns** — seventeen levels, each verified completable
+  end-to-end. Every level shares one goal (fill the caravan's order sheet), so
+  the variety comes from the *pressures* each one switches on — and each
+  pressure gets its own introduce → experiment → master arc rather than a single
+  appearance. Campaign 1 (four levels) teaches the logistics core, from a
   gentle tutorial to a three-terrace summit supply line. **Campaign 3 —
   Weight & Wheel** (three levels, unlocked by finishing Campaign 2) is the
   counterweight hoist's teaching arc: send cargo down, pay stone ballast to
-  raise it up, then run a forge in the sky while storms seize the wheel.
-  **Campaign 2 — Storm & Tide** (five levels, unlocked by finishing
+  raise it up, then run a forge in the sky while storms seize the wheel — all
+  three against the caravan's dock window. **Campaign 4** (five levels) buries
+  the iron: craft a shovel, sink a shaft, and move goods up, down and through
+  the dark. **Campaign 2 — Storm & Tide** (five levels, unlocked by finishing
   Campaign 1) adds:
   - **Water** — rivers and ponds are impassable and goods dropped in are lost
     for good; bridge them or lose the cargo.
-  - **Dynamic weather on a visible forecast** — rain slows chopping and
-    mining, storms lock the cargo lifts' brakes. The schedule is
-    deterministic and shown in the HUD, so planning around it *is* the puzzle.
+  - **Dynamic weather on a visible forecast** — the forecast names the phase,
+    counts it down *and lists what it costs you*. **Rain** slows chopping and
+    mining by 30 %. A **storm** cuts work by 60 %, locks the brakes on every
+    cargo lift and hoist, and pulls your lantern pools in by 40 % — so a night
+    gale shrinks the workable world, not just its speed. Ropes are gravity
+    rather than gears and keep running: that is the storm-proof route worth
+    finding. The schedule is deterministic and shown in the HUD, so planning
+    around it *is* the puzzle.
   - **The rising tide** — in flood levels every rainfall raises the water one
     permanent step; loot the lowlands before they drown, then bridge the lake.
   - **Night & lanterns** — smallies only harvest and build in the light.
     Lantern posts (1 log + 1 stone) can be raised anywhere, pushing the
     frontier of light toward the far resources.
+  - **A tool budget** — some levels hand you a counted number of a tool (six
+    planks of bridge, one hoist). The count rides on the toolbar chip; tearing
+    something down gives its slot back, so a budget is a puzzle, never a trap.
+- **The caravan's dock window** — on later levels the caravan loads, rolls out
+  and comes back on a fixed rhythm. Nothing ships to an empty dock, so the crew
+  stockpiles through the gap and empties the store the moment it returns.
 - **Medals & personal bests** — every level has gold/silver/bronze time
   thresholds and two feats (*No Demolish*, *Light Touch*). Wins end in a
   medal ceremony with an honest time gauge; the level select carries a
@@ -180,7 +196,8 @@ node tests/editor-generator.mjs
 ```
 
 Seven headless suites need no browser at all: `tests/unit.mjs` covers pure
-simulation logic (ladders, reserves, medals, water, weather, flood, night),
+simulation logic (ladders, reserves, medals, water, weather, flood, night, the
+caravan's dock window and the tool budget),
 `tests/devmode.mjs` pins the dev-mode unlock (`?dev` flag parsing, campaign
 gating with and without the override, completion never faked),
 `tests/campaign2.mjs` and `tests/campaign3.mjs` play every Campaign 2 and 3

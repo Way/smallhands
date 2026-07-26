@@ -3,10 +3,10 @@
 // imports from an in-memory data URL, so it runs with plain `node`.
 import { bundleExports } from './bundle.mjs';
 
-const { Game, LEVELS, WEATHER_FADE, WET_WORK_FACTOR, weatherLook, lerpLook } = await bundleExports(`
+const { Game, LEVELS, WEATHER_FADE, WEATHER_RULES, weatherEffects, weatherLook, lerpLook } = await bundleExports(`
   export { Game } from './src/game/sim.ts';
   export { LEVELS } from './src/game/levels.ts';
-  export { WEATHER_FADE, WET_WORK_FACTOR } from './src/game/types.ts';
+  export { WEATHER_FADE, WEATHER_RULES, weatherEffects } from './src/game/types.ts';
   export { weatherLook, lerpLook } from './src/game/weather-look.ts';
 `);
 
@@ -45,8 +45,7 @@ function check(name, cond) {
   check('blend t ramps at 1/WEATHER_FADE per second', Math.abs(b2.t - b1.t - 1.5 / WEATHER_FADE) < 0.05);
 
   // gameplay flips at the boundary, decoupled from the visual blend
-  const expected = sched[1].kind === 'clear' ? 1 : WET_WORK_FACTOR;
-  check('workFactor already reflects the new phase', g.workFactor === expected);
+  check('workFactor already reflects the new phase', g.workFactor === WEATHER_RULES[sched[1].kind].work);
 
   // ramp to full over WEATHER_FADE, then hold
   const steps = Math.ceil(WEATHER_FADE / dt) + 2;
@@ -62,6 +61,46 @@ function check(name, cond) {
   check('wrap from = last phase kind', bw.from === sched[sched.length - 1].kind);
   check('wrap to = first phase kind', bw.to === sched[0].kind);
   check('wrap restarted the fade (t < 1)', bw.t < 1);
+}
+
+// ---- the rule table: each sky does its OWN, nameable thing (card #70) ------
+{
+  const R = WEATHER_RULES;
+  check('clear costs nothing at all', R.clear.work === 1 && R.clear.wheels && R.clear.lanternLight === 1);
+  check('rain and storm slow work by DIFFERENT amounts', R.rain.work !== R.storm.work);
+  check('rain is the gentler one', R.rain.work > R.storm.work);
+  check('rain leaves the wheels turning', R.rain.wheels === true);
+  check('only a storm brakes the wheels', R.storm.wheels === false);
+  check('only a storm pulls the lantern light in', R.rain.lanternLight === 1 && R.storm.lanternLight < 1);
+
+  // the readout list is generated from the table, so it can never drift from it
+  const ids = (kind, flood = false) => weatherEffects(kind, flood).map((e) => e.id).join(',');
+  check('clear reads as "nothing to plan around"', ids('clear') === 'none');
+  check('rain reads exactly one effect', ids('rain') === 'work');
+  check('storm reads all three', ids('storm') === 'work,wheels,light');
+  check('a flood level adds the tide to rain only', ids('rain', true) === 'work,flood' && ids('storm', true) === 'work,wheels,light');
+  const pct = weatherEffects('storm').find((e) => e.id === 'work').pct;
+  check('the work penalty is the whole-percent the player reads', pct === Math.round((1 - R.storm.work) * 100));
+}
+
+// ---- storm rules land in the sim -------------------------------------------
+{
+  // a night level with a storm phase: the lantern circle must pull in with it
+  const def = LEVELS.find((l) => l.night && (l.weather ?? []).some((p) => p.kind === 'storm'));
+  check('found a night level with a storm phase', !!def);
+  const g = new Game(def);
+  const dt = 1 / 30;
+  const calmR = g.lanternRadius;
+  check('wheels turn while it is not storming', g.wheelsLocked === (g.weather === 'storm'));
+  let guard = 0;
+  while (g.weather !== 'storm' && guard < 500000) { g.tick(dt); guard++; }
+  check('reached the storm phase', g.weather === 'storm');
+  check('the storm brakes the wheels', g.wheelsLocked === true);
+  check('the storm pulls the lantern light in', g.lanternRadius < calmR);
+  check('lantern radius matches the rule exactly', Math.abs(g.lanternRadius - calmR * WEATHER_RULES.storm.lanternLight) < 1e-9);
+  // the sheltered fires do NOT dim — the home yard never goes dark in a gale
+  const th = g.lightSources().find((s) => Math.abs(s.r - 9) < 1e-9);
+  check('the town hall fire keeps its full radius through a storm', !!th);
 }
 
 // ---- pure WeatherLook lerp -------------------------------------------------

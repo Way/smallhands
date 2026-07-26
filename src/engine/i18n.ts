@@ -252,12 +252,16 @@ export const D: Record<string, [string, string]> = {
     'Der Monsun kommt nach Fahrplan. Nasse Äxte beißen langsam — lies die Vorhersage und plane die Trockenphasen.',
   ],
   'lvl6.hint.forecast': [
-    'See the <b>forecast</b> by the clock up top? The monsoon is punctual. In the <b>rain</b>, chopping and mining take almost twice as long — fell in the sun, saw in the rain.',
-    'Siehst du die <b>Vorhersage</b> oben neben der Uhr? Der Monsun ist pünktlich. Im <b>Regen</b> dauern Fällen und Abbauen fast doppelt so lang — fälle bei Sonne, säge bei Regen.',
+    'See the <b>forecast</b> by the clock up top? It lists exactly what each sky costs you. The monsoon is punctual: <b>rain</b> slows chopping and mining by 30 % — fell in the sun, saw in the rain.',
+    'Siehst du die <b>Vorhersage</b> oben neben der Uhr? Sie listet genau, was dir jeder Himmel kostet. Der Monsun ist pünktlich: <b>Regen</b> bremst Fällen und Abbauen um 30 % — fälle bei Sonne, säge bei Regen.',
   ],
   'lvl6.hint.pond': [
     'The hollow holds a <b>pond</b> — and the caravan waits beyond it. Three <b>Bridge</b> planks across the gap open the road east.',
     'In der Senke liegt ein <b>Teich</b> — und die Karawane wartet dahinter. Drei <b>Brücken</b>-Bretter über die Lücke öffnen den Weg nach Osten.',
+  ],
+  'lvl6.hint.budget': [
+    'The number on the <b>Bridge</b> chip is how many planks of bridge this valley has left. Tear one down and you get it back — so lay it wrong, then lay it right.',
+    'Die Zahl auf dem <b>Brücken</b>-Feld sagt, wie viele Brückenbretter dieses Tal noch hat. Reiß eines ab, und du bekommst es zurück — leg es also falsch und dann richtig.',
   ],
   'lvl7.name': ['Lantern Ridge', 'Laternengrat'],
   'lvl7.desc': [
@@ -299,8 +303,8 @@ export const D: Record<string, [string, string]> = {
     'Der letzte Aufstieg: <b>Nacht</b>, <b>Regen</b> und <b>Sturm</b> im Wechsel. Laternen erhellen die Terrassen, Regen bremst die Ernte — und im <b>Sturm verriegeln die Aufzüge ihre Bremsen</b>. Behalte die Vorhersage im Blick und bewege Fracht in den ruhigen Fenstern.',
   ],
   'lvl9.hint.upgrade2': [
-    'The Forge (and any lift) needs <b>Town Hall 2</b> — bank 8 planks and 6 stone early. Ramps climb in any weather; lifts are faster but sit out every storm.',
-    'Die Schmiede (und jeder Aufzug) braucht <b>Rathaus 2</b> — lege früh 8 Bretter und 6 Steine zurück. Rampen steigen bei jedem Wetter; Aufzüge sind schneller, setzen aber jeden Sturm aus.',
+    'Every pair of hands is busy and the mountain is long. <b>Town Hall 3</b> buys three more — and remember: ramps climb in any weather, lifts sit out every storm.',
+    'Jede Hand ist beschäftigt und der Berg ist lang. <b>Rathaus 3</b> bringt drei weitere — und denk daran: Rampen steigen bei jedem Wetter, Aufzüge setzen jeden Sturm aus.',
   ],
   'lvl9.hint.stormplan': [
     'A <b>storm</b> is rolling in! Haulers will queue at locked lifts until it passes — ramps keep walking, lifts wait it out.',
@@ -320,6 +324,20 @@ export const D: Record<string, [string, string]> = {
     'Every rainfall raises the water one step — for good.',
     'Jeder Regen hebt das Wasser eine Stufe — für immer.',
   ],
+  // What the sky is doing to the crew, generated from WEATHER_RULES (card #70).
+  // Short, one consequence per line — these are read at a glance mid-play.
+  'wx.eff.work': ['🪓 Harvest −{p}%', '🪓 Ernte −{p} %'],
+  'wx.eff.wheels': ['🔒 Lift &amp; hoist braked', '🔒 Aufzug &amp; Seilrad gebremst'],
+  'wx.eff.light': ['🕯️ Lantern light −{p}%', '🕯️ Laternenlicht −{p} %'],
+  'wx.eff.flood': ['🌊 The tide rises a step', '🌊 Die Flut steigt eine Stufe'],
+  'wx.eff.none': ['✔ Everything at full speed', '✔ Alles mit voller Kraft'],
+  // the caravan's dock window (LevelDef.convoy)
+  'convoy.title': [
+    'The caravan loads, rolls out, and comes back. Deliveries only leave the store while it is here — stockpile through the gap.',
+    'Die Karawane lädt, fährt los und kommt zurück. Lieferungen verlassen das Lager nur, während sie hier ist — sammle in der Pause.',
+  ],
+  'convoy.docked': ['🐎 <b>Caravan loading</b> — leaves in {n}s', '🐎 <b>Karawane lädt</b> — fährt in {n} s'],
+  'convoy.away': ['🐎 <b>Caravan on the road</b> — back in {n}s', '🐎 <b>Karawane unterwegs</b> — zurück in {n} s'],
   'hud.paused': ['Paused', 'Pausiert'],
   'hud.clockTitle': [
     'Time of day on this map. Some maps start at night, where smallies only work in lantern light.',
@@ -374,6 +392,9 @@ export const D: Record<string, [string, string]> = {
   'tt.makes': ['Makes', 'Erzeugt'],
   'tt.perBatch': ['⏱ {n}s per batch', '⏱ {n} s pro Durchgang'],
   'tt.requiresTh': ['Requires Town Hall level {n}', 'Benötigt Rathaus-Stufe {n}'],
+  // budgeted tools (LevelDef.toolLimit) — demolishing one gives the slot back
+  'tt.limitLeft': ['<b>{n}</b> of {cap} left · demolish to get one back', '<b>{n}</b> von {cap} übrig · Abriss gibt eines zurück'],
+  'tt.limitSpent': ['All {cap} used — demolish one to free a slot', 'Alle {cap} verbraucht — reiße eines ab, um Platz zu schaffen'],
   'hud.needs': ['<b>{label}</b> needs', '<b>{label}</b> braucht'],
   'hud.tooDark': ['Too dark — light it with a lantern', 'Zu dunkel — erst mit einer Laterne beleuchten'],
   'th.status': ['<b>Town Hall</b> · Level {n} · {a}/{b} crew', '<b>Rathaus</b> · Stufe {n} · {a}/{b} im Trupp'],
@@ -478,6 +499,10 @@ export const D: Record<string, [string, string]> = {
     'A whole cliff is too far to leap now — run a <b>ladder</b> down beside the wheel so a hand can reach the valley and carry the goods to the caravan.',
     'Eine ganze Klippe ist jetzt zu weit zum Springen — setze eine <b>Leiter</b> neben das Rad, damit eine Hand ins Tal gelangt und die Waren zur Karawane trägt.',
   ],
+  'lvl10.hint.convoy': [
+    'The <b>caravan has rolled out</b> — nothing ships while the dock is empty. Keep working: the store fills up, and the moment it returns everything goes at once. Watch the line under your order.',
+    'Die <b>Karawane ist losgefahren</b> — solange der Platz leer ist, wird nichts verladen. Arbeite weiter: Das Lager füllt sich, und sobald sie zurück ist, geht alles auf einmal. Achte auf die Zeile unter dem Auftrag.',
+  ],
   'lvl11.name': ['Ballast Ridge', 'Ballastgrat'],
   'lvl11.desc': [
     'The caravan camps high on the ridge, the timber grows in the valley. Every plank that rides up must be paid for in falling stone.',
@@ -507,6 +532,10 @@ export const D: Record<string, [string, string]> = {
   'lvl12.hint.stormbrake': [
     'The storm has seized the hoist’s brake! Watch the forecast — chop, mine and forge through the gusts, ship in the calm.',
     'Der Sturm hat die Bremse des Aufzugs gepackt! Achte auf die Vorhersage — hacke, grabe und schmiede im Sturm, verschiffe in der Ruhe.',
+  ],
+  'lvl12.hint.window': [
+    'Both clocks at once: the caravan is <b>here</b> and the wheel is <b>locked</b>. A <b>Rope</b> is gravity, not gears — the storm cannot stop it.',
+    'Beide Uhren gleichzeitig: Die Karawane ist <b>da</b> und das Rad ist <b>blockiert</b>. Ein <b>Seil</b> ist Schwerkraft, kein Getriebe — der Sturm hält es nicht auf.',
   ],
   'lvl13.name': ['The Buried Seam', 'Die vergrabene Ader'],
   'lvl13.desc': [
@@ -733,15 +762,23 @@ export const D: Record<string, [string, string]> = {
     '<b>Rathaus Stufe {n}!</b> Neue Gebäude freigeschaltet und ein größerer Trupp.',
   ],
   'toast.locked': ['<b>{label}</b> unlocks at Town Hall level {n}.', '<b>{label}</b> wird mit Rathaus-Stufe {n} freigeschaltet.'],
+  // Phase-change toasts. Each one NAMES its consequences — the {e} slot is filled
+  // with the same weatherEffects() list the forecast shows, so the toast and the
+  // popover can never disagree about what this sky costs (card #70).
   'toast.wx.clear': ['☀️ The sky clears — full speed ahead.', '☀️ Der Himmel klart auf — volle Kraft voraus.'],
-  'toast.wx.rain': ['🌧️ <b>Rain</b> sets in — chopping and mining slow down.', '🌧️ <b>Regen</b> setzt ein — Fällen und Abbauen dauern länger.'],
+  'toast.wx.rain': ['🌧️ <b>Rain</b> sets in. {e}', '🌧️ <b>Regen</b> setzt ein. {e}'],
   'toast.wx.rainFlood': [
-    '🌧️ <b>Rain</b> — harvesting slows, and <b>the water rises!</b>',
-    '🌧️ <b>Regen</b> — die Ernte wird langsamer, und <b>das Wasser steigt!</b>',
+    '🌧️ <b>Rain</b> — and <b>the water rises!</b> {e}',
+    '🌧️ <b>Regen</b> — und <b>das Wasser steigt!</b> {e}',
   ],
-  'toast.wx.storm': [
-    '🌩️ <b>Storm!</b> Cargo lifts lock their brakes until it passes.',
-    '🌩️ <b>Sturm!</b> Die Lastenaufzüge verriegeln ihre Bremsen, bis er vorüberzieht.',
+  'toast.wx.storm': ['🌩️ <b>Storm!</b> {e}', '🌩️ <b>Sturm!</b> {e}'],
+  'toast.convoy.away': [
+    '🐎 <b>The caravan rolls out.</b> Fill the store — it returns in {n}s.',
+    '🐎 <b>Die Karawane fährt los.</b> Füll das Lager — sie ist in {n} s zurück.',
+  ],
+  'toast.convoy.docked': [
+    '🐎 <b>The caravan is back!</b> Ship everything — it leaves again in {n}s.',
+    '🐎 <b>Die Karawane ist zurück!</b> Verlade alles — sie fährt in {n} s wieder.',
   ],
   'toast.flood.one': [
     '🌊 <b>The tide swallows the low ground!</b> A smallie scrambled home, dropping their load.',
@@ -802,6 +839,8 @@ export const D: Record<string, [string, string]> = {
     'Wartet auf Ballast — der obere Korb muss den unteren überwiegen.',
   ],
   'hoist.stormLocked': ['Storm brake engaged.', 'Sturmbremse eingerastet.'],
+  'lift.stormLocked': ['Storm brake engaged — nobody boards.', 'Sturmbremse eingerastet — niemand steigt ein.'],
+  'rope.stormFree': ['Gravity, not gears — the storm cannot stop it.', 'Schwerkraft statt Zahnräder — der Sturm hält sie nicht auf.'],
   'hoist.hint': [
     'Tap the hoist with Inspect to choose which goods ride down or up.',
     'Tippe den Aufzug mit Prüfen an, um zu wählen, welche Waren hinab- oder hinauffahren.',

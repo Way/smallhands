@@ -61,6 +61,14 @@ const mark = (pred = () => true) => (g) => {
   for (const n of g.nodes) if (pred(n)) n.marked = true;
 };
 
+// "this line of the order sheet is full" — read against the level's own amount,
+// never a hardcoded count, so retuning an order (card #70) can't quietly turn a
+// scripted step into a step that never fires.
+const filled = (item) => (g) => {
+  const o = g.objectives.find((ob) => ob.item === item);
+  return !!o && o.delivered >= o.amount;
+};
+
 // ---- Level 1: First Steps — harvest, saw, deliver ----------------------------
 {
   const def = LEVELS[0];
@@ -113,7 +121,7 @@ const mark = (pred = () => true) => (g) => {
       { name: 'forge on the rim', when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4, do: (g) => g.placeBuilding('forge', 15, 21) },
       // keep a small plank reserve to feed the forge, then release once spears flow
       { name: 'trim the reserve', when: (g) => g.buildings.some((b) => b.kind === 'forge'), do: (g) => { g.setKeep('plank', 4); g.setKeep('stone', 0); } },
-      { name: 'release the order', when: (g) => (g.objectives.find((o) => o.item === 'spear')?.delivered ?? 0) >= 4, do: (g) => g.setKeep('plank', 0) },
+      { name: 'release the order', when: filled('spear'), do: (g) => g.setKeep('plank', 0) },
     ],
     1500
   );
@@ -132,10 +140,11 @@ const mark = (pred = () => true) => (g) => {
       { name: 'ramp: base -> terrace 1', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(21, 22, 16, 27) === 6 },
       { name: 'ramp: terrace 1 -> terrace 2', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(41, 16, 36, 21) === 6 },
       { name: 'ramp: terrace 2 -> summit', when: (g) => g.stock.plank >= 6, do: (g) => g.placeRampRun(59, 10, 54, 15) === 6 },
-      { name: 'upgrade the town hall', when: (g) => g.stock.plank >= 8 && g.stock.stone >= 6, do: (g) => g.startThUpgrade() },
-      { name: 'forge on terrace 2', when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4, do: (g) => g.placeBuilding('forge', 42, 14) },
+      // no town-hall upgrade here any more: the level starts at TH2 (card #70), so
+      // the forge is available from the first second and the crew can reach nine
+      { name: 'forge on terrace 2', when: (g) => g.stock.plank >= 4 && g.stock.stone >= 4, do: (g) => g.placeBuilding('forge', 42, 14) },
       { name: 'trim the reserve', when: (g) => g.buildings.some((b) => b.kind === 'forge'), do: (g) => { g.setKeep('plank', 4); g.setKeep('stone', 0); } },
-      { name: 'release the order', when: (g) => (g.objectives.find((o) => o.item === 'spear')?.delivered ?? 0) >= 4, do: (g) => g.setKeep('plank', 0) },
+      { name: 'release the order', when: filled('spear'), do: (g) => g.setKeep('plank', 0) },
     ],
     2500
   );

@@ -1,4 +1,4 @@
-import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS, LANTERN_RADIUS } from './types';
+import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
 import { BIOME_LOOK, biomeSuffix, treeSprite } from '../engine/biomes';
@@ -1865,16 +1865,18 @@ export class Renderer {
 
   // Preview the patch a lantern would light from the aimed cell, so the player
   // can place it without guessing. Faithful to the sim: same centre
-  // ((tx+0.5, ty+0.5)) and LANTERN_RADIUS the finished lantern uses for isLit,
-  // and the same soft warm disc the night veil punches around a real light. The
-  // ghost draws after drawDarkness, so at night the previewed area visibly
-  // brightens; the dashed ring marks the exact lit boundary. Static (no flicker)
-  // to stay deterministic and reduce-motion-safe.
-  private drawLanternRange(tx: number, ty: number): void {
+  // ((tx+0.5, ty+0.5)) and the same radius the finished lantern would use for
+  // isLit — passed in as `radius` (game.lanternRadius), because a storm gutters
+  // the flame and pulls that circle in, and a preview that ignored the weather
+  // would promise light the lantern cannot give. Same soft warm disc the night
+  // veil punches around a real light. The ghost draws after drawDarkness, so at
+  // night the previewed area visibly brightens; the dashed ring marks the exact
+  // lit boundary. Static (no flicker) to stay deterministic/reduce-motion-safe.
+  private drawLanternRange(tx: number, ty: number, radius: number): void {
     const { ctx } = this;
     const cx = (tx + 0.5) * TILE;
     const cy = (ty + 0.5) * TILE;
-    const r = LANTERN_RADIUS * TILE;
+    const r = radius * TILE;
     ctx.save();
     const grad = ctx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r);
     grad.addColorStop(0, 'rgba(255,201,109,0.30)');
@@ -1999,11 +2001,12 @@ export class Renderer {
           canPlaceBuilding(game.world, game.buildings, game.nodes, tx, ty, fp.w, fp.h) &&
           game.canAfford(cost) &&
           game.toolUnlocked(tool) &&
+          game.toolRemaining(tool) !== 0 &&
           // at night, workshops need a lit site — lanterns go anywhere
           !game.darkBlocks(tool, tx, ty);
         // show the area this lantern would light before it's placed (under the
         // sprite/outline so those stay legible on top)
-        if (tool === 'lantern') this.drawLanternRange(tx, ty);
+        if (tool === 'lantern') this.drawLanternRange(tx, ty, game.lanternRadius);
         ctx.globalAlpha = 0.55;
         const spr = sprite(tool).canvas;
         ctx.drawImage(spr, 0, 0, fp.w * TILE, fp.h * TILE, px, py, fp.w * TILE, fp.h * TILE);

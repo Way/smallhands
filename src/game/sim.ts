@@ -30,7 +30,7 @@ import {
   TOWNHALL_LIGHT_RADIUS,
   WALK_SPEED,
   WEATHER_FADE,
-  WET_WORK_FACTOR,
+  WEATHER_RULES,
   WORKER_SPAWN_INTERVAL,
 } from './types';
 import type {
@@ -114,6 +114,7 @@ export type GameEvent =
   | { type: 'produce'; building: Building; item: ItemType }
   | { type: 'hoistCycle' }
   | { type: 'weather'; kind: WeatherKind }
+  | { type: 'convoy'; open: boolean }
   | { type: 'flood'; row: number; rescued: number }
   | { type: 'splash'; item: ItemType }
   | { type: 'win' }
@@ -202,6 +203,14 @@ export class Game {
   // rising-water table: every AIR cell at y >= waterRow is flooded.
   // null = no water table (static water tiles may still exist).
   waterRow: number | null = null;
+  // convoy: last observed dock state, so tickConvoy can announce the flips.
+  // The state itself is derived from `time` (see convoyOpen) — nothing to keep
+  // in sync, and a restart of the same level docks on the same seconds.
+  private convoyWasOpen = true;
+  // tool limits: how many placements of a limited tool are currently STANDING.
+  // Demolishing gives the count back (see restoreTool), which is what keeps a
+  // mis-placed bridge from softlocking a budgeted level.
+  private toolUsed: Partial<Record<Tool, number>> = {};
 
   private nextId = 1;
   private spawnTimer = 1;
@@ -332,9 +341,70 @@ export class Game {
     return { from: this.weatherPrev, to: this.weather, t };
   }
 
-  // Wet weather (rain or storm) slows outdoor harvest work.
+  // What the sky is doing to the crew right now. One table (WEATHER_RULES) feeds
+  // the three getters below AND the HUD's forecast text, so a tuning change is
+  // felt and explained in the same breath — see types.ts for the rule set.
+  get weatherRule() {
+    return WEATHER_RULES[this.weather];
+  }
+
+  // Wet weather slows outdoor harvest work — a drizzle a little, a storm a lot.
   get workFactor(): number {
-    return this.weather === 'clear' ? 1 : WET_WORK_FACTOR;
+    return this.weatherRule.work;
+  }
+
+  // A storm seizes every wheel: cargo lifts and counterweight hoists hold their
+  // brakes until it passes. Ropes are gravity, not machinery, so they keep
+  // running — which is exactly the storm-proof route a player can plan for.
+  get wheelsLocked(): boolean {
+    return !this.weatherRule.wheels;
+  }
+
+  // ---- convoy (the caravan's dock window) --------------------------------------
+
+  // On a `convoy` level the caravan does not simply stand there: it loads for
+  // `open` seconds, rolls out for `closed`, and comes back — forever. Deliveries
+  // only START while it is docked, so the crew has to stockpile through the gap
+  // and empty the store into the window. Derived straight from `time`: no state
+  // to keep in sync, deterministic, and identical on a restart.
+  get convoyOpen(): boolean {
+    const c = this.level.convoy;
+    if (!c) return true;
+    return this.time % (c.open + c.closed) < c.open;
+  }
+
+  // Seconds until the caravan leaves (while docked) or returns (while away).
+  // Infinity where there is no convoy schedule at all.
+  get convoyRemaining(): number {
+    const c = this.level.convoy;
+    if (!c) return Infinity;
+    const p = this.time % (c.open + c.closed);
+    return p < c.open ? c.open - p : c.open + c.closed - p;
+  }
+
+  // ---- tool limits (the Lemmings-style budget) ---------------------------------
+
+  // How many more times `tool` may be placed, or null where it is unlimited.
+  // Counting rule: one per TILE for the drag-run tools (ladder/bridge/ramp), one
+  // per INSTANCE for buildings and machines. Demolishing returns the count, so a
+  // budget is a cap on what stands at once, never a trap.
+  toolRemaining(tool: Tool): number | null {
+    const cap = this.level.toolLimit?.[tool];
+    if (cap === undefined) return null;
+    return Math.max(0, cap - (this.toolUsed[tool] ?? 0));
+  }
+
+  private spendTool(tool: Tool, n = 1): void {
+    if (this.level.toolLimit?.[tool] === undefined || n <= 0) return;
+    this.toolUsed[tool] = (this.toolUsed[tool] ?? 0) + n;
+  }
+
+  // Give a budget slot back. Clamped at zero so demolishing terrain the LEVEL
+  // authored (an old adit ladder, say) can never mint budget the player never
+  // spent — it can only ever refund their own placements.
+  private restoreTool(tool: Tool, n = 1): void {
+    if (this.level.toolLimit?.[tool] === undefined) return;
+    this.toolUsed[tool] = Math.max(0, (this.toolUsed[tool] ?? 0) - n);
   }
 
   // ---- light (night levels) ----------------------------------------------------
@@ -348,14 +418,23 @@ export class Game {
     return this.level.night ? 1 : 0;
   }
 
+  // A lantern's working radius right now. Weather pulls it in (a storm gutters
+  // the flame — WEATHER_RULES.lanternLight); the town hall's and the caravan's
+  // sheltered fires are untouched. One getter so the sim's light test, the night
+  // veil and the placement ghost all preview the same circle.
+  get lanternRadius(): number {
+    return LANTERN_RADIUS * this.weatherRule.lanternLight;
+  }
+
   // Light sources: the town hall and caravan keep their own fires, plus every
   // finished lantern. Radii are in tiles, measured from the source's centre.
   lightSources(): { x: number; y: number; r: number }[] {
     const out: { x: number; y: number; r: number }[] = [];
+    const lr = this.lanternRadius;
     for (const b of this.buildings) {
       if (b.kind === 'townhall') out.push({ x: b.x + 2, y: b.y + 1.5, r: TOWNHALL_LIGHT_RADIUS });
       else if (b.kind === 'goal') out.push({ x: b.x + 2, y: b.y + 1.5, r: GOAL_LIGHT_RADIUS });
-      else if (b.kind === 'lantern' && b.state === 'ready') out.push({ x: b.x + 0.5, y: b.y + 0.5, r: LANTERN_RADIUS });
+      else if (b.kind === 'lantern' && b.state === 'ready') out.push({ x: b.x + 0.5, y: b.y + 0.5, r: lr });
     }
     return out;
   }
@@ -527,11 +606,12 @@ export class Game {
 
   placeLadder(x: number, y: number): boolean {
     const wood = this.ladderWood();
-    if (!canPlaceLadder(this.world, x, y) || wood === null) {
+    if (!canPlaceLadder(this.world, x, y) || wood === null || this.toolRemaining('ladder') === 0) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
     this.stock[wood] -= 1;
+    this.spendTool('ladder');
     this.world.set(x, y, T.LADDER);
     this.onEvent({ type: 'place' });
     return true;
@@ -550,7 +630,13 @@ export class Game {
   // `cost` = the resource total for that prefix (what a drop spends); `rows` =
   // full-run need vs have for the readout badge.
   runPlan(tool: Tool, ax: number, ay: number, tx: number, ty: number): RunPlan {
-    const cells = this.runCells(tool, ax, ay, tx, ty);
+    const all = this.runCells(tool, ax, ay, tx, ty);
+    // A budgeted tool (LevelDef.toolLimit) trims the run to the tiles it still
+    // has left BEFORE the cost math, so the ghost, the cursor readout and the
+    // drop all agree on the same shortened run. Dig is never budgeted: its
+    // orders are painted and erased freely, so there is nothing standing to count.
+    const budget = this.toolRemaining(tool);
+    const cells = budget === null ? all : all.slice(0, budget);
     const n = cells.length;
     if (tool === 'dig') {
       // Digging spends no resources — every marked cell is "affordable". The
@@ -580,8 +666,9 @@ export class Game {
 
   // Lay a run's affordable prefix, paying its total cost once. The plan already
   // encodes both terrain validity and affordability, so we just place.
-  private placeRun(plan: RunPlan, tile: T): number {
+  private placeRun(tool: Tool, plan: RunPlan, tile: T): number {
     this.payCost(plan.cost);
+    this.spendTool(tool, plan.affordable);
     for (let i = 0; i < plan.affordable; i++) {
       this.world.set(plan.cells[i].x, plan.cells[i].y, tile);
     }
@@ -596,7 +683,7 @@ export class Game {
       this.onEvent({ type: 'invalid' });
       return 0;
     }
-    return this.placeRun(this.runPlan('ramp', ax, ay, tx, ty), T.RAMP);
+    return this.placeRun('ramp', this.runPlan('ramp', ax, ay, tx, ty), T.RAMP);
   }
 
   placeBridgeRun(ax: number, ay: number, tx: number, ty: number): number {
@@ -604,12 +691,12 @@ export class Game {
       this.onEvent({ type: 'invalid' });
       return 0;
     }
-    return this.placeRun(this.runPlan('platform', ax, ay, tx, ty), T.PLATFORM);
+    return this.placeRun('platform', this.runPlan('platform', ax, ay, tx, ty), T.PLATFORM);
   }
 
   // Ladders are exempt from the dark gate (vertical mobility — docs/architecture.md).
   placeLadderRun(ax: number, ay: number, tx: number, ty: number): number {
-    return this.placeRun(this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
+    return this.placeRun('ladder', this.runPlan('ladder', ax, ay, tx, ty), T.LADDER);
   }
 
   // Can this single cell be marked to dig? Thin wrapper over the world test so
@@ -654,7 +741,12 @@ export class Game {
   placeBuilding(kind: 'sawmill' | 'forge' | 'workshop' | 'lantern', x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === kind)!;
     const fp = FOOTPRINTS[kind];
-    if (!this.toolUnlocked(kind) || !this.canAfford(def.cost!) || !canPlaceBuilding(this.world, this.buildings, this.nodes, x, y, fp.w, fp.h)) {
+    if (
+      !this.toolUnlocked(kind) ||
+      this.toolRemaining(kind) === 0 ||
+      !this.canAfford(def.cost!) ||
+      !canPlaceBuilding(this.world, this.buildings, this.nodes, x, y, fp.w, fp.h)
+    ) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -665,6 +757,7 @@ export class Game {
       return false;
     }
     this.payCost(def.cost!);
+    this.spendTool(kind);
     this.addBuilding(kind, x, y, false);
     this.onEvent({ type: 'place' });
     return true;
@@ -673,7 +766,7 @@ export class Game {
   placeLift(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'lift')!;
     const topY = liftTopFor(this.world, x, y);
-    if (!this.toolUnlocked('lift') || topY === null || !this.canAfford(def.cost!)) {
+    if (!this.toolUnlocked('lift') || this.toolRemaining('lift') === 0 || topY === null || !this.canAfford(def.cost!)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -687,6 +780,7 @@ export class Game {
       return false;
     }
     this.payCost(def.cost!);
+    this.spendTool('lift');
     const b = this.addBuilding('lift', x, y, false);
     b.liftTopY = topY;
     b.liftCarY = y;
@@ -697,7 +791,7 @@ export class Game {
   placeRope(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'rope')!;
     const drop = ropeDropFor(this.world, x, y);
-    if (!this.toolUnlocked('rope') || drop === null || !this.canAfford(def.cost!)) {
+    if (!this.toolUnlocked('rope') || this.toolRemaining('rope') === 0 || drop === null || !this.canAfford(def.cost!)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -711,6 +805,7 @@ export class Game {
       return false;
     }
     this.payCost(def.cost!);
+    this.spendTool('rope');
     const b = this.addBuilding('rope', x, y, false);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
@@ -723,7 +818,7 @@ export class Game {
   placeHoist(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'hoist')!;
     const drop = ropeDropFor(this.world, x, y);
-    if (!this.toolUnlocked('hoist') || drop === null || !this.canAfford(def.cost!)) {
+    if (!this.toolUnlocked('hoist') || this.toolRemaining('hoist') === 0 || drop === null || !this.canAfford(def.cost!)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
@@ -736,6 +831,7 @@ export class Game {
       return false;
     }
     this.payCost(def.cost!);
+    this.spendTool('hoist');
     const b = this.addBuilding('hoist', x, y, false);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
@@ -787,6 +883,10 @@ export class Game {
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
       this.world.set(x, y, T.AIR);
+      // hand the budget slot back (see restoreTool) — a tile taken down is a
+      // tile the player may spend again, which is what keeps a limited-tool
+      // level a puzzle instead of a trap
+      this.restoreTool(t === T.LADDER ? 'ladder' : t === T.PLATFORM ? 'platform' : 'ramp');
       // Refund in planks even for ladders (which may have been paid in logs):
       // refunding a log would let plank→ladder→demolish→log→sawmill mint free
       // planks. Planks never convert back to logs, so a plank refund can't loop.
@@ -799,6 +899,7 @@ export class Game {
     if (b && b.kind !== 'townhall' && b.kind !== 'goal') {
       const def = TOOL_DEFS.find((td) => td.id === (b.kind as Tool));
       if (def?.cost) this.refund(def.cost, b.state === 'blueprint' ? 1 : 0.5);
+      this.restoreTool(b.kind as Tool);
       // return any stored inputs/outputs to the ground
       for (const store of [b.inputs, b.outputs]) {
         for (const [k, v] of Object.entries(store)) {
@@ -1403,7 +1504,11 @@ export class Game {
     // from workshop outputs. The direct routes matter wherever the town hall
     // is not on the caravan's level (e.g. goods a hoist raised to a plateau):
     // funnelling through the stockpile would need a cargo route back up.
-    const goal = this.goal;
+    // While the caravan is out on the road (LevelDef.convoy) nothing is dispatched
+    // to it — the crew fills the stockpile instead and empties it into the next
+    // dock window. A hauler already walking when it rolls out still delivers on
+    // arrival: cargo in hand is never thrown away, it just catches the tail.
+    const goal = this.convoyOpen ? this.goal : null;
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
@@ -1471,7 +1576,7 @@ export class Game {
     // below is waiting on weight ("the heavier side sinks").
     for (const b of this.buildings) {
       if (b.kind !== 'hoist' || b.state !== 'ready' || b.hoistBusy) continue;
-      if (this.weather === 'storm') continue; // brake locked — don't stage loads
+      if (this.wheelsLocked) continue; // brake locked — don't stage loads
       const carFree = (contents: Partial<Record<ItemType, number>>, inb: Partial<Record<ItemType, number>>) =>
         HOIST_CAR_CAPACITY - carCount(contents) - carCount(inb);
       const wants: { car: HoistCar; item: ItemType }[] = [];
@@ -1973,7 +2078,7 @@ export class Game {
         this.repath(w);
         return;
       }
-      if (this.weather === 'storm' && lift.liftRiderId !== w.id) {
+      if (this.wheelsLocked && lift.liftRiderId !== w.id) {
         w.waiting = true; // storm brake: nobody boards until the gust passes
         return;
       }
@@ -2095,7 +2200,7 @@ export class Game {
       }
       return;
     }
-    if (this.weather === 'storm') return; // brake locked until the gust passes
+    if (this.wheelsLocked) return; // brake locked until the gust passes
     // hold the wheel while loaders are still on their way — otherwise ballast
     // deposited a moment before its cargo would ride down alone and be wasted
     if (carCount(b.hoistUpperIn) + carCount(b.hoistLowerIn) > 0) return;
@@ -2165,6 +2270,17 @@ export class Game {
       // in flood levels, every downpour raises the water table one row
       if (kind === 'rain' && this.level.flood) this.riseWater();
     }
+  }
+
+  // Announce the caravan rolling out and rolling back in. The state itself is
+  // derived from `time` (convoyOpen) — this only watches for the edge so the HUD
+  // can toast it; nothing in the sim reads convoyWasOpen.
+  private tickConvoy(): void {
+    if (!this.level.convoy) return;
+    const open = this.convoyOpen;
+    if (open === this.convoyWasOpen) return;
+    this.convoyWasOpen = open;
+    this.onEvent({ type: 'convoy', open });
   }
 
   // Raise the water table one row: AIR at or below the new row floods, goods
@@ -2377,6 +2493,7 @@ export class Game {
     }
 
     this.tickWeather(dt);
+    this.tickConvoy();
     this.tickBuildings(dt);
     this.tickGravity();
     this.tickParticles(dt);

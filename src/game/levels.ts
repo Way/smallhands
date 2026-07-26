@@ -32,6 +32,18 @@ export interface LevelDef {
   dayNight?: { rate: number }; // live day→night cycle: advance the clock `rate` game-hours per second (omit for a fixed sky)
   flood?: { start: number; min: number }; // rising tide: first flood row & highest row it reaches
   biome?: Biome; // terrain palette family; omit for the classic meadow look
+  // The caravan's dock window (card #70): it loads for `open` seconds, rolls out
+  // for `closed`, and returns — forever, from t=0, derived from the run clock so
+  // a restart docks on the same seconds. Deliveries are only DISPATCHED while it
+  // stands there, so the level becomes "stockpile through the gap, empty the
+  // store into the window" — the game's timing verb. See Game.convoyOpen.
+  convoy?: { open: number; closed: number };
+  // Lemmings-style tool budget (card #70): how many of a tool may STAND at once.
+  // One per tile for the drag-run tools (ladder/platform/ramp), one per instance
+  // for buildings and machines; demolishing gives the slot back, so a budget is a
+  // puzzle constraint and never a softlock. `dig` is deliberately unbudgetable —
+  // its orders are painted and erased freely. See Game.toolRemaining.
+  toolLimit?: Partial<Record<Tool, number>>;
 }
 
 // ---- terrain authoring helpers ---------------------------------------------
@@ -108,8 +120,11 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl1.desc',
     width: 56,
     height: 26,
-    objectives: [{ item: 'plank', amount: 8 }],
-    medals: { gold: 210, silver: 330, bronze: 540 },
+    // The very first order in the game: small enough that the loop (mark → saw →
+    // deliver) closes once before the player can get bored of it. Card #70 cut it
+    // from 8 to 6 — the lesson is "the chain works", not "the chain is long".
+    objectives: [{ item: 'plank', amount: 6 }],
+    medals: { gold: 180, silver: 270, bronze: 450 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'demolish'],
     startStock: { log: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1 },
@@ -160,11 +175,13 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl2.desc',
     width: 64,
     height: 30,
+    // The lift is the new verb here, so the haul is deliberately NOT also the
+    // biggest one yet (stone 10 → 8, card #70): one new idea per level.
     objectives: [
-      { item: 'stone', amount: 10 },
+      { item: 'stone', amount: 8 },
       { item: 'plank', amount: 6 },
     ],
-    medals: { gold: 270, silver: 390, bronze: 600 },
+    medals: { gold: 240, silver: 360, bronze: 540 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'lift', 'demolish'],
     startStock: { log: 4, plank: 6, stone: 4 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
@@ -211,12 +228,16 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl3.desc',
     width: 72,
     height: 32,
+    // Three lines on the order sheet is a lot for level 3 — the counts came down
+    // (card #70) but stone stays at 8, because *stone is the lesson here*: it is
+    // both the delivery and the town-hall upgrade, which is what teaches the
+    // keep-in-store reserve. Shrinking it would remove the pinch that teaches it.
     objectives: [
-      { item: 'spear', amount: 4 },
-      { item: 'plank', amount: 8 },
+      { item: 'spear', amount: 3 },
+      { item: 'plank', amount: 6 },
       { item: 'stone', amount: 8 },
     ],
-    medals: { gold: 360, silver: 510, bronze: 720 },
+    medals: { gold: 330, silver: 480, bronze: 690 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
     startStock: { log: 6, plank: 6, stone: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
@@ -281,17 +302,30 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl4.desc',
     width: 84,
     height: 36,
+    // Campaign 1's finale: still the longest climb of the four, but it used to be
+    // the longest level in the WHOLE game at level 4 of 17 — a spike right where a
+    // new player is most likely to walk away (card #70). The three terraces do the
+    // teaching; the order sheet no longer piles on.
     objectives: [
-      { item: 'plank', amount: 10 },
-      { item: 'stone', amount: 10 },
-      { item: 'spear', amount: 4 },
+      { item: 'plank', amount: 8 },
+      { item: 'stone', amount: 8 },
+      { item: 'spear', amount: 3 },
     ],
-    medals: { gold: 480, silver: 660, bronze: 960 },
+    medals: { gold: 420, silver: 600, bronze: 870 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'demolish'],
-    startStock: { log: 6, plank: 2, stone: 4 },
+    // The first ramp used to wait on the sawmill's first six planks, which is why
+    // this level ran nearly three times as long as level 3 (card #70). Hand the
+    // crew one ramp's worth up front: the climb starts immediately and the level
+    // is about *chaining* the terraces, not about the wait before the first one.
+    startStock: { log: 8, plank: 8, stone: 4 },
     startRoles: { hauler: 3, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 6,
-    startThLevel: 1,
+    // Level 3 taught the town-hall upgrade (and the reserve that pays for it), so
+    // this level starts where that lesson ended: Town Hall 2, a crew that can grow
+    // to nine, and the forge already unlocked. Re-teaching it here is what turned
+    // the campaign-1 finale into the longest level in the game (card #70) — three
+    // terraces of hauling on six pairs of hands. The climb is the lesson.
+    startThLevel: 2,
     build: (g) => {
       terrain(
         g,
@@ -334,8 +368,10 @@ export const LEVELS: LevelDef[] = [
       },
       {
         id: 'chain',
+        // the crew starts at Town Hall 2 now, so key this on the first spear line
+        // actually being reachable rather than on an upgrade that already happened
         text: 'lvl4.hint.chain',
-        when: (g) => g.thLevel >= 2,
+        when: (g) => g.stock.iron >= 1 || g.stock.spear >= 1,
       },
       {
         id: 'ramp',
@@ -411,19 +447,28 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl6.desc',
     width: 68,
     height: 30,
+    // trimmed (card #70): with the rain penalty on top, an 18-item sheet made the
+    // second level of campaign 2 run longer than the flood level that follows it
     objectives: [
-      { item: 'plank', amount: 10 },
+      { item: 'plank', amount: 8 },
       { item: 'stone', amount: 8 },
     ],
-    medals: { gold: 330, silver: 480, bronze: 720 },
+    medals: { gold: 300, silver: 450, bronze: 690 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'demolish'],
     startStock: { log: 2, plank: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
+    // A long calm and a short sting, not a 45/30 mush (card #70): a rhythm the
+    // player can read off the forecast and *use* — fell in the sun, saw in the
+    // rain. The forecast now spells the −30 % out, so the pattern is learnable.
     weather: [
-      { kind: 'clear', duration: 45 },
-      { kind: 'rain', duration: 30 },
+      { kind: 'clear', duration: 55 },
+      { kind: 'rain', duration: 25 },
     ],
+    // The budget's playful introduction (card #70). The pond is three tiles wide
+    // and the crew gets six planks' worth of bridge: enough that a first bridge
+    // can be mis-laid and re-laid, few enough that the number on the chip is read.
+    toolLimit: { platform: 6 },
     build: (g) => {
       terrain(
         g,
@@ -466,6 +511,12 @@ export const LEVELS: LevelDef[] = [
         id: 'pond',
         text: 'lvl6.hint.pond',
         when: (g) => g.time > 25,
+      },
+      {
+        // the budget's first appearance — say it before a drag comes up short
+        id: 'budget',
+        text: 'lvl6.hint.budget',
+        when: (g) => (g.toolRemaining('platform') ?? 6) < 6,
       },
     ],
     camera: { x: 8, y: 16 },
@@ -545,9 +596,12 @@ export const LEVELS: LevelDef[] = [
     startRoles: { hauler: 2, builder: 1, woodcutter: 2, miner: 1 },
     startWorkers: 6,
     startThLevel: 2,
+    // The tide's clock. Shortened from 90s of calm to 70 (card #70) so the first
+    // rise lands while the player is still building rather than after they have
+    // already won the race — the level is *about* the water arriving.
     weather: [
-      { kind: 'clear', duration: 90 },
-      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 70 },
+      { kind: 'rain', duration: 20 },
     ],
     // two rises: the basin floor drowns, then the water laps one row higher.
     // The shelves stay dry forever, so a shelf-height bridge can always cross
@@ -625,12 +679,20 @@ export const LEVELS: LevelDef[] = [
     startStock: { log: 4, plank: 6, stone: 4 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 2, miner: 1 },
     startWorkers: 6,
+    // Campaign 2's finale starts at Town Hall 2 for the same reason level 4 does
+    // (card #70): re-earning a level-3 lesson on a 96-tile night mountain with six
+    // pairs of hands made this the longest level in the game by a wide margin.
+    // Town Hall 3 is still on the table if the player wants twelve hands.
+    startThLevel: 2,
     night: true,
+    // Campaign 2's finale, and the first sky that really bites: the storm now
+    // brakes the wheels AND gutters the lanterns (WEATHER_RULES), so a 25s gust on
+    // a night ascent is the level's boss. The two clear windows are the plan.
     weather: [
-      { kind: 'clear', duration: 45 },
-      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 50 },
+      { kind: 'rain', duration: 20 },
       { kind: 'clear', duration: 30 },
-      { kind: 'storm', duration: 20 },
+      { kind: 'storm', duration: 25 },
     ],
     build: (g) => {
       terrain(
@@ -672,8 +734,9 @@ export const LEVELS: LevelDef[] = [
       },
       {
         id: 'upgrade2',
+        // the crew is at its cap and there is still mountain left — point at TH3
         text: 'lvl9.hint.upgrade2',
-        when: (g) => g.time > 30 && g.thLevel < 2,
+        when: (g) => g.workers.length >= g.maxWorkers && g.thLevel < 3 && g.time > 60,
       },
       {
         id: 'stormplan',
@@ -688,6 +751,13 @@ export const LEVELS: LevelDef[] = [
   // The Counterweight Hoist: two cars on a pulley, and one law — the heavier
   // side sinks. Teaching arc: introduce (send down) → invert (ballast lifts
   // cargo up) → combine (a plateau forge fed by the wheel, under storm brakes).
+  //
+  // Card #70 gave the campaign a SECOND axis, because a wheel is already a thing
+  // that runs on a rhythm: the caravan's dock window (LevelDef.convoy). It arrives,
+  // loads, and rolls out again, so goods have to be *ready when it is* — buffer
+  // through the gap, empty the store into the window. Its own teaching arc runs
+  // alongside the hoist's: 50/15 (barely noticeable) → 40/20 (plan for it) →
+  // 30/25 (the window is the level), the last one under storm brakes as well.
 
   {
     id: 10,
@@ -700,8 +770,10 @@ export const LEVELS: LevelDef[] = [
       { item: 'plank', amount: 6 },
       { item: 'stone', amount: 4 },
     ],
-    medals: { gold: 300, silver: 420, bronze: 660 },
+    medals: { gold: 330, silver: 480, bronze: 720 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'hoist', 'demolish'],
+    // the dock window, at its gentlest: away barely longer than a hoist cycle
+    convoy: { open: 50, closed: 15 },
     startStock: { log: 2, plank: 3, iron: 1 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
@@ -739,6 +811,12 @@ export const LEVELS: LevelDef[] = [
         text: 'lvl10.hint.hop',
         when: (g) => g.time > 25,
       },
+      {
+        // the convoy's first departure — explain the empty dock the moment it happens
+        id: 'convoy',
+        text: 'lvl10.hint.convoy',
+        when: (g) => !g.convoyOpen,
+      },
     ],
     camera: { x: 6, y: 14 },
   },
@@ -753,8 +831,10 @@ export const LEVELS: LevelDef[] = [
       { item: 'plank', amount: 8 },
       { item: 'stone', amount: 6 },
     ],
-    medals: { gold: 390, silver: 540, bronze: 840 },
+    medals: { gold: 420, silver: 600, bronze: 900 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'hoist', 'demolish'],
+    // tighter: the gap is now long enough that a full car's worth can pile up
+    convoy: { open: 40, closed: 20 },
     startStock: { log: 4, plank: 3, iron: 1 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
@@ -814,8 +894,13 @@ export const LEVELS: LevelDef[] = [
       { item: 'spear', amount: 3 },
       { item: 'plank', amount: 6 },
     ],
-    medals: { gold: 540, silver: 750, bronze: 1080 },
+    medals: { gold: 600, silver: 840, bronze: 1200 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'sawmill', 'forge', 'hoist', 'rope', 'demolish'],
+    // the campaign's mastery test: the window is short, the storm takes the wheel
+    // for a quarter of every cycle, and there is exactly ONE wheel to place. The
+    // rope stays legal and storm-proof — that is the alternative worth finding.
+    convoy: { open: 30, closed: 25 },
+    toolLimit: { hoist: 1 },
     startStock: { log: 4, plank: 3, iron: 1, stone: 2 },
     startRoles: { hauler: 3, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 6,
@@ -863,6 +948,12 @@ export const LEVELS: LevelDef[] = [
         id: 'stormbrake',
         text: 'lvl12.hint.stormbrake',
         when: (g) => g.weather === 'storm',
+      },
+      {
+        // the two clocks meet: the wheel is braked AND the caravan is standing there
+        id: 'window',
+        text: 'lvl12.hint.window',
+        when: (g) => g.weather === 'storm' && g.convoyOpen,
       },
     ],
     camera: { x: 8, y: 16 },
@@ -1063,6 +1154,11 @@ export const LEVELS: LevelDef[] = [
     ],
     medals: { gold: 720, silver: 990, bronze: 1440 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'workshop', 'lift', 'hoist', 'dig', 'demolish'],
+    // The finale states its machines out loud: one well-lift, one cliff-wheel
+    // (card #70). The whole level is designed around exactly that pair, so the
+    // budget is not a restriction so much as the level naming its own shape —
+    // and demolishing either one gives the slot back if it lands in the wrong cell.
+    toolLimit: { lift: 1, hoist: 1 },
     startStock: { log: 4, plank: 6, stone: 4, iron: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
     startWorkers: 6,
@@ -1144,24 +1240,32 @@ export const LEVELS: LevelDef[] = [
     desc: 'lvl17.desc',
     width: 72,
     height: 30,
+    // The last level used to be the shortest run in the game — the dusk arrived
+    // and the order was already filled, which is the one thing this level must not
+    // do (card #70). A bigger sheet pushes the tail of the work past nightfall,
+    // where the lantern race actually happens.
     objectives: [
-      { item: 'plank', amount: 6 },
-      { item: 'stone', amount: 4 },
+      { item: 'plank', amount: 10 },
+      { item: 'stone', amount: 8 },
     ],
-    medals: { gold: 330, silver: 510, bronze: 810 },
+    medals: { gold: 360, silver: 540, bronze: 840 },
     allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'lantern', 'demolish'],
     startStock: { log: 3, plank: 2, stone: 2 },
     startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1 },
     startWorkers: 5,
     startThLevel: 2,
     // The showcase for the living clock: opens at high noon and turns the whole
-    // day over during play (a full cycle ~every 480s). Harvest is free while the
-    // sun holds; once dusk deepens past NIGHT_WORK_DARK the far ground goes dark
-    // and only lantern-lit paths still work — so the player must run the light
-    // out along the route BEFORE nightfall. Not a `night` level: the darkness
-    // arrives on the clock, not from the start.
+    // day over during play. Harvest is free while the sun holds; once dusk deepens
+    // past NIGHT_WORK_DARK the far ground goes dark and only lantern-lit paths
+    // still work — so the player must run the light out along the route BEFORE
+    // nightfall. Not a `night` level: the darkness arrives on the clock.
+    //
+    // The rate went from 0.05 to 0.09 (card #70) because at 0.05 dusk began at
+    // t=120s and the level was over in 110 — the last level in the game never once
+    // showed the thing it exists to show. At 0.09 a full day turns in ~4½ minutes:
+    // the work gate closes around t≈85s, right when the order is half filled.
     startHour: 12,
-    dayNight: { rate: 0.05 },
+    dayNight: { rate: 0.09 },
     build: (g) => {
       terrain(
         g,

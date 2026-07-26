@@ -1,5 +1,5 @@
 import './style.css';
-import { FEATS, TILE, TOOL_DEFS, bestTier, fmtTime, medalFor } from './game/types';
+import { FEATS, TILE, TOOL_DEFS, bestTier, fmtTime, medalFor, weatherEffects } from './game/types';
 import { detectLang, getLang, setLang, t } from './engine/i18n';
 import type { Lang } from './engine/i18n';
 import { BIOMES } from './engine/biomes';
@@ -1238,13 +1238,26 @@ function handleEvent(e: GameEvent): void {
       break;
     case 'weather': {
       const flood = !!game!.level.flood;
+      // spell the rules out in the toast, from the same table the sim obeys —
+      // the flood step is a level property, so it is filtered out of the list
+      // here (the headline already shouts it) and folded into the wording
+      const eff = weatherEffects(e.kind, false)
+        .filter((x) => x.id !== 'none')
+        .map((x) => t(`wx.eff.${x.id}`, { p: x.pct ?? 0 }))
+        .join(' · ');
       const msgs = {
         clear: t('toast.wx.clear'),
-        rain: flood ? t('toast.wx.rainFlood') : t('toast.wx.rain'),
-        storm: t('toast.wx.storm'),
+        rain: flood ? t('toast.wx.rainFlood', { e: eff }) : t('toast.wx.rain', { e: eff }),
+        storm: t('toast.wx.storm', { e: eff }),
       } as const;
       audio.hint();
       h.toast(msgs[e.kind], e.kind !== 'clear', 5);
+      break;
+    }
+    case 'convoy': {
+      audio.hint();
+      const n = Math.max(0, Math.ceil(game!.convoyRemaining));
+      h.toast(t(e.open ? 'toast.convoy.docked' : 'toast.convoy.away', { n }), !e.open, 5);
       break;
     }
     case 'flood':
