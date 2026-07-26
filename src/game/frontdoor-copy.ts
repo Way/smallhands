@@ -11,7 +11,10 @@
 // never translated), the group is a Trupp.
 //
 // Content claims (campaign/level counts, mechanics on show) must match what
-// ships in src/game/levels.ts — feat1 is the only hardcoded count in the tree.
+// ships in src/game/levels.ts. The count is written down twice and the two
+// copies cannot see each other: feat1 below, and the <meta name="description">
+// in index.html. tests/frontdoor-data.mjs checks both against LEVELS, so a new
+// campaign or level fails there rather than quietly shipping a stale number.
 type Str = [string, string];
 
 export const S: Record<string, Str> = {
