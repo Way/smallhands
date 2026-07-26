@@ -119,7 +119,7 @@ While the wander drew from an unseeded `Math.random()`, every play-to-a-win suit
 `campaign1`–`campaign4`, `digging`, the `editor-generator` soak — was a *sample*, not a proof,
 and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody could reproduce.
 
-Three rules follow, all enforced by `tests/unit.mjs`:
+Three rules follow — the first two enforced by `tests/unit.mjs`, the third by `tests/hoist.mjs`:
 
 - **No `Math.random()` on the tick path.** The sweep is an *exemption* list, not a list of files
   to check: every `.ts` under `src/game` and `src/engine` is swept — recursively, so splitting
@@ -129,8 +129,11 @@ Three rules follow, all enforced by `tests/unit.mjs`:
   covered by default, exempting one is a deliberate act, and a stale exemption naming a file that
   no longer exists reds. Comments are stripped first so prose about the global can't red it, with
   a `[^:]` guard so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
-- **Cosmetics never touch `rand`.** The suite counts the behavioural draws in `sim.ts` and
-  expects exactly the wander's two; adding a third re-couples the streams.
+- **Cosmetics never touch `rand`.** Enforced twice over. The suite counts the behavioural draws
+  across *every swept file* — not just `sim.ts`, since a draw added in a sibling module is exactly
+  what a single-file count would miss — and expects the wander's two; a third re-couples the
+  streams. It also runs twin games, one of them painting bursts from outside the tick as the UI
+  does, and requires their behaviour to match byte for byte.
 - **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
   which is an arbitrary point in the hauling cycle. An item mid-run may be in `stock`, loose in
   `groundItems`, in a worker's hands (`w.carrying`), or in one of a building's four buckets —
@@ -142,3 +145,4 @@ Three rules follow, all enforced by `tests/unit.mjs`:
   emergent trajectory — the first attempt was retired by an unrelated draw-order change within a
   day, and its red read like a ballast bug. Stepping the run tick by tick finds the state in
   *every* run and lets the suite check mass on every tick, which is both stronger and rot-proof.
+  The hoist suite scans three seeds that way (~2.5k ticks each) and still finishes in 0.14s.
