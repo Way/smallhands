@@ -92,3 +92,29 @@ and a ramp never seals the row it is built in. Two consequences worth knowing be
   machine inside one orphans it the moment that tile is demolished. Both helpers therefore
   require the cell to be `T.AIR`, which matches `canPlaceBuilding`'s footprint rule and covers
   every built tile in one test.
+
+## The sim is deterministic (card #65)
+
+`Game` owns exactly one source of randomness: `game.rand()`, a seeded `mulberry32` stream
+(`src/game/rng.ts`, shared with the level generator). `new Game(level, seed?)` defaults the
+seed to `level.id`, so a suite that passes no seed still replays the same run every time;
+`main.ts` passes a fresh `randomSeed()` per attempt so real play keeps its variety.
+
+This matters beyond cosmetics. Most draws *are* cosmetic (particle fans, spawn `facing`), but
+`tryAssignWander`'s idle stroll is **behavioural**: moving an idle smallie changes who is
+nearest when the next task opens, which changes assignment order and so the timing of the
+whole run. While that draw came from an unseeded `Math.random()`, every play-to-a-win suite —
+`hoist`, `campaign1`–`campaign4`, `digging`, the `editor-generator` soak — was a *sample*, not
+a proof, and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody could
+reproduce.
+
+Two rules follow, both enforced by `tests/unit.mjs`:
+
+- **No `Math.random()` in `sim.ts`.** One stray call site re-opens the hole for every suite,
+  so the unit suite sweeps the source text as well as asserting same-seed/different-seed runs.
+- **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
+  which is an arbitrary point in the hauling cycle. An item mid-run may be in `stock`, loose in
+  `groundItems`, in a worker's hands (`w.carrying`) or inside a hoist car (`hoistUpper`/
+  `hoistLower` — *not* `hoistUpperIn`/`hoistLowerIn`, which are inbound reservations that
+  double-count the hauler already holding it). `tests/hoist.mjs`'s `stoneCensus` counts all
+  four; reading only two of them is what made the ballast check flaky.

@@ -1,6 +1,7 @@
 // Fast headless unit checks for pure sim logic — no browser needed.
 // Bundles the TypeScript sources with rolldown (see bundle.mjs) and imports
 // the result from an in-memory data URL, so it runs with plain `node`.
+import { readFileSync } from 'node:fs';
 import { bundleExports } from './bundle.mjs';
 
 const mod = await bundleExports(`
@@ -1104,6 +1105,45 @@ function spentNode(id, kind, x, y) {
   for (let i = 0; i < 60; i++) g.tick(1 / 60); // 1s
   check('clearing the output resumes conversion (log consumed)',
     (saw.inputs.log ?? 0) < 2 && (saw.processing === true || (saw.outputs.plank ?? 0) >= 2));
+}
+
+// ---- the sim is deterministic: same seed, same run (card #65) ---------------
+// The sim's randomness lives in one seeded stream, `game.rand`. That is what
+// makes a play-to-a-win suite (hoist, campaign1-4, digging) a proof rather than a
+// sample: an unseeded draw inside the tick used to shift the idle wander, which
+// shifts who is nearest when the next task opens, which shifts the timing of the
+// whole run — hoist red-flagged about 1 run in 20 that way.
+{
+  // A run's whole visible state, flattened enough to compare two runs by string.
+  const fingerprint = (g) =>
+    JSON.stringify({
+      time: Math.round(g.time * 1000),
+      stock: g.stock,
+      won: g.won,
+      workers: g.workers.map((w) => [w.role, w.cx, w.cy, w.carrying, w.task?.kind ?? null, w.facing]),
+      ground: g.groundItems.map((gi) => [gi.item, gi.x, gi.y]),
+      objectives: g.objectives.map((o) => [o.item, o.delivered, o.inbound]),
+    });
+
+  const play = (seed) => {
+    const g = new Game(LEVELS[0], seed);
+    for (let i = 0; i < 60 * 90; i++) g.tick(1 / 60); // 90 sim-seconds
+    return g;
+  };
+
+  check('the same seed replays the same run exactly', fingerprint(play('proof')) === fingerprint(play('proof')));
+  check('a different seed really is a different run', fingerprint(play('proof')) !== fingerprint(play('other')));
+  // the default seed is the level id, so a suite that passes no seed is still reproducible
+  const noSeed = () => {
+    const g = new Game(LEVELS[0]);
+    for (let i = 0; i < 60 * 90; i++) g.tick(1 / 60);
+    return g;
+  };
+  check('no seed still means a reproducible run', fingerprint(noSeed()) === fingerprint(play(LEVELS[0].id)));
+
+  // and the hole stays shut: a stray Math.random() in the sim re-opens it
+  const simSrc = readFileSync(new URL('../src/game/sim.ts', import.meta.url), 'utf8');
+  check('sim.ts draws no unseeded randomness', !/Math\s*\.\s*random/.test(simSrc));
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

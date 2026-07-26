@@ -1161,7 +1161,10 @@ function startGame(def: LevelDef): void {
   clearOverlay();
   editor.close();
   cam.rightInset = 0;
-  game = new Game(def);
+  // Fresh seed per attempt: the sim's randomness is seeded (card #65) so tests can
+  // replay a run exactly, but a real play session should still feel different every
+  // time — two runs of the same level get different idle strolls and particle fans.
+  game = new Game(def, randomSeed());
   speed = 1;
   cam.zoom = defaultZoom();
   const c = def.camera ?? { x: 0, y: 0 };
@@ -2054,7 +2057,7 @@ let idleGame: Game | null = null;
 
 function drawIdleBackdrop(): void {
   if (!idleGame) {
-    idleGame = new Game(LEVELS[0]);
+    idleGame = new Game(LEVELS[0], randomSeed());
     for (const n of idleGame.nodes) n.marked = true;
   }
 }

@@ -135,8 +135,11 @@ console.log('cycle truth table');
 
 // ---- end-to-end: raise planks up a 7-tile cliff with stone ballast --------------
 
-console.log('scripted ballast level');
-{
+const BALLAST_COUNT = 4; // loose stones seeded on the plateau, the run's whole stone supply
+
+// Play the scripted level to its win. `seed` picks the sim's random stream (see
+// Game's `rand`), so a run is reproducible: pass a seed to pin one exact run.
+function playBallastLevel(seed) {
   const level = makeLevel({
     objectives: [{ item: 'plank', amount: 2 }],
     startWorkers: 5,
@@ -146,35 +149,80 @@ console.log('scripted ballast level');
       makeLevel().build(g);
       g.addBuilding('goal', 16, TOP - 3, true);
       // loose stone on the plateau — the only ballast within reach of the top
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < BALLAST_COUNT; i++) {
         g.groundItems.push({ id: g.id(), item: 'stone', x: 15, y: TOP - 1, reserved: false, bounce: 0 });
       }
     },
   });
 
-  const g = new Game(level);
+  const g = seed === undefined ? new Game(level) : new Game(level, seed);
   g.thLevel = 2; // hoist gate
   const placed = g.placeHoist(POST, TOP - 1);
-  check('hoist placed on the cliff edge', placed);
   const b = g.hoists[0];
-  check('the cars hang over the left drop to the valley', !!b && b.ropeSide === -1 && b.ropeBottomY === FLOOR - 1);
-  g.toggleHoistRoute(b.id, 'lower', 'plank'); // route: planks ride UP
+  if (b) g.toggleHoistRoute(b.id, 'lower', 'plank'); // route: planks ride UP
 
   let builtAt = -1;
   let wonAt = -1;
   for (let s = 0; s < 360 && wonAt < 0; s++) {
     run(g, 1);
-    if (builtAt < 0 && b.state === 'ready') builtAt = s;
+    if (builtAt < 0 && b?.state === 'ready') builtAt = s;
     if (g.won) wonAt = s;
   }
+  return { g, b, placed, builtAt, wonAt };
+}
+
+// Every place a stone can legitimately be at the instant the level is won. The
+// win breaks the loop mid-tick-stream, so a relocated stone is just as likely to
+// be in a hauler's hands or riding a car as it is to be lying on the valley
+// floor — a census that only reads the ground and the stockpile mistakes a stone
+// in transit for a stone destroyed (that was this suite's 1-in-20 flake, #65).
+function stoneCensus(g) {
+  const stock = g.stock.stone ?? 0;
+  const ground = g.groundItems.filter((gi) => gi.item === 'stone');
+  const hands = g.workers.filter((w) => w.carrying === 'stone').length;
+  // real car contents only: hoistUpperIn/LowerIn are inbound *reservations*, so
+  // they double-count the stone already counted in its hauler's hands
+  const cars = g.hoists.reduce((n, h) => n + (h.hoistUpper.stone ?? 0) + (h.hoistLower.stone ?? 0), 0);
+  return {
+    stock,
+    hands,
+    cars,
+    onShelf: ground.filter((gi) => gi.y <= TOP).length, // still up on the plateau, unused
+    inValley: ground.filter((gi) => gi.y > TOP).length,
+    total: stock + ground.length + hands + cars,
+  };
+}
+
+console.log('scripted ballast level');
+{
+  const { g, b, placed, builtAt, wonAt } = playBallastLevel();
+  check('hoist placed on the cliff edge', placed);
+  check('the cars hang over the left drop to the valley', !!b && b.ropeSide === -1 && b.ropeBottomY === FLOOR - 1);
   check('a builder raises the hoist', builtAt >= 0);
   check(`the level is WON (planks up the cliff via ballast)${wonAt >= 0 ? ` in ${wonAt}s` : ''}`, wonAt >= 0);
-  // mass conserved: the ballast is not consumed — it ends up in the valley,
-  // either still loose on the floor or already collected into the stockpile
+  // mass conserved: the ballast is not consumed — every stone is still somewhere,
+  // and at least one of them has left the plateau to ride the hoist down
+  const c = stoneCensus(g);
+  check(`ballast not destroyed (${c.total}/${BALLAST_COUNT} stones accounted for)`, c.total === BALLAST_COUNT);
   check(
-    'ballast really relocated, not destroyed',
-    g.stock.stone > 0 || g.groundItems.some((gi) => gi.item === 'stone' && gi.y > TOP)
+    `ballast really relocated (valley ${c.inValley}, stock ${c.stock}, hands ${c.hands}, cars ${c.cars})`,
+    c.inValley + c.stock + c.hands + c.cars > 0
   );
+}
+
+// The flake, pinned: seed 30 wins at 43s on the exact tick where two stones are
+// in haulers' hands, one is in a car and one is still unused on the shelf — so
+// nothing stone-shaped is lying in the valley and nothing has reached the
+// stockpile yet. The old ground-or-stock check red-flagged that as destroyed
+// ballast roughly 1 run in 20; the census above must call it what it is.
+console.log('scripted ballast level (win lands mid-haul — seeded regression, #65)');
+{
+  const { g, wonAt } = playBallastLevel(30);
+  check('the level is WON on the pinned seed', wonAt >= 0);
+  const c = stoneCensus(g);
+  check('the win really does land with the ballast in transit', c.inValley === 0 && c.stock === 0);
+  check('…and in transit means in hands or in a car, never nowhere', c.hands + c.cars > 0);
+  check(`ballast not destroyed (${c.total}/${BALLAST_COUNT} stones accounted for)`, c.total === BALLAST_COUNT);
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nall ok');
