@@ -1131,7 +1131,12 @@ function spentNode(id, kind, x, y) {
       ground: g.groundItems.map((gi) => [gi.item, gi.x, gi.y]),
       objectives: g.objectives.map((o) => [o.item, o.delivered, o.inbound]),
     });
-  const fingerprint = (g) => JSON.stringify([behaviour(g), g.workers.map((w) => w.facing)]);
+  // The cosmetic half. `animT` carries it: an fx draw at spawn (`sim.ts` ~1013) that
+  // only ever accumulates (`+= dt`), so the random offset survives the whole run.
+  // `facing` alone would not — movement overwrites it within a step or two, leaving
+  // every claim below resting on behaviour and saying nothing about `randFx`.
+  const cosmetics = (g) => JSON.stringify(g.workers.map((w) => [w.facing, Math.round(w.animT * 1000)]));
+  const fingerprint = (g) => JSON.stringify([behaviour(g), cosmetics(g)]);
 
   const play = (seed) => {
     const g = seed === undefined ? new Game(LEVELS[0]) : new Game(LEVELS[0], seed);
@@ -1140,9 +1145,19 @@ function spentNode(id, kind, x, y) {
   };
 
   check('the same seed replays the same run exactly', fingerprint(play('proof')) === fingerprint(play('proof')));
-  // compared on behaviour alone: this must be a statement about `rand`, not about
-  // two fx streams having produced different particle fans
+  // Divergence is asserted per stream, and replay alone cannot stand in for it: a
+  // stream wired to a constant is perfectly reproducible while ignoring the seed
+  // entirely, so each stream needs its own "the seed actually drives this" claim.
   check('a different seed really is a different run', behaviour(play('proof')) !== behaviour(play('other')));
+  // The fx stream has to be sampled at spawn, before the first tick. A cosmetic read
+  // from the END of a run cannot isolate it: `animT` accumulates at behaviour-dependent
+  // rates (`dt * 6` walking, `dt * 2` falling) and `facing` is overwritten by movement,
+  // so two runs would differ in cosmetics purely because `rand` sent them different
+  // ways — and a `randFx` wired to a constant would still look seed-driven. At tick 0
+  // the two games are identical apart from their streams, so this is a claim about
+  // `randFx` and nothing else.
+  const spawnFx = (seed) => cosmetics(new Game(LEVELS[0], seed));
+  check('…and it re-rolls the cosmetic stream too', spawnFx('proof') !== spawnFx('other'));
   // the default seed is the level id, so a suite that passes no seed is still reproducible
   check('no seed still means a reproducible run', fingerprint(play(undefined)) === fingerprint(play(LEVELS[0].id)));
 
@@ -1154,11 +1169,23 @@ function spentNode(id, kind, x, y) {
   // notices. src/engine is in scope even though the tick path imports nothing from it
   // today: that is exactly the kind of fact that changes quietly.
   //
-  // The exempt files draw entropy legitimately and none of them can move a smallie:
-  // render.ts and motion.ts are look-physics, generator.ts mints level seeds
-  // (`randomSeed`) around its own seeded Rng, leveldata.ts mints custom-level ids,
-  // audio.ts jitters playback.
-  const EXEMPT = new Set(['render.ts', 'motion.ts', 'generator.ts', 'leveldata.ts', 'audio.ts']);
+  // Two sources of nondeterminism, two narrow exemption sets — a file allowed to roll
+  // dice is not thereby allowed to read the clock, and vice versa. Wall-clock reads are
+  // swept alongside `Math.random` because they are the other documented way a tick stops
+  // being reproducible; nothing on the tick path uses either today.
+  //
+  // May draw entropy (none of them can move a smallie): render.ts and motion.ts are
+  // look-physics, generator.ts mints level seeds (`randomSeed`) around its own seeded
+  // Rng, leveldata.ts mints custom-level ids, audio.ts jitters playback.
+  const ENTROPY_OK = new Set(['render.ts', 'motion.ts', 'generator.ts', 'leveldata.ts', 'audio.ts']);
+  // May read the wall clock: dailylog.ts walks calendar days, generator.ts derives the
+  // daily seed from today's date, leveldata.ts stamps custom-level ids, report-ui.ts
+  // stamps a report's generatedAt.
+  const CLOCK_OK = new Set(['dailylog.ts', 'generator.ts', 'leveldata.ts', 'report-ui.ts']);
+  const NONDETERMINISM = [
+    { what: 'unseeded randomness', re: /Math\s*\.\s*random\s*\(/, allowed: ENTROPY_OK },
+    { what: 'the wall clock', re: /Date\s*\.\s*now\s*\(|performance\s*\.\s*now\s*\(|new\s+Date\s*\(/, allowed: CLOCK_OK },
+  ];
 
   // Reads the *code*, not the prose, so the doc line in sim.ts explaining why the
   // file no longer calls the global can't red this. The `[^:]` guard keeps a `//`
@@ -1174,20 +1201,26 @@ function spentNode(id, kind, x, y) {
     readdirSync(new URL(`${dir}/`, srcRoot), { recursive: true })
       .map((f) => `${dir}/${f}`.replaceAll('\\', '/'))
       .filter((f) => f.endsWith('.ts'));
-  const allFiles = [...tsUnder('game'), ...tsUnder('engine')];
-  const swept = allFiles.filter((f) => !EXEMPT.has(f.split('/').pop())).sort();
-  // the partition must account for every file, and every exemption must still exist
-  // (a renamed or deleted exempt file would otherwise sit here silently forever)
-  const staleExemptions = [...EXEMPT].filter((e) => !allFiles.some((f) => f.endsWith(`/${e}`)));
-  check(
-    `the sweep covers src/game + src/engine bar the exemptions (${swept.length} swept, ${EXEMPT.size} exempt${staleExemptions.length ? `, STALE: ${staleExemptions.join(', ')}` : ''})`,
-    swept.length === allFiles.length - EXEMPT.size &&
-      staleExemptions.length === 0 &&
-      ['game/sim.ts', 'game/nav.ts', 'game/world.ts', 'game/types.ts'].every((f) => swept.includes(f))
-  );
+  // EVERY file is read; the exemptions apply per pattern, so an entropy-exempt file is
+  // still swept for clock reads (and vice versa) instead of dropping out altogether.
+  const swept = [...tsUnder('game'), ...tsUnder('engine')].sort();
   const code = new Map(swept.map((f) => [f, stripComments(readFileSync(new URL(f, srcRoot), 'utf8'))]));
-  const strays = swept.filter((f) => /Math\s*\.\s*random\s*\(/.test(code.get(f)));
-  check(`no unseeded randomness on the tick path${strays.length ? ` — found in ${strays.join(', ')}` : ''}`, strays.length === 0);
+  check(
+    `the sweep reads every .ts under src/game + src/engine (${swept.length} files)`,
+    ['game/sim.ts', 'game/nav.ts', 'game/world.ts', 'game/types.ts', 'engine/save.ts'].every((f) => swept.includes(f))
+  );
+  // every exemption must still name a real file — a renamed or deleted one would
+  // otherwise sit in the set forever, shielding nothing and looking like cover
+  const stale = [...ENTROPY_OK, ...CLOCK_OK].filter((e) => !swept.some((f) => f.endsWith(`/${e}`)));
+  check(`no stale exemptions${stale.length ? `: ${[...new Set(stale)].join(', ')}` : ''}`, stale.length === 0);
+
+  for (const { what, re, allowed } of NONDETERMINISM) {
+    const strays = swept.filter((f) => !allowed.has(f.split('/').pop()) && re.test(code.get(f)));
+    check(
+      `nothing on the tick path draws ${what}${strays.length ? ` — found in ${strays.join(', ')}` : ` (${allowed.size} files exempt)`}`,
+      strays.length === 0
+    );
+  }
 
   // …and the split holds: cosmetics draw from `randFx`, so painting particles can
   // never perturb behaviour. This is not academic — `spawnBurst` is public and the

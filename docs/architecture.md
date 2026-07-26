@@ -107,6 +107,13 @@ level generator) — and from **two of them, deliberately split by kind**:
 replays the same run every time; `main.ts` passes a fresh `randomSeed()` per attempt so real
 play keeps its variety.
 
+Each stream is asserted twice, and **replay does not imply seed-driven**: a stream wired to a
+constant replays perfectly while ignoring the seed entirely. So `tests/unit.mjs` checks replay
+(same seed → same run) *and* divergence (different seed → different run) per stream — behaviour
+compared with cosmetics excluded, and the fx stream sampled at spawn before the first tick, since
+`animT` accumulates at behaviour-dependent rates and would otherwise smuggle `rand`'s divergence
+into a claim about `randFx`.
+
 Why the split rather than one stream: `tryAssignWander`'s idle stroll is **behavioural** —
 moving an idle smallie changes who is nearest when the next task opens, which changes
 assignment order and so the timing of the whole run. `spawnBurst` is public and the UI calls
@@ -121,14 +128,18 @@ and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody cou
 
 Three rules follow — the first two enforced by `tests/unit.mjs`, the third by `tests/hoist.mjs`:
 
-- **No `Math.random()` on the tick path.** The sweep is an *exemption* list, not a list of files
-  to check: every `.ts` under `src/game` and `src/engine` is swept — recursively, so splitting
-  `sim.ts` into `sim/*.ts` stays covered — unless named in `EXEMPT` (`render.ts`, `motion.ts`,
-  `generator.ts`, `leveldata.ts`, `audio.ts` — look-physics, seed minting, id minting, playback
-  jitter; none of them can move a smallie). A module added to the tick path later is therefore
-  covered by default, exempting one is a deliberate act, and a stale exemption naming a file that
-  no longer exists reds. Comments are stripped first so prose about the global can't red it, with
-  a `[^:]` guard so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
+- **No unseeded randomness *and no wall-clock read* on the tick path.** `Date.now()`,
+  `performance.now()` and `new Date()` break a reproducible tick exactly as `Math.random()` does,
+  so both are swept together. Every `.ts` under `src/game` and `src/engine` is read —
+  recursively, so splitting `sim.ts` into `sim/*.ts` stays covered — and the *exemptions* are
+  per pattern, not per file: `ENTROPY_OK` (`render.ts`, `motion.ts`, `generator.ts`,
+  `leveldata.ts`, `audio.ts` — look-physics, seed minting, id minting, playback jitter) and
+  `CLOCK_OK` (`dailylog.ts`, `generator.ts`, `leveldata.ts`, `report-ui.ts` — calendar walking,
+  the daily seed, id stamps, a report's `generatedAt`). A file allowed to roll dice is therefore
+  still swept for clock reads, and vice versa; a module added to the tick path later is covered
+  by default; and an exemption naming a file that no longer exists reds instead of looking like
+  cover. Comments are stripped first so prose about the global can't red it, with a `[^:]` guard
+  so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
 - **Cosmetics never touch `rand`.** Enforced twice over. The suite counts the behavioural draws
   across *every swept file* — not just `sim.ts`, since a draw added in a sibling module is exactly
   what a single-file count would miss — and expects the wander's two; a third re-couples the
