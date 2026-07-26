@@ -1108,11 +1108,13 @@ function spentNode(id, kind, x, y) {
 }
 
 // ---- the sim is deterministic: same seed, same run (card #65) ---------------
-// The sim's randomness lives in one seeded stream, `game.rand`. That is what
-// makes a play-to-a-win suite (hoist, campaign1-4, digging) a proof rather than a
-// sample: an unseeded draw inside the tick used to shift the idle wander, which
-// shifts who is nearest when the next task opens, which shifts the timing of the
-// whole run — hoist red-flagged about 1 run in 20 that way.
+// The sim's randomness lives in two seeded streams, both private: `rand`, drawn
+// only by the idle wander, and `randFx` for cosmetics. That split is what makes a
+// play-to-a-win suite (hoist, campaign1-4, digging) a proof rather than a sample:
+// an unseeded draw inside the tick used to shift the wander, which shifts who is
+// nearest when the next task opens, which shifts the timing of the whole run —
+// hoist red-flagged about 1 run in 20 that way — and a shared stream would let the
+// UI painting a particle do the same thing from outside the sim entirely.
 {
   // Two comparators, because the two streams answer different questions.
   //   behaviour — what the sim DID. No cosmetic fields, so a claim made with this
@@ -1174,14 +1176,23 @@ function spentNode(id, kind, x, y) {
   // swept alongside `Math.random` because they are the other documented way a tick stops
   // being reproducible; nothing on the tick path uses either today.
   //
+  // Exemptions name a PATH, not a basename: a `src/engine/render.ts` added later must
+  // not inherit `src/game/render.ts`'s licence to roll dice on day one.
+  //
   // May draw entropy (none of them can move a smallie): render.ts and motion.ts are
   // look-physics, generator.ts mints level seeds (`randomSeed`) around its own seeded
   // Rng, leveldata.ts mints custom-level ids, audio.ts jitters playback.
-  const ENTROPY_OK = new Set(['render.ts', 'motion.ts', 'generator.ts', 'leveldata.ts', 'audio.ts']);
+  const ENTROPY_OK = new Set([
+    'game/render.ts',
+    'game/motion.ts',
+    'game/generator.ts',
+    'game/leveldata.ts',
+    'engine/audio.ts',
+  ]);
   // May read the wall clock: dailylog.ts walks calendar days, generator.ts derives the
   // daily seed from today's date, leveldata.ts stamps custom-level ids, report-ui.ts
   // stamps a report's generatedAt.
-  const CLOCK_OK = new Set(['dailylog.ts', 'generator.ts', 'leveldata.ts', 'report-ui.ts']);
+  const CLOCK_OK = new Set(['game/dailylog.ts', 'game/generator.ts', 'game/leveldata.ts', 'game/report-ui.ts']);
   const NONDETERMINISM = [
     { what: 'unseeded randomness', re: /Math\s*\.\s*random\s*\(/, allowed: ENTROPY_OK },
     { what: 'the wall clock', re: /Date\s*\.\s*now\s*\(|performance\s*\.\s*now\s*\(|new\s+Date\s*\(/, allowed: CLOCK_OK },
@@ -1209,13 +1220,22 @@ function spentNode(id, kind, x, y) {
     `the sweep reads every .ts under src/game + src/engine (${swept.length} files)`,
     ['game/sim.ts', 'game/nav.ts', 'game/world.ts', 'game/types.ts', 'engine/save.ts'].every((f) => swept.includes(f))
   );
-  // every exemption must still name a real file — a renamed or deleted one would
-  // otherwise sit in the set forever, shielding nothing and looking like cover
-  const stale = [...ENTROPY_OK, ...CLOCK_OK].filter((e) => !swept.some((f) => f.endsWith(`/${e}`)));
+  // An exemption must name a real file AND still be needed. Existence alone isn't
+  // enough: one whose file stopped rolling dice (or reading the clock) would sit in
+  // the set forever, quietly licensing a future re-introduction — an exemption that
+  // shields nothing is indistinguishable from cover until the day it matters.
+  const stale = [...ENTROPY_OK, ...CLOCK_OK].filter((e) => !swept.includes(e));
   check(`no stale exemptions${stale.length ? `: ${[...new Set(stale)].join(', ')}` : ''}`, stale.length === 0);
+  const unneeded = NONDETERMINISM.flatMap(({ what, re, allowed }) =>
+    [...allowed].filter((f) => code.has(f) && !re.test(code.get(f))).map((f) => `${f} (${what})`)
+  );
+  check(
+    `every exemption is still earning it${unneeded.length ? ` — no longer needed: ${unneeded.join(', ')}` : ''}`,
+    unneeded.length === 0
+  );
 
   for (const { what, re, allowed } of NONDETERMINISM) {
-    const strays = swept.filter((f) => !allowed.has(f.split('/').pop()) && re.test(code.get(f)));
+    const strays = swept.filter((f) => !allowed.has(f) && re.test(code.get(f)));
     check(
       `nothing on the tick path draws ${what}${strays.length ? ` — found in ${strays.join(', ')}` : ` (${allowed.size} files exempt)`}`,
       strays.length === 0

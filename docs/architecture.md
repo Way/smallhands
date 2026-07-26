@@ -132,13 +132,15 @@ Three rules follow — the first two enforced by `tests/unit.mjs`, the third by 
   `performance.now()` and `new Date()` break a reproducible tick exactly as `Math.random()` does,
   so both are swept together. Every `.ts` under `src/game` and `src/engine` is read —
   recursively, so splitting `sim.ts` into `sim/*.ts` stays covered — and the *exemptions* are
-  per pattern, not per file: `ENTROPY_OK` (`render.ts`, `motion.ts`, `generator.ts`,
-  `leveldata.ts`, `audio.ts` — look-physics, seed minting, id minting, playback jitter) and
-  `CLOCK_OK` (`dailylog.ts`, `generator.ts`, `leveldata.ts`, `report-ui.ts` — calendar walking,
-  the daily seed, id stamps, a report's `generatedAt`). A file allowed to roll dice is therefore
-  still swept for clock reads, and vice versa; a module added to the tick path later is covered
-  by default; and an exemption naming a file that no longer exists reds instead of looking like
-  cover. Comments are stripped first so prose about the global can't red it, with a `[^:]` guard
+  per pattern, keyed by **path** rather than basename: `ENTROPY_OK` (`game/render.ts`,
+  `game/motion.ts`, `game/generator.ts`, `game/leveldata.ts`, `engine/audio.ts` — look-physics,
+  seed minting, id minting, playback jitter) and `CLOCK_OK` (`game/dailylog.ts`,
+  `game/generator.ts`, `game/leveldata.ts`, `game/report-ui.ts` — calendar walking, the daily
+  seed, id stamps, a report's `generatedAt`). So a file allowed to roll dice is still swept for
+  clock reads; an `engine/render.ts` added later does not inherit `game/render.ts`'s licence; a
+  module added to the tick path is covered by default; and an exemption reds both when it names
+  a file that no longer exists **and** when its file no longer needs it — an exemption shielding
+  nothing is indistinguishable from cover until the day it matters. Comments are stripped first so prose about the global can't red it, with a `[^:]` guard
   so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
 - **Cosmetics never touch `rand`.** Enforced twice over. The suite counts the behavioural draws
   across *every swept file* — not just `sim.ts`, since a draw added in a sibling module is exactly
