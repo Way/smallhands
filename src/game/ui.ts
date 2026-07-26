@@ -583,7 +583,7 @@ export class Hud {
     const resetBtn = el('button', 'res-step res-step-end', row);
     resetBtn.textContent = t('hud.keepResetShort');
     resetBtn.title = t('hud.keepReset');
-    resetBtn.ariaLabel = resetBtn.title;
+    resetBtn.setAttribute('aria-label', resetBtn.title);
     const minus = el('button', 'res-step', row);
     minus.textContent = '−';
     const val = el('b', 'res-keep-val', row);
