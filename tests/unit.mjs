@@ -1141,9 +1141,56 @@ function spentNode(id, kind, x, y) {
   };
   check('no seed still means a reproducible run', fingerprint(noSeed()) === fingerprint(play(LEVELS[0].id)));
 
-  // and the hole stays shut: a stray Math.random() in the sim re-opens it
-  const simSrc = readFileSync(new URL('../src/game/sim.ts', import.meta.url), 'utf8');
-  check('sim.ts draws no unseeded randomness', !/Math\s*\.\s*random/.test(simSrc));
+  // And the hole stays shut. The sweep covers every module the tick runs through —
+  // one stray unseeded draw anywhere on that path re-opens it for every suite —
+  // and reads the *code*, not the prose: comments are stripped first, so a doc line
+  // explaining why the sim no longer calls the global (there is one, in sim.ts)
+  // can't red this. Render/UI paths are deliberately out of scope: render.ts,
+  // motion.ts, audio.ts, generator.ts's randomSeed and leveldata.ts's id minting
+  // all use the global legitimately — none of them can move a smallie.
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+  for (const file of ['sim.ts', 'nav.ts', 'world.ts', 'types.ts']) {
+    const code = stripComments(readFileSync(new URL(`../src/game/${file}`, import.meta.url), 'utf8'));
+    check(`${file} draws no unseeded randomness`, !/Math\s*\.\s*random\s*\(/.test(code));
+  }
+
+  // …and the split holds: cosmetics draw from `randFx`, so painting particles can
+  // never perturb behaviour. This is not academic — `spawnBurst` is public and the
+  // UI calls it (win confetti, harvest-flag sparks in main.ts), so on one shared
+  // stream a click that changes no sim state would shift the wander and reorder
+  // assignments: render feeding back into the sim. Two guards, source and effect.
+  const simCode = stripComments(readFileSync(new URL('../src/game/sim.ts', import.meta.url), 'utf8'));
+  const behaviouralDraws = (simCode.match(/this\s*\.\s*rand\s*\(/g) ?? []).length;
+  check(`only the idle wander draws from the behavioural stream (${behaviouralDraws} draws)`, behaviouralDraws === 2);
+
+  // Behaviour-only fingerprint: no `facing`, which is cosmetic and legitimately
+  // moves with the fx stream. Twin runs, one of them painting bursts from outside
+  // the tick exactly as a flag click does.
+  const behaviour = (g) =>
+    JSON.stringify({
+      time: Math.round(g.time * 1000),
+      stock: g.stock,
+      won: g.won,
+      workers: g.workers.map((w) => [w.role, w.cx, w.cy, w.carrying, w.task?.kind ?? null]),
+      ground: g.groundItems.map((gi) => [gi.item, gi.x, gi.y]),
+      objectives: g.objectives.map((o) => [o.item, o.delivered, o.inbound]),
+    });
+  let burstsPainted = 0;
+  const twin = (paint) => {
+    const g = new Game(LEVELS[0], 'twin');
+    for (let i = 0; i < 60 * 90; i++) {
+      g.tick(1 / 60);
+      if (paint && i % 137 === 0) {
+        g.spawnBurst(3, 3, '#ffd94d', 10); // a UI-side cosmetic, mid-run
+        if (g.particles.length > 0) burstsPainted++;
+      }
+    }
+    return g;
+  };
+  const quiet = behaviour(twin(false));
+  const painted = behaviour(twin(true));
+  check(`the cosmetic bursts really painted (${burstsPainted} of them)`, burstsPainted > 20);
+  check('a UI-side cosmetic burst cannot change behaviour', quiet === painted);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

@@ -180,16 +180,23 @@ function stoneCensus(g) {
   const stock = g.stock.stone ?? 0;
   const ground = g.groundItems.filter((gi) => gi.item === 'stone');
   const hands = g.workers.filter((w) => w.carrying === 'stone').length;
-  // real car contents only: hoistUpperIn/LowerIn are inbound *reservations*, so
-  // they double-count the stone already counted in its hauler's hands
-  const cars = g.hoists.reduce((n, h) => n + (h.hoistUpper.stone ?? 0) + (h.hoistLower.stone ?? 0), 0);
+  // The same four buckets the sim's own per-building accounting counts (see
+  // `locateItem` in sim.ts): a machine's inputs/outputs and the two hoist cars.
+  // Deliberately NOT hoistUpperIn/hoistLowerIn — those are inbound *reservations*
+  // and double-count the stone already counted in its hauler's hands. No building
+  // on this scripted level takes stone today, but leaving the buckets out is the
+  // very omission that made the old check flaky, so count them anyway.
+  const inBuildings = g.buildings.reduce(
+    (n, b) => n + (b.inputs.stone ?? 0) + (b.outputs.stone ?? 0) + (b.hoistUpper.stone ?? 0) + (b.hoistLower.stone ?? 0),
+    0
+  );
   return {
     stock,
     hands,
-    cars,
+    inBuildings,
     onShelf: ground.filter((gi) => gi.y <= TOP).length, // still up on the plateau, unused
     inValley: ground.filter((gi) => gi.y > TOP).length,
-    total: stock + ground.length + hands + cars,
+    total: stock + ground.length + hands + inBuildings,
   };
 }
 
@@ -205,23 +212,65 @@ console.log('scripted ballast level');
   const c = stoneCensus(g);
   check(`ballast not destroyed (${c.total}/${BALLAST_COUNT} stones accounted for)`, c.total === BALLAST_COUNT);
   check(
-    `ballast really relocated (valley ${c.inValley}, stock ${c.stock}, hands ${c.hands}, cars ${c.cars})`,
-    c.inValley + c.stock + c.hands + c.cars > 0
+    `ballast really relocated (valley ${c.inValley}, stock ${c.stock}, hands ${c.hands}, machines ${c.inBuildings})`,
+    c.inValley + c.stock + c.hands + c.inBuildings > 0
   );
 }
 
-// The flake, pinned: seed 30 wins at 43s on the exact tick where two stones are
-// in haulers' hands, one is in a car and one is still unused on the shelf — so
-// nothing stone-shaped is lying in the valley and nothing has reached the
+// The census itself, container by container. This is the defect the flake was —
+// a bucket the count forgot — and it is checked directly here rather than through
+// a scheduling coincidence, so it cannot rot when sim timing shifts.
+console.log('stone census counts every container (#65)');
+{
+  const g = new Game(makeLevel({ startWorkers: 1, startRoles: { hauler: 1 } }));
+  check('a fresh level holds no stone at all', stoneCensus(g).total === 0);
+
+  g.stock.stone = 1;
+  check('stockpiled stone counts', stoneCensus(g).total === 1);
+
+  g.groundItems.push({ id: g.id(), item: 'stone', x: 15, y: TOP - 1, reserved: false, bounce: 0 });
+  const onGround = stoneCensus(g);
+  check('loose stone counts, and on the plateau reads as on-shelf', onGround.total === 2 && onGround.onShelf === 1);
+
+  g.workers[0].carrying = 'stone';
+  check('stone in a hauler\'s hands counts', stoneCensus(g).hands === 1 && stoneCensus(g).total === 3);
+
+  const b = makeHoist(g, { stone: 1 }, {});
+  check('stone riding a hoist car counts', stoneCensus(g).inBuildings === 1 && stoneCensus(g).total === 4);
+
+  g.townhall.inputs.stone = 1;
+  check('stone in a machine\'s buffer counts', stoneCensus(g).inBuildings === 2 && stoneCensus(g).total === 5);
+
+  // the one bucket that must NOT be counted: an inbound reservation is a promise
+  // about the stone already counted in its hauler's hands, not a second stone
+  b.hoistUpperIn = { stone: 1 };
+  check('an inbound reservation adds nothing (it would double-count)', stoneCensus(g).total === 5);
+}
+
+// The flake, pinned: seed 414 wins at 43s on the exact tick where two stones are
+// in haulers' hands, one is in a hoist car and one is still unused on the shelf —
+// so nothing stone-shaped is lying in the valley and nothing has reached the
 // stockpile yet. The old ground-or-stock check red-flagged that as destroyed
-// ballast roughly 1 run in 20; the census above must call it what it is.
+// ballast roughly 1 run in 20; the census must call it what it is.
+//
+// READ THIS IF THE MID-HAUL CHECK REDS: that instant is an *emergent* property of
+// this seed's trajectory, not a rule the sim owes anyone. Any change to nav costs,
+// hauler timing or the draw order moves the win a tick either way and the seed
+// stops landing mid-haul — that is not a ballast bug. (It happened once already:
+// splitting the cosmetic draws onto their own stream retired the original seed 30.)
+// Re-pin it — sweep seeds for one where `inValley === 0 && stock === 0` at the win;
+// about 1 seed in 250 qualifies, so a few hundred candidates is plenty. The block
+// above is the rot-proof half of this regression; this half proves a real
+// trajectory still reaches that state.
 console.log('scripted ballast level (win lands mid-haul — seeded regression, #65)');
 {
-  const { g, wonAt } = playBallastLevel(30);
-  check('the level is WON on the pinned seed', wonAt >= 0);
+  const SEED = 414;
+  const { g, wonAt } = playBallastLevel(SEED);
+  check(`the level is WON on the pinned seed (${SEED})`, wonAt >= 0);
   const c = stoneCensus(g);
-  check('the win really does land with the ballast in transit', c.inValley === 0 && c.stock === 0);
-  check('…and in transit means in hands or in a car, never nowhere', c.hands + c.cars > 0);
+  check(`seed ${SEED} still lands the win mid-haul (re-pin the seed if this reds — see above)`,
+    c.inValley === 0 && c.stock === 0);
+  check('…and in transit means in hands or in a machine, never nowhere', c.hands + c.inBuildings > 0);
   check(`ballast not destroyed (${c.total}/${BALLAST_COUNT} stones accounted for)`, c.total === BALLAST_COUNT);
 }
 

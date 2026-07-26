@@ -95,26 +95,44 @@ and a ramp never seals the row it is built in. Two consequences worth knowing be
 
 ## The sim is deterministic (card #65)
 
-`Game` owns exactly one source of randomness: `game.rand()`, a seeded `mulberry32` stream
-(`src/game/rng.ts`, shared with the level generator). `new Game(level, seed?)` defaults the
-seed to `level.id`, so a suite that passes no seed still replays the same run every time;
-`main.ts` passes a fresh `randomSeed()` per attempt so real play keeps its variety.
+`Game` draws randomness from seeded `mulberry32` streams (`src/game/rng.ts`, shared with the
+level generator) — and from **two of them, deliberately split by kind**:
 
-This matters beyond cosmetics. Most draws *are* cosmetic (particle fans, spawn `facing`), but
-`tryAssignWander`'s idle stroll is **behavioural**: moving an idle smallie changes who is
-nearest when the next task opens, which changes assignment order and so the timing of the
-whole run. While that draw came from an unseeded `Math.random()`, every play-to-a-win suite —
-`hoist`, `campaign1`–`campaign4`, `digging`, the `editor-generator` soak — was a *sample*, not
-a proof, and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody could
-reproduce.
+| Stream | Drawn by | Rule |
+|---|---|---|
+| `rand` | `tryAssignWander` — and nothing else | Behavioural. Only sim logic inside the tick may draw from it. |
+| `randFx` | particle fans, spawn `facing`/`animT`, dust puffs | Cosmetic. Safe for anything, including the UI, to advance. |
 
-Two rules follow, both enforced by `tests/unit.mjs`:
+`new Game(level, seed?)` defaults the seed to `level.id`, so a suite that passes no seed still
+replays the same run every time; `main.ts` passes a fresh `randomSeed()` per attempt so real
+play keeps its variety.
 
-- **No `Math.random()` in `sim.ts`.** One stray call site re-opens the hole for every suite,
-  so the unit suite sweeps the source text as well as asserting same-seed/different-seed runs.
+Why the split rather than one stream: `tryAssignWander`'s idle stroll is **behavioural** —
+moving an idle smallie changes who is nearest when the next task opens, which changes
+assignment order and so the timing of the whole run. `spawnBurst` is public and the UI calls
+it (win confetti, harvest-flag sparks in `main.ts`), so on a shared stream a click that changes
+no sim state would still shift the wander and reorder assignments: **render feeding back into
+the sim**, which nothing else in this codebase does. Separate streams make cosmetics
+unobservable to behaviour, in the browser as well as headless.
+
+While the wander drew from an unseeded `Math.random()`, every play-to-a-win suite — `hoist`,
+`campaign1`–`campaign4`, `digging`, the `editor-generator` soak — was a *sample*, not a proof,
+and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody could reproduce.
+
+Three rules follow, all enforced by `tests/unit.mjs`:
+
+- **No `Math.random()` on the tick path.** The sweep covers `sim.ts`, `nav.ts`, `world.ts` and
+  `types.ts`, and strips comments first so prose about the global can't red it. Render/UI paths
+  (`render.ts`, `motion.ts`, `audio.ts`, `randomSeed`, `leveldata.ts` id minting) use the global
+  legitimately — none of them can move a smallie.
+- **Cosmetics never touch `rand`.** The suite counts the behavioural draws in `sim.ts` and
+  expects exactly the wander's two; adding a third re-couples the streams.
 - **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
   which is an arbitrary point in the hauling cycle. An item mid-run may be in `stock`, loose in
-  `groundItems`, in a worker's hands (`w.carrying`) or inside a hoist car (`hoistUpper`/
-  `hoistLower` — *not* `hoistUpperIn`/`hoistLowerIn`, which are inbound reservations that
-  double-count the hauler already holding it). `tests/hoist.mjs`'s `stoneCensus` counts all
-  four; reading only two of them is what made the ballast check flaky.
+  `groundItems`, in a worker's hands (`w.carrying`), or in one of a building's four buckets —
+  `inputs`, `outputs`, `hoistUpper`, `hoistLower` (the same four `locateItem` counts, and *not*
+  `hoistUpperIn`/`hoistLowerIn`, which are inbound reservations that double-count the hauler
+  already holding it). `tests/hoist.mjs`'s `stoneCensus` counts them all and is itself tested
+  container by container; reading only two of them is what made the ballast check flaky.
+  A test that pins a *seed* to reproduce one such instant is pinning an emergent trajectory —
+  say so at the call site, because any timing change retires that seed (one already did).

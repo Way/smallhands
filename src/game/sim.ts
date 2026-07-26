@@ -213,21 +213,34 @@ export class Game {
 
   onEvent: (e: GameEvent) => void = () => {};
 
-  // The sim's only source of randomness — seeded, so a run is reproducible.
-  // Cosmetic draws (particle fans, spawn facing) share the stream with the one
-  // *behavioural* draw, the idle wander: an idle smallie's short stroll moves who
-  // is nearest when the next task opens, which shifts assignment order and so the
-  // timing of the whole run. While these draws came from the unseeded global, that
-  // made every play-to-a-win suite (hoist, campaign1-4, digging) a sample rather
-  // than a proof — see card #65, where it red-flagged roughly 1 hoist run in 20.
-  // Never reach for the global in here again: a single stray call site re-opens the
-  // hole for all of them, so `tests/unit.mjs` sweeps this file and fails if one
-  // appears. The app passes a fresh seed per attempt (`main.ts`), so seeding costs
-  // real play none of its variety.
-  readonly rand: () => number;
+  // The sim's randomness, seeded so a run is reproducible — and split in two,
+  // because the two kinds of draw have very different rules (card #65).
+  //
+  // `rand` is the BEHAVIOURAL stream, and `tryAssignWander` is its only reader: an
+  // idle smallie's short stroll moves who is nearest when the next task opens,
+  // which shifts assignment order and so the timing of the whole run. While that
+  // came from the unseeded global, every play-to-a-win suite (hoist, campaign1-4,
+  // digging) was a sample rather than a proof — it red-flagged roughly 1 hoist run
+  // in 20 on an assertion that was itself wrong.
+  //
+  // `randFx` is the COSMETIC stream: particle fans, spawn facing/animT, the odd
+  // dust puff. It exists so that drawing a cosmetic cannot perturb behaviour —
+  // `spawnBurst` is public and the UI calls it (win confetti, harvest-flag sparks
+  // in `main.ts`), so on one shared stream a click that changes no sim state would
+  // still reorder assignments: render feeding back into the sim, which the
+  // architecture forbids. Keep every cosmetic draw on `randFx`; a behavioural draw
+  // added to `randFx` (or a cosmetic one to `rand`) quietly re-couples them.
+  //
+  // Never reach for the unseeded global in here again: one stray call site re-opens
+  // the hole for every suite, so `tests/unit.mjs` sweeps the tick-path sources and
+  // fails if one appears. The app passes a fresh seed per attempt (`main.ts`), so
+  // seeding costs real play none of its variety.
+  private readonly rand: () => number;
+  private readonly randFx: () => number;
 
   constructor(level: LevelDef, seed: string | number = level.id) {
     this.rand = seededRandom(String(seed));
+    this.randFx = seededRandom(`${seed}:fx`);
     this.level = level;
     this.world = new World(level.width, level.height);
     // Night maps open in the dark, day maps at noon. `startHour` overrides both
@@ -996,8 +1009,8 @@ export class Game {
       carrying: null,
       hasShovel: false,
       workT: 0,
-      facing: this.rand() < 0.5 ? -1 : 1,
-      animT: this.rand() * 10,
+      facing: this.randFx() < 0.5 ? -1 : 1,
+      animT: this.randFx() * 10,
       working: false,
       waiting: false,
       spawnT: initial ? 0 : 0.6,
@@ -1682,6 +1695,7 @@ export class Game {
   }
 
   private tryAssignWander(w: Worker): void {
+    // the sim's ONE behavioural draw — see `rand` vs `randFx` at the top of the class
     if (this.rand() < 0.985) return; // mostly stand around
     const dx = Math.floor(this.rand() * 7) - 3;
     if (dx === 0) return;
@@ -1902,7 +1916,7 @@ export class Game {
       const tile = this.world.get(task.tx, task.ty);
       if (task.tx !== w.cx) w.facing = task.tx > w.cx ? 1 : -1; // face the tile being dug
       w.workT += dt;
-      if (this.rand() < dt * 3) this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 2);
+      if (this.randFx() < dt * 3) this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 2);
       if (w.workT >= (DIG_TIME[tile] ?? DIG_TIME_DEFAULT)) {
         w.workT = 0;
         this.world.set(task.tx, task.ty, T.AIR);
@@ -1922,11 +1936,11 @@ export class Game {
       }
       b.progress += dt * BUILDER_SPEED;
       // dust kicked up off the base, plus the odd sawdust chip from the work
-      if (this.rand() < dt * 6) {
-        const bx = b.x + this.rand() * footprintW(b);
+      if (this.randFx() < dt * 6) {
+        const bx = b.x + this.randFx() * footprintW(b);
         const by = b.y + footprintH(b) - 0.1;
         this.spawnDust(bx, by, 2);
-        if (this.rand() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
+        if (this.randFx() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
       }
       const need = BUILD_TIME[b.kind] ?? 5;
       if (b.progress >= need) {
@@ -1946,11 +1960,11 @@ export class Game {
       }
       up.progress += dt * BUILDER_SPEED;
       const th = this.townhall;
-      if (this.rand() < dt * 6) {
-        const bx = th.x + this.rand() * footprintW(th);
+      if (this.randFx() < dt * 6) {
+        const bx = th.x + this.randFx() * footprintW(th);
         const by = th.y + footprintH(th) - 0.1;
         this.spawnDust(bx, by, 2);
-        if (this.rand() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
+        if (this.randFx() < 0.45) this.spawnBurst(bx, by - 0.2, '#d8c27a', 1);
       }
       if (up.progress >= up.time) {
         this.thUpgrade = null;
@@ -2313,17 +2327,17 @@ export class Game {
 
   spawnBurst(x: number, y: number, color: string, n = 5): void {
     for (let i = 0; i < n; i++) {
-      const a = this.rand() * Math.PI - Math.PI;
-      const sp = 1 + this.rand() * 2.5;
+      const a = this.randFx() * Math.PI - Math.PI;
+      const sp = 1 + this.randFx() * 2.5;
       this.particles.push({
         x,
         y,
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp - 1,
-        life: 0.5 + this.rand() * 0.3,
+        life: 0.5 + this.randFx() * 0.3,
         maxLife: 0.8,
         color,
-        size: 1.5 + this.rand() * 1.5,
+        size: 1.5 + this.randFx() * 1.5,
       });
     }
   }
@@ -2333,17 +2347,17 @@ export class Game {
   // Airier and longer-lived than spawnBurst's debris chips.
   spawnDust(x: number, y: number, n = 3): void {
     for (let i = 0; i < n; i++) {
-      const a = -Math.PI / 2 + (this.rand() - 0.5) * 1.3; // fan upward
-      const sp = 1.2 + this.rand() * 1.8;
+      const a = -Math.PI / 2 + (this.randFx() - 0.5) * 1.3; // fan upward
+      const sp = 1.2 + this.randFx() * 1.8;
       this.particles.push({
-        x: x + (this.rand() - 0.5) * 0.6,
+        x: x + (this.randFx() - 0.5) * 0.6,
         y,
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp - 1.6,
-        life: 0.8 + this.rand() * 0.6,
+        life: 0.8 + this.randFx() * 0.6,
         maxLife: 1.4,
-        color: this.rand() < 0.5 ? '#e6dcc6' : '#d0bd98',
-        size: 1.5 + this.rand() * 2,
+        color: this.randFx() < 0.5 ? '#e6dcc6' : '#d0bd98',
+        size: 1.5 + this.randFx() * 2,
         grav: 1.5, // floaty: hangs in the air a moment before settling
       });
     }
