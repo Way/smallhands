@@ -1114,59 +1114,79 @@ function spentNode(id, kind, x, y) {
 // shifts who is nearest when the next task opens, which shifts the timing of the
 // whole run — hoist red-flagged about 1 run in 20 that way.
 {
-  // A run's whole visible state, flattened enough to compare two runs by string.
-  const fingerprint = (g) =>
+  // Two comparators, because the two streams answer different questions.
+  //   behaviour — what the sim DID. No cosmetic fields, so a claim made with this
+  //     is a claim about `rand` alone. `facing` is excluded deliberately: it is an
+  //     fx draw at spawn, and although movement overwrites it a moment later (so it
+  //     tracks behaviour in practice), resting an assertion on that coincidence
+  //     would let a cosmetic difference stand in for a behavioural one.
+  //   fingerprint — behaviour plus the cosmetics, for the replay claims, which
+  //     should hold for both streams at once.
+  const behaviour = (g) =>
     JSON.stringify({
       time: Math.round(g.time * 1000),
       stock: g.stock,
       won: g.won,
-      workers: g.workers.map((w) => [w.role, w.cx, w.cy, w.carrying, w.task?.kind ?? null, w.facing]),
+      workers: g.workers.map((w) => [w.role, w.cx, w.cy, w.carrying, w.task?.kind ?? null]),
       ground: g.groundItems.map((gi) => [gi.item, gi.x, gi.y]),
       objectives: g.objectives.map((o) => [o.item, o.delivered, o.inbound]),
     });
+  const fingerprint = (g) => JSON.stringify([behaviour(g), g.workers.map((w) => w.facing)]);
 
   const play = (seed) => {
-    const g = new Game(LEVELS[0], seed);
+    const g = seed === undefined ? new Game(LEVELS[0]) : new Game(LEVELS[0], seed);
     for (let i = 0; i < 60 * 90; i++) g.tick(1 / 60); // 90 sim-seconds
     return g;
   };
 
   check('the same seed replays the same run exactly', fingerprint(play('proof')) === fingerprint(play('proof')));
-  check('a different seed really is a different run', fingerprint(play('proof')) !== fingerprint(play('other')));
+  // compared on behaviour alone: this must be a statement about `rand`, not about
+  // two fx streams having produced different particle fans
+  check('a different seed really is a different run', behaviour(play('proof')) !== behaviour(play('other')));
   // the default seed is the level id, so a suite that passes no seed is still reproducible
-  const noSeed = () => {
-    const g = new Game(LEVELS[0]);
-    for (let i = 0; i < 60 * 90; i++) g.tick(1 / 60);
-    return g;
-  };
-  check('no seed still means a reproducible run', fingerprint(noSeed()) === fingerprint(play(LEVELS[0].id)));
+  check('no seed still means a reproducible run', fingerprint(play(undefined)) === fingerprint(play(LEVELS[0].id)));
 
   // And the hole stays shut. The sweep is written as an EXEMPTION list, not a list
-  // of files to check: everything under src/game is swept unless it is named here,
-  // so a module added to the tick path later — or a split of this 2400-line sim —
-  // is covered by default, and exempting one is a deliberate, reviewable act rather
-  // than an omission nobody notices. It reads the *code*, not the prose: comments
-  // are stripped first, so the doc line in sim.ts explaining why the file no longer
-  // calls the global can't red this.
+  // of files to check: everything under src/game and src/engine is swept — recursively,
+  // so splitting this 2400-line sim into `sim/*.ts` stays covered — unless it is named
+  // here. A module added to the tick path later is therefore covered by default, and
+  // exempting one is a deliberate, reviewable act rather than an omission nobody
+  // notices. src/engine is in scope even though the tick path imports nothing from it
+  // today: that is exactly the kind of fact that changes quietly.
   //
   // The exempt files draw entropy legitimately and none of them can move a smallie:
   // render.ts and motion.ts are look-physics, generator.ts mints level seeds
-  // (`randomSeed`) around its own seeded Rng, leveldata.ts mints custom-level ids.
-  const RENDER_ONLY = new Set(['render.ts', 'motion.ts', 'generator.ts', 'leveldata.ts']);
-  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
-  const gameDir = new URL('../src/game/', import.meta.url);
-  const allGameFiles = readdirSync(gameDir).filter((f) => f.endsWith('.ts'));
-  const swept = allGameFiles.filter((f) => !RENDER_ONLY.has(f)).sort();
+  // (`randomSeed`) around its own seeded Rng, leveldata.ts mints custom-level ids,
+  // audio.ts jitters playback.
+  const EXEMPT = new Set(['render.ts', 'motion.ts', 'generator.ts', 'leveldata.ts', 'audio.ts']);
+
+  // Reads the *code*, not the prose, so the doc line in sim.ts explaining why the
+  // file no longer calls the global can't red this. The `[^:]` guard keeps a `//`
+  // inside a URL from blanking the rest of its line (`https://…` used to hide any
+  // later call on that same line). A `//` inside some other string literal would
+  // still over-strip — accepted: it can only ever hide a call on that one line, and
+  // the count check below is a second net.
+  const stripComments = (src) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/gm, '$1 ');
+
+  const srcRoot = new URL('../src/', import.meta.url);
+  const tsUnder = (dir) =>
+    readdirSync(new URL(`${dir}/`, srcRoot), { recursive: true })
+      .map((f) => `${dir}/${f}`.replaceAll('\\', '/'))
+      .filter((f) => f.endsWith('.ts'));
+  const allFiles = [...tsUnder('game'), ...tsUnder('engine')];
+  const swept = allFiles.filter((f) => !EXEMPT.has(f.split('/').pop())).sort();
   // the partition must account for every file, and every exemption must still exist
   // (a renamed or deleted exempt file would otherwise sit here silently forever)
-  const staleExemptions = [...RENDER_ONLY].filter((f) => !allGameFiles.includes(f));
+  const staleExemptions = [...EXEMPT].filter((e) => !allFiles.some((f) => f.endsWith(`/${e}`)));
   check(
-    `the sweep covers all of src/game bar the exemptions (${swept.length} swept, ${RENDER_ONLY.size} exempt${staleExemptions.length ? `, STALE: ${staleExemptions.join(', ')}` : ''})`,
-    swept.length === allGameFiles.length - RENDER_ONLY.size &&
+    `the sweep covers src/game + src/engine bar the exemptions (${swept.length} swept, ${EXEMPT.size} exempt${staleExemptions.length ? `, STALE: ${staleExemptions.join(', ')}` : ''})`,
+    swept.length === allFiles.length - EXEMPT.size &&
       staleExemptions.length === 0 &&
-      ['sim.ts', 'nav.ts', 'world.ts', 'types.ts'].every((f) => swept.includes(f))
+      ['game/sim.ts', 'game/nav.ts', 'game/world.ts', 'game/types.ts'].every((f) => swept.includes(f))
   );
-  const strays = swept.filter((f) => /Math\s*\.\s*random\s*\(/.test(stripComments(readFileSync(new URL(f, gameDir), 'utf8'))));
+  const code = new Map(swept.map((f) => [f, stripComments(readFileSync(new URL(f, srcRoot), 'utf8'))]));
+  const strays = swept.filter((f) => /Math\s*\.\s*random\s*\(/.test(code.get(f)));
   check(`no unseeded randomness on the tick path${strays.length ? ` — found in ${strays.join(', ')}` : ''}`, strays.length === 0);
 
   // …and the split holds: cosmetics draw from `randFx`, so painting particles can
@@ -1177,22 +1197,13 @@ function spentNode(id, kind, x, y) {
   // Counted across every swept file, not just sim.ts, so a behavioural draw added
   // in a sibling module is caught too. `randFx(` deliberately doesn't match.
   const behaviouralDraws = swept
-    .map((f) => (stripComments(readFileSync(new URL(f, gameDir), 'utf8')).match(/(?<![A-Za-z])rand\s*\(/g) ?? []).length)
+    .map((f) => (code.get(f).match(/(?<![A-Za-z])rand\s*\(/g) ?? []).length)
     .reduce((a, b) => a + b, 0);
   check(`only the idle wander draws from the behavioural stream (${behaviouralDraws} draws)`, behaviouralDraws === 2);
 
-  // Behaviour-only fingerprint: no `facing`, which is cosmetic and legitimately
-  // moves with the fx stream. Twin runs, one of them painting bursts from outside
-  // the tick exactly as a flag click does.
-  const behaviour = (g) =>
-    JSON.stringify({
-      time: Math.round(g.time * 1000),
-      stock: g.stock,
-      won: g.won,
-      workers: g.workers.map((w) => [w.role, w.cx, w.cy, w.carrying, w.task?.kind ?? null]),
-      ground: g.groundItems.map((gi) => [gi.item, gi.x, gi.y]),
-      objectives: g.objectives.map((o) => [o.item, o.delivered, o.inbound]),
-    });
+  // Twin runs, one of them painting bursts from outside the tick exactly as a flag
+  // click does, compared with the same behaviour-only comparator used above (the
+  // painted run's `facing` legitimately differs — that is the fx stream doing its job).
   let burstsPainted = 0;
   const twin = (paint) => {
     const g = new Game(LEVELS[0], 'twin');

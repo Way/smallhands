@@ -267,9 +267,12 @@ console.log('stone census counts every container (#65)');
 // mass at every single tick (a stricter contract than checking it once at the win),
 // and asserts that the run really does reach the state the old assertion mislabelled.
 // Nothing here depends on when the win falls, so nothing here can rot.
+// Several trajectories, not one: the scan no longer cares when the win lands, so
+// breadth is nearly free (~2.5k ticks each) and each message names its seed.
 console.log('mass is conserved at every tick, including mid-haul (#65)');
-{
-  const { g } = armBallastLevel();
+for (const seed of [undefined, 7, 42]) {
+  const label = seed === undefined ? 'default seed' : `seed ${seed}`;
+  const { g } = armBallastLevel(seed);
   let leakAt = -1; // first tick where a stone went missing
   let midHaul = null; // first tick with ballast in transit and nothing landed
   let ticks = 0;
@@ -282,21 +285,21 @@ console.log('mass is conserved at every tick, including mid-haul (#65)');
       midHaul = { at: +(i * DT).toFixed(1), ...c };
     }
   }
-  check(`the level is WON (${(ticks * DT).toFixed(0)}s of ticks)`, g.won);
+  check(`${label}: the level is WON (${(ticks * DT).toFixed(0)}s of ticks)`, g.won);
   check(
     leakAt < 0
-      ? `every stone is accounted for on all ${ticks} ticks`
-      : `stone went missing at tick ${leakAt} (${(leakAt * DT).toFixed(1)}s)`,
+      ? `${label}: every stone is accounted for on all ${ticks} ticks`
+      : `${label}: stone went missing at tick ${leakAt} (${(leakAt * DT).toFixed(1)}s)`,
     leakAt < 0
   );
   check(
     midHaul
-      ? `the run passes through the mid-haul instant at ${midHaul.at}s (hands ${midHaul.hands}, machines ${midHaul.inBuildings}, valley 0, stock 0)`
-      : 'the run never carried ballast before something landed — the flake state is unreachable, so this suite no longer covers it',
+      ? `${label}: passes through the mid-haul instant at ${midHaul.at}s (hands ${midHaul.hands}, machines ${midHaul.inBuildings}, valley 0, stock 0)`
+      : `${label}: never carried ballast before something landed — the flake state is unreachable here, so this run no longer covers it`,
     !!midHaul
   );
   check(
-    `…and the census accounts for all ${BALLAST_COUNT} stones at that instant`,
+    `${label}: …and the census accounts for all ${BALLAST_COUNT} stones at that instant`,
     midHaul?.total === BALLAST_COUNT
   );
 }

@@ -122,11 +122,13 @@ and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody cou
 Three rules follow, all enforced by `tests/unit.mjs`:
 
 - **No `Math.random()` on the tick path.** The sweep is an *exemption* list, not a list of files
-  to check: everything under `src/game` is swept unless named in `RENDER_ONLY` (`render.ts`,
-  `motion.ts`, `generator.ts`, `leveldata.ts` — look-physics, seed minting, id minting, none of
-  which can move a smallie). A module added to the tick path later is therefore covered by
-  default, exempting one is a deliberate act, and a stale exemption naming a file that no longer
-  exists reds. Comments are stripped first, so prose about the global can't red it.
+  to check: every `.ts` under `src/game` and `src/engine` is swept — recursively, so splitting
+  `sim.ts` into `sim/*.ts` stays covered — unless named in `EXEMPT` (`render.ts`, `motion.ts`,
+  `generator.ts`, `leveldata.ts`, `audio.ts` — look-physics, seed minting, id minting, playback
+  jitter; none of them can move a smallie). A module added to the tick path later is therefore
+  covered by default, exempting one is a deliberate act, and a stale exemption naming a file that
+  no longer exists reds. Comments are stripped first so prose about the global can't red it, with
+  a `[^:]` guard so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
 - **Cosmetics never touch `rand`.** The suite counts the behavioural draws in `sim.ts` and
   expects exactly the wander's two; adding a third re-couples the streams.
 - **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
