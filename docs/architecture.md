@@ -121,10 +121,12 @@ and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody cou
 
 Three rules follow, all enforced by `tests/unit.mjs`:
 
-- **No `Math.random()` on the tick path.** The sweep covers `sim.ts`, `nav.ts`, `world.ts` and
-  `types.ts`, and strips comments first so prose about the global can't red it. Render/UI paths
-  (`render.ts`, `motion.ts`, `audio.ts`, `randomSeed`, `leveldata.ts` id minting) use the global
-  legitimately — none of them can move a smallie.
+- **No `Math.random()` on the tick path.** The sweep is an *exemption* list, not a list of files
+  to check: everything under `src/game` is swept unless named in `RENDER_ONLY` (`render.ts`,
+  `motion.ts`, `generator.ts`, `leveldata.ts` — look-physics, seed minting, id minting, none of
+  which can move a smallie). A module added to the tick path later is therefore covered by
+  default, exempting one is a deliberate act, and a stale exemption naming a file that no longer
+  exists reds. Comments are stripped first, so prose about the global can't red it.
 - **Cosmetics never touch `rand`.** The suite counts the behavioural draws in `sim.ts` and
   expects exactly the wander's two; adding a third re-couples the streams.
 - **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
@@ -134,5 +136,7 @@ Three rules follow, all enforced by `tests/unit.mjs`:
   `hoistUpperIn`/`hoistLowerIn`, which are inbound reservations that double-count the hauler
   already holding it). `tests/hoist.mjs`'s `stoneCensus` counts them all and is itself tested
   container by container; reading only two of them is what made the ballast check flaky.
-  A test that pins a *seed* to reproduce one such instant is pinning an emergent trajectory —
-  say so at the call site, because any timing change retires that seed (one already did).
+  **Scan for such an instant, don't pin a seed to it.** A seed that happens to win mid-haul is an
+  emergent trajectory — the first attempt was retired by an unrelated draw-order change within a
+  day, and its red read like a ballast bug. Stepping the run tick by tick finds the state in
+  *every* run and lets the suite check mass on every tick, which is both stronger and rot-proof.

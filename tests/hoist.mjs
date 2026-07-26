@@ -137,10 +137,8 @@ console.log('cycle truth table');
 
 const BALLAST_COUNT = 4; // loose stones seeded on the plateau, the run's whole stone supply
 
-// Play the scripted level to its win. `seed` picks the sim's random stream (see
-// Game's `rand`), so a run is reproducible: pass a seed to pin one exact run.
-function playBallastLevel(seed) {
-  const level = makeLevel({
+function ballastLevel() {
+  return makeLevel({
     objectives: [{ item: 'plank', amount: 2 }],
     startWorkers: 5,
     startRoles: { hauler: 3, builder: 2 },
@@ -154,13 +152,22 @@ function playBallastLevel(seed) {
       }
     },
   });
+}
 
+// Set the scripted level up and hand back the pieces, unplayed.
+function armBallastLevel(seed) {
+  const level = ballastLevel();
   const g = seed === undefined ? new Game(level) : new Game(level, seed);
   g.thLevel = 2; // hoist gate
   const placed = g.placeHoist(POST, TOP - 1);
   const b = g.hoists[0];
   if (b) g.toggleHoistRoute(b.id, 'lower', 'plank'); // route: planks ride UP
+  return { g, b, placed };
+}
 
+// Play it to the win, one sim-second at a time.
+function playBallastLevel(seed) {
+  const { g, b, placed } = armBallastLevel(seed);
   let builtAt = -1;
   let wonAt = -1;
   for (let s = 0; s < 360 && wonAt < 0; s++) {
@@ -247,31 +254,51 @@ console.log('stone census counts every container (#65)');
   check('an inbound reservation adds nothing (it would double-count)', stoneCensus(g).total === 5);
 }
 
-// The flake, pinned: seed 414 wins at 43s on the exact tick where two stones are
-// in haulers' hands, one is in a hoist car and one is still unused on the shelf —
-// so nothing stone-shaped is lying in the valley and nothing has reached the
-// stockpile yet. The old ground-or-stock check red-flagged that as destroyed
-// ballast roughly 1 run in 20; the census must call it what it is.
+// The flake's instant, found rather than pinned. The old check failed whenever the
+// win happened to land while the ballast was in transit with nothing yet in the
+// valley or the stockpile — about 1 run in 20. Pinning a seed that wins on such a
+// tick is pinning an emergent trajectory: the first attempt (seed 30) was retired
+// by an unrelated change to the draw order within a day, and the red read like a
+// ballast bug rather than "re-pin me".
 //
-// READ THIS IF THE MID-HAUL CHECK REDS: that instant is an *emergent* property of
-// this seed's trajectory, not a rule the sim owes anyone. Any change to nav costs,
-// hauler timing or the draw order moves the win a tick either way and the seed
-// stops landing mid-haul — that is not a ballast bug. (It happened once already:
-// splitting the cosmetic draws onto their own stream retired the original seed 30.)
-// Re-pin it — sweep seeds for one where `inValley === 0 && stock === 0` at the win;
-// about 1 seed in 250 qualifies, so a few hundred candidates is plenty. The block
-// above is the rot-proof half of this regression; this half proves a real
-// trajectory still reaches that state.
-console.log('scripted ballast level (win lands mid-haul — seeded regression, #65)');
+// Scanning removes the coincidence entirely. Every run passes *through* that state
+// on its way — the first stone to move is in a hauler's hands or riding a car
+// before any stone has landed — so the suite steps the run tick by tick, checks
+// mass at every single tick (a stricter contract than checking it once at the win),
+// and asserts that the run really does reach the state the old assertion mislabelled.
+// Nothing here depends on when the win falls, so nothing here can rot.
+console.log('mass is conserved at every tick, including mid-haul (#65)');
 {
-  const SEED = 414;
-  const { g, wonAt } = playBallastLevel(SEED);
-  check(`the level is WON on the pinned seed (${SEED})`, wonAt >= 0);
-  const c = stoneCensus(g);
-  check(`seed ${SEED} still lands the win mid-haul (re-pin the seed if this reds — see above)`,
-    c.inValley === 0 && c.stock === 0);
-  check('…and in transit means in hands or in a machine, never nowhere', c.hands + c.inBuildings > 0);
-  check(`ballast not destroyed (${c.total}/${BALLAST_COUNT} stones accounted for)`, c.total === BALLAST_COUNT);
+  const { g } = armBallastLevel();
+  let leakAt = -1; // first tick where a stone went missing
+  let midHaul = null; // first tick with ballast in transit and nothing landed
+  let ticks = 0;
+  for (let i = 0; i < 360 * 60 && !g.won; i++) {
+    g.tick(DT);
+    ticks++;
+    const c = stoneCensus(g);
+    if (leakAt < 0 && c.total !== BALLAST_COUNT) leakAt = i;
+    if (!midHaul && c.inValley === 0 && c.stock === 0 && c.hands + c.inBuildings > 0) {
+      midHaul = { at: +(i * DT).toFixed(1), ...c };
+    }
+  }
+  check(`the level is WON (${(ticks * DT).toFixed(0)}s of ticks)`, g.won);
+  check(
+    leakAt < 0
+      ? `every stone is accounted for on all ${ticks} ticks`
+      : `stone went missing at tick ${leakAt} (${(leakAt * DT).toFixed(1)}s)`,
+    leakAt < 0
+  );
+  check(
+    midHaul
+      ? `the run passes through the mid-haul instant at ${midHaul.at}s (hands ${midHaul.hands}, machines ${midHaul.inBuildings}, valley 0, stock 0)`
+      : 'the run never carried ballast before something landed — the flake state is unreachable, so this suite no longer covers it',
+    !!midHaul
+  );
+  check(
+    `…and the census accounts for all ${BALLAST_COUNT} stones at that instant`,
+    midHaul?.total === BALLAST_COUNT
+  );
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nall ok');
