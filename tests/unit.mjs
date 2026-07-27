@@ -1247,31 +1247,49 @@ function spentNode(id, kind, x, y) {
   // UI calls it (win confetti, harvest-flag sparks in main.ts), so on one shared
   // stream a click that changes no sim state would shift the wander and reorder
   // assignments: render feeding back into the sim. Two guards, source and effect.
-  // Counted across every swept file, not just sim.ts, so a behavioural draw added
-  // in a sibling module is caught too. `randFx(` deliberately doesn't match.
+  // Counted across every swept file, so a `rand(` call added in a sibling module is
+  // caught too. `randFx(` deliberately doesn't match.
   const behaviouralDraws = swept
     .map((f) => (code.get(f).match(/(?<![A-Za-z])rand\s*\(/g) ?? []).length)
     .reduce((a, b) => a + b, 0);
   check(`only the idle wander draws from the behavioural stream (${behaviouralDraws} draws)`, behaviouralDraws === 2);
 
+  // The count alone is not enough, because it matches an identifier: hand `this.rand`
+  // to a helper that names its parameter `roll` and the draw happens with the count
+  // still reading 2. `rand` is `private readonly`, so the stream can only escape by
+  // being passed or aliased — every legitimate mention is either a call (`this.rand(`)
+  // or the constructor's own assignment (`this.rand =`), and anything else is an escape.
+  const escapes = swept.flatMap((f) => {
+    const hits = code.get(f).match(/this\s*\.\s*rand\b(?!\s*[(=])/g) ?? [];
+    return hits.length ? [`${f} (${hits.length})`] : [];
+  });
+  check(
+    `the behavioural stream is never handed out of the sim${escapes.length ? ` — passed or aliased in ${escapes.join(', ')}` : ''}`,
+    escapes.length === 0
+  );
+
   // Twin runs, one of them painting bursts from outside the tick exactly as a flag
   // click does, compared with the same behaviour-only comparator used above (the
   // painted run's `facing` legitimately differs — that is the fx stream doing its job).
-  let burstsPainted = 0;
+  // `painted` counts particles the burst actually ADDED. Reading `particles.length > 0`
+  // after a `spawnBurst(…, 10)` would be a tautology, not a witness — it cannot fail,
+  // so it could never tell us the fx work really happened.
+  let particlesPainted = 0;
   const twin = (paint) => {
     const g = new Game(LEVELS[0], 'twin');
     for (let i = 0; i < 60 * 90; i++) {
       g.tick(1 / 60);
       if (paint && i % 137 === 0) {
+        const before = g.particles.length;
         g.spawnBurst(3, 3, '#ffd94d', 10); // a UI-side cosmetic, mid-run
-        if (g.particles.length > 0) burstsPainted++;
+        particlesPainted += g.particles.length - before;
       }
     }
     return g;
   };
   const quiet = behaviour(twin(false));
   const painted = behaviour(twin(true));
-  check(`the cosmetic bursts really painted (${burstsPainted} of them)`, burstsPainted > 20);
+  check(`the cosmetic bursts really painted (${particlesPainted} particles added)`, particlesPainted === 40 * 10);
   check('a UI-side cosmetic burst cannot change behaviour', quiet === painted);
 }
 

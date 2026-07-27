@@ -237,10 +237,16 @@ export class Game {
   // seeding costs real play none of its variety.
   private readonly rand: () => number;
   private readonly randFx: () => number;
+  // Kept so a run can be replayed from the outside: `main.ts` mints a fresh seed per
+  // attempt, and without recording it a run a player reports back would not be
+  // reproducible even in principle. The bug report stamps it (`report.ts` run table),
+  // and `new Game(level, seed)` replays that exact run.
+  readonly seed: string;
 
   constructor(level: LevelDef, seed: string | number = level.id) {
-    this.rand = seededRandom(String(seed));
-    this.randFx = seededRandom(`${seed}:fx`);
+    this.seed = String(seed);
+    this.rand = seededRandom(this.seed);
+    this.randFx = seededRandom(`${this.seed}:fx`);
     this.level = level;
     this.world = new World(level.width, level.height);
     // Night maps open in the dark, day maps at noon. `startHour` overrides both

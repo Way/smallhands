@@ -67,6 +67,7 @@ export interface ReportData {
     flood: { start: number; min: number } | null;
   };
   run: {
+    seed: string; // replays this exact run: new Game(level, seed)
     time: number;
     clock: string;
     timeOfDay: number;
@@ -252,6 +253,7 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
       flood: level.flood ?? null,
     },
     run: {
+      seed: game.seed,
       time: round2(game.time),
       clock: clockString(game.timeOfDay),
       timeOfDay: round2(game.timeOfDay),
@@ -379,6 +381,7 @@ export function formatReport(d: ReportData): string {
   push();
   push(`| | |`);
   push(`|---|---|`);
+  push(`| seed | \`${run.seed}\` (replays this run) |`);
   push(`| elapsed | ${run.time}s |`);
   push(`| clock | ${run.clock} (hour ${run.timeOfDay}, night ${run.nightAmount}) |`);
   push(`| speed | ${c.speed}× ${run.paused ? '(paused)' : ''} |`);

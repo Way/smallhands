@@ -105,7 +105,10 @@ level generator) — and from **two of them, deliberately split by kind**:
 
 `new Game(level, seed?)` defaults the seed to `level.id`, so a suite that passes no seed still
 replays the same run every time; `main.ts` passes a fresh `randomSeed()` per attempt so real
-play keeps its variety.
+play keeps its variety. The seed is kept as `game.seed` and stamped into the bug report's run
+table (`report.ts`), because a per-attempt seed nobody records makes a *reported* run
+irreproducible even in principle — with it, `new Game(level, game.seed)` replays exactly what
+the player saw.
 
 Each stream is asserted twice, and **replay does not imply seed-driven**: a stream wired to a
 constant replays perfectly while ignoring the seed entirely. So `tests/unit.mjs` checks replay
@@ -142,11 +145,13 @@ Three rules follow — the first two enforced by `tests/unit.mjs`, the third by 
   a file that no longer exists **and** when its file no longer needs it — an exemption shielding
   nothing is indistinguishable from cover until the day it matters. Comments are stripped first so prose about the global can't red it, with a `[^:]` guard
   so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
-- **Cosmetics never touch `rand`.** Enforced twice over. The suite counts the behavioural draws
-  across *every swept file* — not just `sim.ts`, since a draw added in a sibling module is exactly
-  what a single-file count would miss — and expects the wander's two; a third re-couples the
-  streams. It also runs twin games, one of them painting bursts from outside the tick as the UI
-  does, and requires their behaviour to match byte for byte.
+- **Cosmetics never touch `rand`, and `rand` never leaves the sim.** Enforced three ways. The
+  suite counts the behavioural draws across *every swept file* and expects the wander's two; a
+  third re-couples the streams. Because a count matches an *identifier*, it also rejects any
+  `this.rand` in a non-call, non-assignment position — passing the stream to a helper that names
+  its parameter `roll` would otherwise draw from it with the count still reading 2. And it runs
+  twin games, one of them painting bursts from outside the tick as the UI does, requiring their
+  behaviour to match byte for byte.
 - **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
   which is an arbitrary point in the hauling cycle. An item mid-run may be in `stock`, loose in
   `groundItems`, in a worker's hands (`w.carrying`), or in one of a building's four buckets —
