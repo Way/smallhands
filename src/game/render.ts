@@ -1,4 +1,4 @@
-import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TOOL_DEFS, TH_LEVELS } from './types';
+import { FOOTPRINTS, HOIST_CYCLE, T, TILE, BUILD_TIME, TH_LEVELS } from './types';
 import type { Building, Tool } from './types';
 import { sprite, tileHash, PROP_KINDS } from '../engine/sprites';
 import { BIOME_LOOK, biomeSuffix, treeSprite } from '../engine/biomes';
@@ -1943,7 +1943,7 @@ export class Renderer {
         break;
       }
       case 'ladder': {
-        const ok = canPlaceLadder(game.world, tx, ty) && game.ladderWood() !== null;
+        const ok = canPlaceLadder(game.world, tx, ty) && game.canAttemptPlacement('ladder', tx, ty);
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_ladder').canvas, px, py);
         ctx.globalAlpha = 1;
@@ -1951,10 +1951,10 @@ export class Renderer {
         break;
       }
       case 'platform': {
-        const ok =
-          canPlacePlatform(game.world, tx, ty) &&
-          game.canAfford({ plank: 1 }) &&
-          !game.darkBlocks('platform', tx, ty);
+        // at-rest single-cell preview. A tap here becomes a 1-cell run, which
+        // runPlan trims against the budget — so this outline has to consult the
+        // budget too, or a spent bridge allowance previews green and lays nothing.
+        const ok = canPlacePlatform(game.world, tx, ty) && game.canAttemptPlacement('platform', tx, ty);
         ctx.globalAlpha = 0.6;
         ctx.drawImage(sprite('tile_platform').canvas, px, py);
         ctx.globalAlpha = 1;
@@ -1963,10 +1963,7 @@ export class Renderer {
       }
       case 'ramp': {
         // at-rest preview of the anchor tile (a drag then previews the full run)
-        const ok =
-          canPlaceRamp(game.world, tx, ty, null) &&
-          game.canAfford({ plank: 1 }) &&
-          !game.darkBlocks('ramp', tx, ty);
+        const ok = canPlaceRamp(game.world, tx, ty, null) && game.canAttemptPlacement('ramp', tx, ty);
         ctx.globalAlpha = 0.6;
         // preview the same facing the laid tile will take (toward the ledge),
         // in this level's biome earth so it matches the terrain it lands in
@@ -1996,14 +1993,12 @@ export class Renderer {
       case 'workshop':
       case 'lantern': {
         const fp = FOOTPRINTS[tool];
-        const cost = TOOL_DEFS.find((d) => d.id === tool)?.cost ?? {};
+        // canAttemptPlacement is the same gate the placement itself runs (unlock,
+        // budget, cost, darkness), so the ghost cannot promise a click the sim
+        // will refuse. Each case adds only its own geometry.
         const ok =
           canPlaceBuilding(game.world, game.buildings, game.nodes, tx, ty, fp.w, fp.h) &&
-          game.canAfford(cost) &&
-          game.toolUnlocked(tool) &&
-          game.toolRemaining(tool) !== 0 &&
-          // at night, workshops need a lit site — lanterns go anywhere
-          !game.darkBlocks(tool, tx, ty);
+          game.canAttemptPlacement(tool, tx, ty);
         // show the area this lantern would light before it's placed (under the
         // sprite/outline so those stay legible on top)
         if (tool === 'lantern') this.drawLanternRange(tx, ty, game.lanternRadius);
@@ -2016,12 +2011,7 @@ export class Renderer {
       }
       case 'lift': {
         const topY = liftTopFor(game.world, tx, ty);
-        const liftCost = TOOL_DEFS.find((d) => d.id === 'lift')?.cost ?? {};
-        const ok =
-          topY !== null &&
-          game.canAfford(liftCost) &&
-          game.toolUnlocked('lift') &&
-          !game.darkBlocks('lift', tx, ty);
+        const ok = topY !== null && game.canAttemptPlacement('lift', tx, ty);
         if (topY !== null) {
           ctx.globalAlpha = 0.5;
           for (let y = topY; y <= ty; y++) {
@@ -2037,12 +2027,7 @@ export class Renderer {
       }
       case 'rope': {
         const drop = ropeDropFor(game.world, tx, ty);
-        const ropeCost = TOOL_DEFS.find((d) => d.id === 'rope')?.cost ?? {};
-        const ok =
-          drop !== null &&
-          game.canAfford(ropeCost) &&
-          game.toolUnlocked('rope') &&
-          !game.darkBlocks('rope', tx, ty);
+        const ok = drop !== null && game.canAttemptPlacement('rope', tx, ty);
         if (drop !== null) {
           ctx.globalAlpha = 0.6;
           ctx.drawImage(sprite('rope_anchor').canvas, px, py);
@@ -2058,12 +2043,7 @@ export class Renderer {
       }
       case 'hoist': {
         const drop = ropeDropFor(game.world, tx, ty);
-        const hoistCost = TOOL_DEFS.find((d) => d.id === 'hoist')?.cost ?? {};
-        const ok =
-          drop !== null &&
-          game.canAfford(hoistCost) &&
-          game.toolUnlocked('hoist') &&
-          !game.darkBlocks('hoist', tx, ty);
+        const ok = drop !== null && game.canAttemptPlacement('hoist', tx, ty);
         if (drop !== null) {
           ctx.globalAlpha = 0.6;
           const post = sprite('hoist_post').canvas;

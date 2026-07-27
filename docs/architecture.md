@@ -50,11 +50,23 @@ Two rules keep these from turning into frustration, which is the failure mode th
 written against:
 
 - **A budget is a cap on what stands, not on what you ever spend.** Demolishing returns the
-  slot (`restoreTool`, clamped at zero so authored terrain can't mint budget), so a
-  mis-placed bridge is a mistake, never a softlock. `toolRemaining` also trims `runPlan`,
-  which is the single source the ghost, the cursor readout and the drop all read — a drag
-  can never promise tiles the budget won't pay for. `dig` is intentionally unbudgetable:
-  its orders are painted and erased freely, so there is nothing standing to count.
+  slot, so a mis-placed bridge is a mistake, never a softlock — but only for placements the
+  *player* made. That is what the `placedTiles` / `placedBuildings` ledger is for: a bare
+  clamp at zero is not the guarantee it looks like, because once any budget has been spent
+  there is room under the counter for level-authored terrain (an Ember Road adit ladder) to
+  refund into. Tiles are safe to track by cell because a built tile can only leave the world
+  through `demolish` — every placement path requires `T.AIR`, and digging skips built tiles.
+- **One predicate gates every placement.** `Game.canAttemptPlacement(tool, x, y)` owns the
+  tool-independent half — unlocked at this town-hall level, inside the budget, affordable
+  (with the ladder's log-or-plank exception), not refused for darkness — and each caller adds
+  only its own geometry. Seven ghost previews and four `place*` methods read it. They used to
+  re-list those checks by hand, which is exactly how the budget gate reached the workshop
+  preview and missed the lift, rope, hoist, bridge, ramp and ladder ones: a green outline
+  over a click the sim refuses. Add a new gate here, never at a call site.
+- `toolRemaining` also trims `runPlan`, the single source the ghost, the cursor readout and
+  the drop all read — a drag can never promise tiles the budget won't pay for. `dig` is
+  intentionally unbudgetable: its orders are painted and erased freely, so there is nothing
+  standing to count.
 - **A closed convoy stops dispatch, not cargo.** The planner simply doesn't route to the
   goal while the caravan is away (`acceptingSinkCells` still lists it — that function
   answers "could this item *ever* be carried there", and a dock window is transient, like

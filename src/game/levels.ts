@@ -513,10 +513,12 @@ export const LEVELS: LevelDef[] = [
         when: (g) => g.time > 25,
       },
       {
-        // the budget's first appearance — say it before a drag comes up short
+        // the budget's first appearance — say it before a drag comes up short.
+        // Reads "they have started spending" rather than comparing against the
+        // cap: the cap is a tuning knob and lives one field up, not in a predicate.
         id: 'budget',
         text: 'lvl6.hint.budget',
-        when: (g) => (g.toolRemaining('platform') ?? 6) < 6,
+        when: (g) => g.toolSpent('platform') > 0,
       },
     ],
     camera: { x: 8, y: 16 },

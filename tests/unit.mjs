@@ -346,13 +346,73 @@ function findLadderCells(g, count) {
 
 // ---- a budget can only ever refund the player's OWN placements --------------
 // Levels author terrain of their own (the Ember Road adits are ladders), and
-// demolishing one must not mint budget nobody spent. restoreTool clamps at zero.
+// demolishing one must not mint budget nobody spent. A clamp at zero is NOT
+// enough to guarantee that: it only covers the case where nothing has been spent
+// yet, and once the player has spent any budget there is room under the counter
+// for an authored tile to refund into. Hence the placedTiles ledger — so probe
+// BOTH paths, the empty counter and the partly-spent one.
 {
   const g = new Game({ ...LEVELS[10], toolLimit: { ladder: 2 } }); // Ballast Ridge's adit
   check('the authored adit ladder is there', g.world.get(30, 18) === T.LADDER);
   check('the ladder budget starts full', g.toolRemaining('ladder') === 2);
+
+  // path 1: nothing spent yet
   g.demolish(30, 18);
   check('tearing down authored terrain mints no budget', g.toolRemaining('ladder') === 2);
+
+  // path 2: one rung of their own already standing — the counter now has room
+  g.stock.log = 10;
+  check("a rung of the player's own goes up", g.placeLadder(30, 18) === true);
+  check('it costs a slot', g.toolRemaining('ladder') === 1);
+  check('another authored rung is still there', g.world.get(30, 19) === T.LADDER);
+  g.demolish(30, 19);
+  check('authored terrain refunds nothing even mid-budget', g.toolRemaining('ladder') === 1);
+
+  // and their own rung still does refund
+  g.demolish(30, 18);
+  check("the player's own rung refunds its slot", g.toolRemaining('ladder') === 2);
+}
+
+// ---- the ghost reads the same gate the placement does -----------------------
+// canAttemptPlacement is the shared predicate (unlock + budget + cost + dark).
+// The ghost previews four buildings/machines and each case used to re-list those
+// checks by hand, which is how the budget gate reached the workshop preview and
+// missed the lift/rope/hoist ones — a green outline over a click the sim refuses.
+{
+  const g = new Game(LEVELS[11]); // The High Forge — exactly one hoist
+  g.stock.plank = 20;
+  g.stock.iron = 5;
+  check('the gate is open before the wheel goes up', g.canAttemptPlacement('hoist', 26, 14) === true);
+  check('the hoist goes up', g.placeHoist(26, 14) === true);
+  check('the gate closes with the budget', g.canAttemptPlacement('hoist', 30, 14) === false);
+  check('and the placement agrees', g.placeHoist(30, 14) === false);
+  // the cost gate is live in the same predicate: the mill wants 6 logs, and the
+  // level opens with 4, so it is refused for price rather than for budget
+  check('an unaffordable tool is refused too', g.canAttemptPlacement('sawmill', 10, 20) === false);
+  g.stock.log = 10;
+  check('an unbudgeted tool passes once it is affordable', g.canAttemptPlacement('sawmill', 10, 20) === true);
+}
+
+// ---- the gate covers the run tools' at-rest preview as well ------------------
+// A tap with Bridge/Ramp is a one-cell run, and runPlan trims runs against the
+// budget — so the single-cell ghost has to see the budget too, or a spent
+// allowance previews green over a tap that lays nothing.
+{
+  const g = new Game(LEVELS[5]); // Monsoon Hollow — six planks of bridge
+  g.stock.plank = 40;
+  check('the bridge gate is open at the start', g.canAttemptPlacement('platform', 27, 23) === true);
+  check('the pond deck lands', g.placeBridgeRun(27, 23, 29, 23) === 3);
+  check('a second deck along the west bank lands', g.placeBridgeRun(24, 22, 26, 22) === 3);
+  check('the budget is spent', g.toolRemaining('platform') === 0);
+  check('the gate closes even though planks remain', g.canAttemptPlacement('platform', 33, 22) === false);
+  check('and a tap really lays nothing', g.placeBridgeRun(33, 22, 33, 22) === 0);
+
+  // a ladder is paid in log-or-plank, so the shared gate must not read its
+  // nominal { log: 1 } cost against an empty log store (unbudgeted here)
+  g.stock.log = 0;
+  check('a ladder with only planks left still reads placeable', g.canAttemptPlacement('ladder', 27, 22) === true);
+  g.stock.plank = 0;
+  check('and is refused with no wood at all', g.canAttemptPlacement('ladder', 27, 22) === false);
 }
 
 // ---- one machine per level: the instance cap --------------------------------

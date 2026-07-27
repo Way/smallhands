@@ -211,6 +211,13 @@ export class Game {
   // Demolishing gives the count back (see restoreTool), which is what keeps a
   // mis-placed bridge from softlocking a budgeted level.
   private toolUsed: Partial<Record<Tool, number>> = {};
+  // Ledger of what the PLAYER put there, so a demolish refunds their own
+  // placements and never terrain the level authored: world index → the tool that
+  // laid the tile, plus the ids of player-built buildings. A budgeted tile can
+  // only ever leave the world through demolish() — every placement path requires
+  // T.AIR and digging skips built tiles — so these entries cannot go stale.
+  private placedTiles = new Map<number, Tool>();
+  private placedBuildings = new Set<number>();
 
   private nextId = 1;
   private spawnTimer = 1;
@@ -394,17 +401,48 @@ export class Game {
     return Math.max(0, cap - (this.toolUsed[tool] ?? 0));
   }
 
+  // How many of a budgeted tool the player has standing. Read by hints that want
+  // to fire on "they have started spending this" without naming the cap — the cap
+  // is a tuning knob and nothing outside levels.ts should pin it.
+  toolSpent(tool: Tool): number {
+    return this.toolUsed[tool] ?? 0;
+  }
+
   private spendTool(tool: Tool, n = 1): void {
     if (this.level.toolLimit?.[tool] === undefined || n <= 0) return;
     this.toolUsed[tool] = (this.toolUsed[tool] ?? 0) + n;
   }
 
-  // Give a budget slot back. Clamped at zero so demolishing terrain the LEVEL
-  // authored (an old adit ladder, say) can never mint budget the player never
-  // spent — it can only ever refund their own placements.
+  // Give a budget slot back. Callers must have established that the thing being
+  // torn down was PLAYER-placed (see placedTiles / placedBuildings) — a bare
+  // clamp at zero is not enough on its own, because once any budget has been
+  // spent there is room under the counter for an authored tile to refund into.
+  // The clamp stays as a floor against double-refunds.
   private restoreTool(tool: Tool, n = 1): void {
     if (this.level.toolLimit?.[tool] === undefined) return;
     this.toolUsed[tool] = Math.max(0, (this.toolUsed[tool] ?? 0) - n);
+  }
+
+  // Everything that gates a placement EXCEPT its own geometry: unlocked at this
+  // town-hall level, inside the level's budget, affordable, and not refused for
+  // darkness. One list, because the ghost previews four different
+  // buildings/machines and the placement methods re-check the same four things —
+  // eight hand-maintained copies is how the tool-budget gate reached the workshop
+  // preview and missed the lift, rope and hoist ones. Callers add the geometry:
+  // canPlaceBuilding / liftTopFor / ropeDropFor.
+  canAttemptPlacement(tool: Tool, x: number, y: number): boolean {
+    if (!this.toolUnlocked(tool)) return false;
+    if (this.toolRemaining(tool) === 0) return false;
+    if (tool === 'ladder') {
+      // a ladder is one unit of wood, log-or-plank (see ladderWood), so its
+      // nominal TOOL_DEFS cost of { log: 1 } would misread a stock of planks —
+      // the same exception placementShortfall makes
+      if (this.ladderWood() === null) return false;
+    } else {
+      const cost = TOOL_DEFS.find((d) => d.id === tool)?.cost;
+      if (cost && !this.canAfford(cost)) return false;
+    }
+    return !this.darkBlocks(tool, x, y);
   }
 
   // ---- light (night levels) ----------------------------------------------------
@@ -612,6 +650,7 @@ export class Game {
     }
     this.stock[wood] -= 1;
     this.spendTool('ladder');
+    this.placedTiles.set(this.world.idx(x, y), 'ladder');
     this.world.set(x, y, T.LADDER);
     this.onEvent({ type: 'place' });
     return true;
@@ -670,7 +709,9 @@ export class Game {
     this.payCost(plan.cost);
     this.spendTool(tool, plan.affordable);
     for (let i = 0; i < plan.affordable; i++) {
-      this.world.set(plan.cells[i].x, plan.cells[i].y, tile);
+      const { x, y } = plan.cells[i];
+      this.placedTiles.set(this.world.idx(x, y), tool);
+      this.world.set(x, y, tile);
     }
     this.onEvent({ type: plan.affordable > 0 ? 'place' : 'invalid' });
     return plan.affordable;
@@ -741,24 +782,20 @@ export class Game {
   placeBuilding(kind: 'sawmill' | 'forge' | 'workshop' | 'lantern', x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === kind)!;
     const fp = FOOTPRINTS[kind];
+    // canAttemptPlacement carries the unlock, budget, cost and darkness gates
+    // (at night workshops rise only in the light; lanterns are the exception —
+    // that is how the player pushes the frontier of light outward). Geometry is
+    // this method's own business.
     if (
-      !this.toolUnlocked(kind) ||
-      this.toolRemaining(kind) === 0 ||
-      !this.canAfford(def.cost!) ||
+      !this.canAttemptPlacement(kind, x, y) ||
       !canPlaceBuilding(this.world, this.buildings, this.nodes, x, y, fp.w, fp.h)
     ) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
-    // At night, workshops rise only in the light. Lanterns are the exception —
-    // that is how the player pushes the frontier of light outward.
-    if (this.darkBlocks(kind, x, y)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
     this.payCost(def.cost!);
     this.spendTool(kind);
-    this.addBuilding(kind, x, y, false);
+    this.placedBuildings.add(this.addBuilding(kind, x, y, false).id);
     this.onEvent({ type: 'place' });
     return true;
   }
@@ -766,22 +803,15 @@ export class Game {
   placeLift(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'lift')!;
     const topY = liftTopFor(this.world, x, y);
-    if (!this.toolUnlocked('lift') || this.toolRemaining('lift') === 0 || topY === null || !this.canAfford(def.cost!)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
     // no two lifts sharing a base
-    if (this.lifts.some((l) => l.x === x && l.y === y)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
-    if (this.darkBlocks('lift', x, y)) {
+    if (!this.canAttemptPlacement('lift', x, y) || topY === null || this.lifts.some((l) => l.x === x && l.y === y)) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
     this.payCost(def.cost!);
     this.spendTool('lift');
     const b = this.addBuilding('lift', x, y, false);
+    this.placedBuildings.add(b.id);
     b.liftTopY = topY;
     b.liftCarY = y;
     this.onEvent({ type: 'place' });
@@ -791,22 +821,19 @@ export class Game {
   placeRope(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'rope')!;
     const drop = ropeDropFor(this.world, x, y);
-    if (!this.toolUnlocked('rope') || this.toolRemaining('rope') === 0 || drop === null || !this.canAfford(def.cost!)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
     // no rope/hoist sharing an anchor cell
-    if (this.buildings.some((b) => (b.kind === 'rope' || b.kind === 'hoist') && b.x === x && b.y === y)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
-    if (this.darkBlocks('rope', x, y)) {
+    if (
+      !this.canAttemptPlacement('rope', x, y) ||
+      drop === null ||
+      this.buildings.some((bd) => (bd.kind === 'rope' || bd.kind === 'hoist') && bd.x === x && bd.y === y)
+    ) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
     this.payCost(def.cost!);
     this.spendTool('rope');
     const b = this.addBuilding('rope', x, y, false);
+    this.placedBuildings.add(b.id);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
     this.onEvent({ type: 'place' });
@@ -818,21 +845,18 @@ export class Game {
   placeHoist(x: number, y: number): boolean {
     const def = TOOL_DEFS.find((t) => t.id === 'hoist')!;
     const drop = ropeDropFor(this.world, x, y);
-    if (!this.toolUnlocked('hoist') || this.toolRemaining('hoist') === 0 || drop === null || !this.canAfford(def.cost!)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
-    if (this.buildings.some((b) => (b.kind === 'rope' || b.kind === 'hoist') && b.x === x && b.y === y)) {
-      this.onEvent({ type: 'invalid' });
-      return false;
-    }
-    if (this.darkBlocks('hoist', x, y)) {
+    if (
+      !this.canAttemptPlacement('hoist', x, y) ||
+      drop === null ||
+      this.buildings.some((bd) => (bd.kind === 'rope' || bd.kind === 'hoist') && bd.x === x && bd.y === y)
+    ) {
       this.onEvent({ type: 'invalid' });
       return false;
     }
     this.payCost(def.cost!);
     this.spendTool('hoist');
     const b = this.addBuilding('hoist', x, y, false);
+    this.placedBuildings.add(b.id);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
     this.onEvent({ type: 'place' });
@@ -883,10 +907,17 @@ export class Game {
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
       this.world.set(x, y, T.AIR);
-      // hand the budget slot back (see restoreTool) — a tile taken down is a
-      // tile the player may spend again, which is what keeps a limited-tool
-      // level a puzzle instead of a trap
-      this.restoreTool(t === T.LADDER ? 'ladder' : t === T.PLATFORM ? 'platform' : 'ramp');
+      // Hand the budget slot back — a tile taken down is a tile the player may
+      // spend again, which is what keeps a limited-tool level a puzzle instead of
+      // a trap. Only for tiles THEY laid: the ledger is what makes that exact, so
+      // tearing out an authored adit ladder on a ladder-budgeted level cannot pay
+      // for one of their own.
+      const idx = this.world.idx(x, y);
+      const laidBy = this.placedTiles.get(idx);
+      if (laidBy !== undefined) {
+        this.placedTiles.delete(idx);
+        this.restoreTool(laidBy);
+      }
       // Refund in planks even for ladders (which may have been paid in logs):
       // refunding a log would let plank→ladder→demolish→log→sawmill mint free
       // planks. Planks never convert back to logs, so a plank refund can't loop.
@@ -899,7 +930,9 @@ export class Game {
     if (b && b.kind !== 'townhall' && b.kind !== 'goal') {
       const def = TOOL_DEFS.find((td) => td.id === (b.kind as Tool));
       if (def?.cost) this.refund(def.cost, b.state === 'blueprint' ? 1 : 0.5);
-      this.restoreTool(b.kind as Tool);
+      // same rule as the tiles above: only a building the player raised refunds
+      // its budget slot, never one the level placed on their behalf
+      if (this.placedBuildings.delete(b.id)) this.restoreTool(b.kind as Tool);
       // return any stored inputs/outputs to the ground
       for (const store of [b.inputs, b.outputs]) {
         for (const [k, v] of Object.entries(store)) {
