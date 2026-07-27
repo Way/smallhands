@@ -92,3 +92,75 @@ and a ramp never seals the row it is built in. Two consequences worth knowing be
   machine inside one orphans it the moment that tile is demolished. Both helpers therefore
   require the cell to be `T.AIR`, which matches `canPlaceBuilding`'s footprint rule and covers
   every built tile in one test.
+
+## The sim is deterministic (card #65)
+
+`Game` draws randomness from seeded `mulberry32` streams (`src/game/rng.ts`, shared with the
+level generator) — and from **two of them, deliberately split by kind**:
+
+| Stream | Drawn by | Rule |
+|---|---|---|
+| `rand` | `tryAssignWander` — and nothing else | Behavioural. Only sim logic inside the tick may draw from it. |
+| `randFx` | particle fans, spawn `facing`/`animT`, dust puffs | Cosmetic. Safe for anything, including the UI, to advance. |
+
+`new Game(level, seed?)` defaults the seed to `level.id`, so a suite that passes no seed still
+replays the same run every time; `main.ts` passes a fresh `randomSeed()` per attempt so real
+play keeps its variety. The seed is kept as `game.seed` and stamped into the bug report's run
+table (`report.ts`), because a per-attempt seed nobody records makes a *reported* run
+irreproducible even in principle — with it, `new Game(level, game.seed)` replays exactly what
+the player saw.
+
+Each stream is asserted twice, and **replay does not imply seed-driven**: a stream wired to a
+constant replays perfectly while ignoring the seed entirely. So `tests/unit.mjs` checks replay
+(same seed → same run) *and* divergence (different seed → different run) per stream — behaviour
+compared with cosmetics excluded, and the fx stream sampled at spawn before the first tick, since
+`animT` accumulates at behaviour-dependent rates and would otherwise smuggle `rand`'s divergence
+into a claim about `randFx`.
+
+Why the split rather than one stream: `tryAssignWander`'s idle stroll is **behavioural** —
+moving an idle smallie changes who is nearest when the next task opens, which changes
+assignment order and so the timing of the whole run. `spawnBurst` is public and the UI calls
+it (win confetti, harvest-flag sparks in `main.ts`), so on a shared stream a click that changes
+no sim state would still shift the wander and reorder assignments: **render feeding back into
+the sim**, which nothing else in this codebase does. Separate streams make cosmetics
+unobservable to behaviour, in the browser as well as headless.
+
+While the wander drew from an unseeded `Math.random()`, every play-to-a-win suite — `hoist`,
+`campaign1`–`campaign4`, `digging`, the `editor-generator` soak — was a *sample*, not a proof,
+and `hoist` reddened about 1 run in 20 on a genuinely wrong assertion nobody could reproduce.
+
+Three rules follow — the first two enforced by `tests/unit.mjs`, the third by `tests/hoist.mjs`:
+
+- **No unseeded randomness *and no wall-clock read* on the tick path.** `Date.now()`,
+  `performance.now()` and `new Date()` break a reproducible tick exactly as `Math.random()` does,
+  so both are swept together. Every `.ts` under `src/game` and `src/engine` is read —
+  recursively, so splitting `sim.ts` into `sim/*.ts` stays covered — and the *exemptions* are
+  per pattern, keyed by **path** rather than basename: `ENTROPY_OK` (`game/render.ts`,
+  `game/motion.ts`, `game/generator.ts`, `game/leveldata.ts`, `engine/audio.ts` — look-physics,
+  seed minting, id minting, playback jitter) and `CLOCK_OK` (`game/dailylog.ts`,
+  `game/generator.ts`, `game/leveldata.ts`, `game/report-ui.ts` — calendar walking, the daily
+  seed, id stamps, a report's `generatedAt`). So a file allowed to roll dice is still swept for
+  clock reads; an `engine/render.ts` added later does not inherit `game/render.ts`'s licence; a
+  module added to the tick path is covered by default; and an exemption reds both when it names
+  a file that no longer exists **and** when its file no longer needs it — an exemption shielding
+  nothing is indistinguishable from cover until the day it matters. Comments are stripped first so prose about the global can't red it, with a `[^:]` guard
+  so a `//` inside a URL doesn't blank the rest of its line and hide a real call.
+- **Cosmetics never touch `rand`, and `rand` never leaves the sim.** Enforced three ways. The
+  suite counts the behavioural draws across *every swept file* and expects the wander's two; a
+  third re-couples the streams. Because a count matches an *identifier*, it also rejects any
+  `this.rand` in a non-call, non-assignment position — passing the stream to a helper that names
+  its parameter `roll` would otherwise draw from it with the count still reading 2. And it runs
+  twin games, one of them painting bursts from outside the tick as the UI does, requiring their
+  behaviour to match byte for byte.
+- **Assert on state, not on the instant.** A play-to-a-win loop breaks the moment `won` flips,
+  which is an arbitrary point in the hauling cycle. An item mid-run may be in `stock`, loose in
+  `groundItems`, in a worker's hands (`w.carrying`), or in one of a building's four buckets —
+  `inputs`, `outputs`, `hoistUpper`, `hoistLower` (the same four `locateItem` counts, and *not*
+  `hoistUpperIn`/`hoistLowerIn`, which are inbound reservations that double-count the hauler
+  already holding it). `tests/hoist.mjs`'s `stoneCensus` counts them all and is itself tested
+  container by container; reading only two of them is what made the ballast check flaky.
+  **Scan for such an instant, don't pin a seed to it.** A seed that happens to win mid-haul is an
+  emergent trajectory — the first attempt was retired by an unrelated draw-order change within a
+  day, and its red read like a ballast bug. Stepping the run tick by tick finds the state in
+  *every* run and lets the suite check mass on every tick, which is both stronger and rot-proof.
+  The hoist suite scans three seeds that way (~2.5k ticks each) and still finishes in 0.14s.

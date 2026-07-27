@@ -96,6 +96,13 @@ function playedGame() {
     md.includes('"First Steps"') && md.includes('`lvl1.name`')
   );
   check('speed comes from the caller, not the sim', md.includes('| speed | 2×'));
+  // The seed is what makes a reported run replayable: the app mints a fresh one per
+  // attempt (card #65), so without it in the report nobody can reproduce what the
+  // player saw. `new Game(level, seed)` re-runs it exactly.
+  check(
+    'the run table stamps the seed that replays the run',
+    md.includes(`| seed | \`${g.seed}\``) && data.run.seed === g.seed
+  );
   check('every worker gets a row', data.workers.length === g.workers.length);
   check('a paused producer is called out', md.includes('ready (PAUSED)'));
   check('a blueprint shows progress against its build time', md.includes(`blueprint 3.5/${BUILD_TIME.forge}s`));
