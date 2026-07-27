@@ -7,20 +7,22 @@
 // There is no submit endpoint. Smallhands is a static build, so the report goes
 // to the clipboard or to disk and the player attaches it wherever they like.
 
-import { TILE } from './types';
 import type { Game } from './sim';
-import { Camera, Renderer } from './render';
 import { collectReport, formatReport } from './report';
 import type { ReportData, ReportKind } from './report';
+import { SHOT_FULL, mapShotDataUrl } from './mapshot';
+import {
+  CAN_DOWNLOAD,
+  canvasDataUrl,
+  copyText,
+  dataUrlToBlob,
+  downloadAll,
+  fileStem as stemFor,
+} from './share';
 import { getLang, t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 
 const KINDS: ReportKind[] = ['bug', 'feedback', 'idea'];
-
-// Widest the whole-map overview may get. Big enough to read individual tiles on
-// a large map, small enough that the PNG stays attachable.
-const MAP_MAX_W = 2048;
-const MAP_MAX_H = 1400;
 
 export interface ReportOptions {
   game: Game;
@@ -48,7 +50,7 @@ export function showReportOverlay(opts: ReportOptions): void {
   const { game, canvas } = opts;
 
   // Grab the player's exact frame now, before anything else can redraw it.
-  const viewportPng = safeDataUrl(canvas);
+  const viewportPng = canvasDataUrl(canvas);
   // The whole-map overview is rendered lazily — it costs a full extra draw, and
   // someone who only copies the text never needs it. `undefined` means "not
   // attempted"; `null` means "attempted and failed", so a tainted or
@@ -144,7 +146,7 @@ export function showReportOverlay(opts: ReportOptions): void {
     // the user activation browsers require before saving a file. That costs the
     // "rendering…" status a paint, which is a fair trade for the download
     // actually happening.
-    if (mapPng === undefined) mapPng = renderWholeMap(game);
+    if (mapPng === undefined) mapPng = mapShotDataUrl(game, SHOT_FULL);
     const stem = fileStem(data);
     const files: { name: string; body: string | Blob }[] = [{ name: `${stem}.md`, body: markdown }];
     if (viewportPng) files.push({ name: `${stem}-viewport.png`, body: dataUrlToBlob(viewportPng) });
@@ -195,58 +197,7 @@ export function showReportOverlay(opts: ReportOptions): void {
   ta.focus();
 }
 
-// ---- screenshots -----------------------------------------------------------------
-
-function safeDataUrl(canvas: HTMLCanvasElement): string | null {
-  try {
-    return canvas.toDataURL('image/png');
-  } catch {
-    return null; // tainted canvas or an out-of-memory browser: text report only
-  }
-}
-
-// One offscreen draw of the entire level, so a reader sees the global layout
-// without hunting around the player's viewport.
-function renderWholeMap(game: Game): string | null {
-  const zoom = Math.min(2, MAP_MAX_W / (game.world.w * TILE), MAP_MAX_H / (game.world.h * TILE));
-  const off = document.createElement('canvas');
-  off.width = Math.ceil(game.world.w * TILE * zoom);
-  off.height = Math.ceil(game.world.h * TILE * zoom);
-
-  const cam = new Camera();
-  cam.x = 0;
-  cam.y = 0;
-  cam.zoom = zoom;
-
-  const renderer = new Renderer(off);
-  // Static frame: no springs, ropes or bird animation to settle for a still.
-  renderer.effectsReduced = true;
-
-  // The look-physics layer drains game.lookEvents on every update — including
-  // when reduced. Hand this renderer its own throwaway buffer so it cannot eat
-  // breadcrumbs the live renderer has not drawn yet.
-  const live = game.lookEvents;
-  game.lookEvents = [];
-  try {
-    renderer.draw(game, cam, { tool: 'select', tx: -1, ty: -1, visible: false }, 0);
-    return safeDataUrl(off);
-  } catch {
-    return null;
-  } finally {
-    game.lookEvents = live;
-  }
-}
-
-// ---- clipboard & downloads --------------------------------------------------------
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false; // insecure context, denied permission, or no clipboard API
-  }
-}
+// ---- selection fallback ------------------------------------------------------------
 
 function selectAll(node: HTMLElement): void {
   const range = document.createRange();
@@ -256,42 +207,6 @@ function selectAll(node: HTMLElement): void {
   sel?.addRange(range);
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [head, b64] = dataUrl.split(',');
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: /:(.*?);/.exec(head)?.[1] ?? 'application/octet-stream' });
-}
-
-// Whether this browser can save a generated file at all. iOS Safari historically
-// cannot, and telling the player "saved" when nothing happened is worse than
-// telling them to use Copy instead.
-const CAN_DOWNLOAD = typeof HTMLAnchorElement !== 'undefined' && 'download' in HTMLAnchorElement.prototype;
-
-// All clicks fire synchronously: deferring them past the gesture is what gets a
-// multi-file download blocked. Chrome asks once per site before allowing the
-// second and third file; that prompt is the browser's call, not ours.
-function downloadAll(files: { name: string; body: string | Blob }[]): void {
-  for (const f of files) {
-    const blob = typeof f.body === 'string' ? new Blob([f.body], { type: 'text/markdown' }) : f.body;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = f.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
-}
-
 function fileStem(d: ReportData): string {
-  const slug = d.context.levelName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 24);
-  const stamp = d.context.generatedAt.replace(/[:.]/g, '-').slice(0, 19);
-  return `smallhands-${d.context.kind}-${slug || 'level'}-${stamp}`;
+  return stemFor(d.context.kind, d.context.levelName, d.context.generatedAt);
 }

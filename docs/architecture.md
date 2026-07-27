@@ -164,3 +164,39 @@ Three rules follow — the first two enforced by `tests/unit.mjs`, the third by 
   day, and its red read like a ballast bug. Stepping the run tick by tick finds the state in
   *every* run and lets the suite check mass on every tick, which is both stronger and rot-proof.
   The hoist suite scans three seeds that way (~2.5k ticks each) and still finishes in 0.14s.
+
+## Offscreen stills (card #72)
+
+Three places show a *picture of a whole level* rather than the live viewport: the level-select
+popover (its starting map), the win ceremony (the map you just finished, with Save / Copy /
+Share), and the bug report's overview shot. All three go through **one** function,
+`renderMapShot` in `src/game/mapshot.ts`, and that is the point of the module — not code
+reuse, but a single place to keep two rules that are invisible at the call site:
+
+- **A second Renderer on a live Game starves the first one.** `MotionLayer.update` drains
+  `game.lookEvents` on every call, *including* the reduced-motion early return (card #58), so
+  every still swaps in a throwaway outbox for the duration of the draw. This is one line away
+  from a bug that shows up as the live game quietly losing its look-physics — nothing throws,
+  nothing logs.
+- **Never draw below 1:1.** The renderer draws with smoothing off, so at a fractional zoom the
+  nearest-neighbour scaler drops whole rows of source pixels and a one-tile ladder rung or a
+  rope simply disappears. Thumbnails are drawn full size and then downscaled *with* smoothing,
+  which keeps thin structures as a soft line instead of deleting them. `SHOT_THUMB` and
+  `SHOT_FULL` are the two sizes in use.
+
+`hideParticles` exists for the same reason: the win burst is a moment, not a structure, and it
+differs on every run — a souvenir of the map should be the map.
+
+**Previews are lazy and cached per session, not pre-rendered.** `main.ts` owns `levelPreview`
+and builds a level's shot the first time its popover opens; `worldmap.ts` only takes it as a
+dep, so the map screen stays free of `Game` and `Renderer`. Rendering every level up front
+would cost a Game and an offscreen draw apiece for pictures nobody asked to see, and the world
+map is opened far more often than any single node. No seed is passed, so `Game` falls back to
+`level.id` and a preview is the same picture on every visit.
+
+**The win snapshot is view-once.** It is not written to the save: `save.records` lives in
+localStorage next to the custom levels, and a PNG per level would eat a real fraction of a
+~5 MB budget to store something the player can already save to disk. Export routes live in
+`src/game/share.ts` (download · clipboard image · Web Share), each feature-detected and each
+reporting what actually happened — a Share button that opens nothing, or a "saved!" over a
+file the browser refused, is worse than not offering it.

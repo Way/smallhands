@@ -56,9 +56,48 @@ await page.waitForTimeout(150);
 check('popover opens', !!(await page.$('.map-popover')));
 check('popover has a name', ((await page.textContent('.map-popover .lv-name')) ?? '').length > 0);
 check('popover has medal slots', !!(await page.$('.map-popover .medal-row')));
+
+// ---- level preview (card #72) ----
+// The shot is rendered lazily, when the popover opens, by a throwaway Renderer
+// over a throwaway Game. A blank rectangle would pass a mere presence check, so
+// sample the pixels: a real map is many colours, an empty canvas is one.
+const preview = await page.evaluate(() => {
+  const c = document.querySelector('.map-popover .lv-shot-img');
+  if (!c) return null;
+  const p = document.createElement('canvas');
+  p.width = c.width;
+  p.height = c.height;
+  p.getContext('2d').drawImage(c, 0, 0);
+  const d = p.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  const colors = new Set();
+  for (let i = 0; i < d.length; i += 4 * 97) colors.add(`${d[i]},${d[i + 1]},${d[i + 2]}`);
+  return { w: c.width, h: c.height, colors: colors.size, ratio: c.width / c.height };
+});
+check('popover shows a map preview', !!preview);
+check('preview has real pixels drawn', (preview?.colors ?? 0) > 20);
+// The shot spans the whole level, so its aspect ratio is the world's — and the
+// popover already prints those dimensions, which makes them checkable without a
+// second source of truth. A preview framed on the camera instead of the map
+// would fail here.
+const meta = (await page.textContent('.map-popover .lv-meta')) ?? '';
+const dims = /(\d+)\s*×\s*(\d+)/.exec(meta);
+check('popover states the level size', !!dims);
+check(
+  'preview keeps the level aspect ratio',
+  !!preview && !!dims && Math.abs(preview.ratio - Number(dims[1]) / Number(dims[2])) < 0.05
+);
+
 await page.keyboard.press('Escape');
 await page.waitForTimeout(150);
 check('Escape closes popover', !(await page.$('.map-popover')));
+
+// reopening must not lose the picture: the canvas is cached and re-parented,
+// and a cache that hands back a detached node would silently show nothing
+await page.click('.map-node:not(:disabled)');
+await page.waitForTimeout(150);
+check('preview survives a reopen', !!(await page.$('.map-popover .lv-shot-img')));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(150);
 
 // ---- daily logbook: empty on a fresh profile ----
 await page.click('.map-daily');

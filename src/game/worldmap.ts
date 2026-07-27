@@ -56,6 +56,11 @@ export interface WorldMapDeps {
   resumeLabel: string | null; // "Resume — <level>" when a run is in progress
   bestMedal: (key: string) => 'gold' | 'silver' | 'bronze' | null;
   addMedalBits: (card: HTMLElement, key: string, goldTime: number | null) => void;
+  // A picture of the level's starting map, or null if this device could not
+  // draw one. Owned by main.ts: building it needs a Game and a Renderer, which
+  // this module deliberately does not know about. Called only when a popover
+  // opens, so an unvisited level never costs a draw.
+  levelPreview: (def: LevelDef) => HTMLCanvasElement | null;
   customDone: (id: string) => boolean;
   click: () => void; // UI click sound
   onPlayLevel: (index: number) => void;
@@ -528,13 +533,25 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     recordKey: string,
     goldTime: number | null,
     onPlay: () => void,
-    facts: HTMLElement | null = null
+    facts: HTMLElement | null = null,
+    preview: HTMLCanvasElement | null = null
   ) => {
     card.innerHTML = `
       <div class="lv-name"></div>
       <div class="lv-desc"></div>
       <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
     `;
+    // The map itself, above the name: the shape of the mountain is what a player
+    // is actually choosing between, and it reads faster than any blurb.
+    if (preview) {
+      const shot = document.createElement('div');
+      shot.className = 'lv-shot';
+      shot.setAttribute('role', 'img');
+      shot.setAttribute('aria-label', t('map.preview.aria', { name }));
+      preview.className = 'lv-shot-img';
+      shot.appendChild(preview);
+      card.insertBefore(shot, card.firstChild);
+    }
     (card.querySelector('.lv-name') as HTMLElement).textContent = name;
     (card.querySelector('.lv-name') as HTMLElement).id = 'map-pop-title';
     card.setAttribute('aria-labelledby', 'map-pop-title');
@@ -579,7 +596,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       node.onclick = () =>
         openPopover(node, p, (card) =>
           popBody(card, t(lv.def.name), t(lv.def.desc), lv.done, `c${lv.def.id}`,
-            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index), levelFactsEl(lv.def))
+            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index), levelFactsEl(lv.def),
+            deps.levelPreview(lv.def))
         );
       wrap.appendChild(node);
     });

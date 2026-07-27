@@ -604,6 +604,7 @@ export const D: Record<string, [string, string]> = {
   'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],
   'map.daily.aria': ['Daily Challenge — {status}', 'Tages-Challenge — {status}'],
   'map.progress': ['{done} of {total} cleared', '{done} von {total} geschafft'],
+  'map.preview.aria': ['Map preview of {name}', 'Kartenvorschau von {name}'],
   'map.facts.tools': ['{n} tools', '{n} Werkzeuge'],
   'map.tag.night': ['Night', 'Nacht'],
   'map.tag.rain': ['Rain', 'Regen'],
@@ -728,6 +729,24 @@ export const D: Record<string, [string, string]> = {
   ],
   'win.again': ['🎲 Another one', '🎲 Noch eins'],
   'win.backToEditor': ['✎ Back to editor', '✎ Zurück zum Editor'],
+  // the solution snapshot on the win screen
+  'win.shot.cap': ['{name} — solved in {time}', '{name} — gelöst in {time}'],
+  'win.shot.aria': ['Your finished map for {name}', 'Deine fertige Karte für {name}'],
+  'win.shot.save': ['⇩ Save PNG', '⇩ PNG sichern'],
+  'win.shot.copy': ['⧉ Copy image', '⧉ Bild kopieren'],
+  'win.shot.share': ['↗ Share', '↗ Teilen'],
+  'win.shot.shareTitle': ['My Smallhands solution', 'Meine Smallhands-Lösung'],
+  'win.shot.saved': ['Sent to your downloads.', 'An deine Downloads geschickt.'],
+  'win.shot.copied': ['Image copied to clipboard.', 'Bild in die Zwischenablage kopiert.'],
+  'win.shot.copyFailed': [
+    'Could not reach the clipboard — use Save PNG instead.',
+    'Zwischenablage nicht erreichbar — nutze stattdessen PNG sichern.',
+  ],
+  'win.shot.shared': ['Shared.', 'Geteilt.'],
+  'win.shot.failed': [
+    'This device could not export the picture.',
+    'Dieses Gerät konnte das Bild nicht exportieren.',
+  ],
   'toast.upgraded': [
     '<b>Town Hall level {n}!</b> New buildings unlocked and a bigger crew.',
     '<b>Rathaus Stufe {n}!</b> Neue Gebäude freigeschaltet und ein größerer Trupp.',

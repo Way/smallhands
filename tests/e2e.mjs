@@ -74,6 +74,57 @@ if (!won1) {
   process.exit(1);
 }
 
+// ---- the win screen's solution snapshot (card #72) -------------------------
+// The ceremony draws the finished map with a SECOND Renderer over the same
+// Game. Both halves are asserted here: that the picture is real, and that the
+// live renderer still receives its lookEvents afterwards — MotionLayer.update
+// drains that outbox on every call, so a second Renderer is one line away from
+// starving the first one (card #58).
+await page.waitForSelector('.win-shot', { timeout: 10_000 });
+const shot = await page.evaluate(async () => {
+  const c = document.querySelector('.ws-img');
+  const g = window.__smallhands.game;
+  let colors = 0;
+  if (c) {
+    const p = document.createElement('canvas');
+    p.width = c.width;
+    p.height = c.height;
+    p.getContext('2d').drawImage(c, 0, 0);
+    const d = p.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const seen = new Set();
+    for (let i = 0; i < d.length; i += 4 * 197) seen.add(`${d[i]},${d[i + 1]},${d[i + 2]}`);
+    colors = seen.size;
+  }
+  // the live renderer must still be draining the sim's cosmetic outbox
+  g.lookEvents.push({ type: 'probe' });
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return {
+    has: !!c,
+    ratio: c ? c.width / c.height : 0,
+    worldRatio: g.world.w / g.world.h,
+    colors,
+    caption: document.querySelector('.ws-cap')?.textContent ?? '',
+    actions: document.querySelectorAll('.ws-btn').length,
+    lookLeft: g.lookEvents.length,
+  };
+});
+const shotProblems = [];
+if (!shot.has) shotProblems.push('no snapshot canvas in the win overlay');
+if (shot.colors <= 20) shotProblems.push(`snapshot looks blank (${shot.colors} colours)`);
+if (Math.abs(shot.ratio - shot.worldRatio) > 0.05) {
+  shotProblems.push(`snapshot is not the whole map (${shot.ratio} vs world ${shot.worldRatio})`);
+}
+if (!shot.caption.trim()) shotProblems.push('snapshot has no caption');
+// headless Chromium supports downloads, so at least Save PNG must be offered
+if (shot.actions < 1) shotProblems.push('snapshot offers no way to keep it');
+if (shot.lookLeft !== 0) shotProblems.push('live renderer stopped draining lookEvents');
+if (shotProblems.length) {
+  console.error('FAIL: win snapshot —', shotProblems.join('; '));
+  await browser.close();
+  process.exit(1);
+}
+console.log(`[win-shot] ok — ${shot.colors} colours, ${shot.actions} actions, "${shot.caption}"`);
+
 // ---- Level 2: cargo lift + ladder logistics up a cliff ----------------------
 console.log('Level 2: The Cliff Shrine');
 await page.waitForTimeout(2200);
