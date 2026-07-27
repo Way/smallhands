@@ -34,6 +34,18 @@ import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 import { dailyLog, dailyStats, dailyStrip } from './game/dailylog';
 import type { DailyLogEntry } from './game/dailylog';
 import { buildWorldMap } from './game/worldmap';
+import { SHOT_CARD, SHOT_FULL, SHOT_THUMB, renderMapShot } from './game/mapshot';
+import {
+  CAN_DOWNLOAD,
+  CAN_COPY_IMAGE,
+  canShareFiles,
+  canvasDataUrl,
+  copyImage,
+  dataUrlToBlob,
+  downloadAll,
+  fileStem,
+  shareFiles,
+} from './game/share';
 import { rampCellsFaceLeft } from './game/world';
 import { computeCampaignStates } from './game/progress';
 import { devUnlockAll } from './engine/devmode';
@@ -671,6 +683,39 @@ function bootDaily(d: { seed: string; label: string; difficulty: number }): void
   startCustomLevel(data, {});
 }
 
+// ---- level previews ----------------------------------------------------------------
+// The picture on a level's popover: that level's starting map, drawn once and
+// kept for the session. Lazy on purpose — rendering every level when the world
+// map opens would cost a Game and an offscreen draw apiece for pictures nobody
+// asked to see, and the map is opened far more often than any single node.
+//
+// No seed is passed, so Game falls back to the level's own id and the *world* is
+// identical every time. The picture is not quite: Renderer seeds its clouds from
+// Math.random() per instance, so the sky differs between sessions — the cache is
+// what holds a preview still within one.
+//
+// Keyed by String(def.id) and never evicted: 17 campaign levels at SHOT_THUMB is
+// a few megabytes of backing store at worst. If custom levels ever get previews,
+// this needs a namespaced key — their ids are strings and could collide with a
+// campaign level's number — and probably an eviction policy.
+const previewCache = new Map<string, HTMLCanvasElement | null>();
+
+function levelPreview(def: LevelDef): HTMLCanvasElement | null {
+  const key = String(def.id);
+  let shot = previewCache.get(key);
+  if (shot === undefined) {
+    try {
+      shot = renderMapShot(new Game(def), SHOT_THUMB);
+    } catch {
+      // A level whose build() throws is a broken level, not a broken map screen:
+      // the popover simply shows no picture and Play still works.
+      shot = null;
+    }
+    previewCache.set(key, shot);
+  }
+  return shot;
+}
+
 function showLevelSelect(): void {
   clearOverlay();
   running = false;
@@ -704,6 +749,7 @@ function showLevelSelect(): void {
     resumeLabel: gameInProgress() ? t('btn.resume', { name: t(game!.level.name) }) : null,
     bestMedal: (key) => save.records[key]?.medal ?? null,
     addMedalBits,
+    levelPreview,
     customDone: (id) => save.completedCustom.includes(id),
     click: () => audio.click(),
     onPlayLevel: (i) =>
@@ -967,6 +1013,9 @@ function buildCeremony(ov: HTMLElement): void {
   }
   cer.appendChild(feats);
 
+  // the finished map, framed — the one thing worth keeping from the run
+  buildSolutionShot(cer);
+
   // a little confetti over the ceremony
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const colors = ['#ffc94d', '#a878c8', '#6fd66f', '#5aa2e8'];
@@ -983,10 +1032,154 @@ function buildCeremony(ov: HTMLElement): void {
   }
 }
 
+// The solution snapshot: a photo of the map the player just finished, hung at
+// the end of the ceremony with the three ways to take it with them.
+//
+// Safe to render here rather than at the win instant: Game.tick short-circuits
+// on `won` after the particle pass, so terrain, buildings and workers are
+// already frozen exactly as they were when the last delivery landed. Particles
+// are the one thing still moving, and the shot leaves them out — the win burst
+// is a moment, not a structure.
+function buildSolutionShot(cer: HTMLElement): void {
+  const g = game!;
+  const shotOpts = { hideParticles: true };
+  const canvasShot = renderMapShot(g, { ...SHOT_CARD, ...shotOpts });
+  if (!canvasShot) return;
+
+  const fig = document.createElement('div');
+  fig.className = 'win-shot';
+  // The <figure> is the framed plate itself, so the caption stays a direct child
+  // of it — a figcaption nested one div deeper is invalid and buys nothing over
+  // two plain divs. The export buttons live outside the figure: they are chrome
+  // for the picture, not part of it.
+  const frame = document.createElement('figure');
+  frame.className = 'ws-frame';
+  canvasShot.className = 'ws-img';
+  canvasShot.setAttribute('role', 'img');
+  canvasShot.setAttribute('aria-label', t('win.shot.aria', { name: t(g.level.name) }));
+  frame.appendChild(canvasShot);
+  const cap = document.createElement('figcaption');
+  cap.className = 'ws-cap';
+  cap.textContent = t('win.shot.cap', { name: t(g.level.name), time: fmtTime(g.time) });
+  frame.appendChild(cap);
+  fig.appendChild(frame);
+
+  const status = document.createElement('div');
+  status.className = 'ws-status';
+  status.setAttribute('role', 'status');
+
+  const row = document.createElement('div');
+  row.className = 'ws-actions';
+  const act = (label: string, cls: string, fn: () => void) => {
+    const b = document.createElement('button');
+    b.className = `seg-btn ws-btn ${cls}`;
+    b.textContent = label;
+    b.onclick = () => {
+      audio.click();
+      fn();
+    };
+    row.appendChild(b);
+    return b;
+  };
+
+  // Exported at full size, not at the size the overlay happens to show — the
+  // file is the artefact, the on-screen frame is only a preview of it. Drawn on
+  // the first export and not before: `g` is captured and its world is frozen
+  // (Game.tick short-circuits on `won`), so the picture is the same whenever it
+  // is taken, and the player who just hits Next Level never pays for it.
+  //
+  // Then encoded at most once — on a big map toDataURL plus dataUrlToBlob's
+  // per-character walk over a multi-megabyte base64 string is real work to be
+  // doing synchronously inside a click — and the full-size canvas is dropped as
+  // soon as its pixels live in the blob, so a second Save is instant and holds
+  // a few hundred kB rather than ten megabytes. A failed encode keeps the canvas
+  // for a retry: memory pressure passes.
+  const stem = () => fileStem('solution', t(g.level.name), new Date().toISOString());
+  let full: HTMLCanvasElement | null = null;
+  let blob: Blob | null = null;
+  const png = (): Blob | null => {
+    if (blob) return blob;
+    full ??= renderMapShot(g, { ...SHOT_FULL, ...shotOpts });
+    if (!full) return null;
+    const url = canvasDataUrl(full);
+    if (!url) return null;
+    blob = dataUrlToBlob(url);
+    full = null;
+    return blob;
+  };
+
+  if (CAN_DOWNLOAD) {
+    // Stays synchronous inside the click: deferring past the gesture is what
+    // gets a generated download blocked.
+    act(t('win.shot.save'), 'ws-save', () => {
+      const body = png();
+      if (!body) {
+        status.textContent = t('win.shot.failed');
+        return;
+      }
+      downloadAll([{ name: `${stem()}.png`, body }]);
+      // "Sent", not "saved": the page issues the download and cannot observe
+      // whether the browser accepted it.
+      status.textContent = t('win.shot.saved');
+    });
+  }
+
+  if (CAN_COPY_IMAGE) {
+    act(t('win.shot.copy'), 'ws-copy', () => {
+      const body = png();
+      void (async () => {
+        // A failed encode is not a failed clipboard: "use Save PNG instead"
+        // would send the player to a button that fails identically.
+        if (!body) {
+          status.textContent = t('win.shot.failed');
+          return;
+        }
+        // the copy-failed line sends the player to Save PNG, so only say it
+        // when that button is actually on screen
+        status.textContent = (await copyImage(body))
+          ? t('win.shot.copied')
+          : t(CAN_DOWNLOAD ? 'win.shot.copyFailed' : 'win.shot.failed');
+      })();
+    });
+  }
+
+  // Mostly a phone affordance, and only offered when this browser will actually
+  // take a file through the share sheet — a Share button that opens nothing is
+  // worse than no Share button.
+  if (typeof File !== 'undefined') {
+    // canShare() judges the file's *type*, not its bytes, so a one-byte stand-in
+    // answers the question without paying for a toDataURL of the real shot.
+    const probe = new File([new Uint8Array(1)], 'probe.png', { type: 'image/png' });
+    if (canShareFiles([probe])) {
+      act(t('win.shot.share'), 'ws-share', () => {
+        const body = png();
+        void (async () => {
+          if (!body) {
+            status.textContent = t('win.shot.failed');
+            return;
+          }
+          const file = new File([body], `${stem()}.png`, { type: 'image/png' });
+          const res = await shareFiles([file], {
+            title: t('win.shot.shareTitle'),
+            text: t('win.shot.cap', { name: t(g.level.name), time: fmtTime(g.time) }),
+          });
+          // Dismissing the sheet is a choice, not an error — say nothing.
+          if (res === 'shared') status.textContent = t('win.shot.shared');
+          else if (res === 'failed' || res === 'unsupported') status.textContent = t('win.shot.failed');
+        })();
+      });
+    }
+  }
+
+  if (row.childElementCount) fig.appendChild(row);
+  fig.appendChild(status);
+  cer.appendChild(fig);
+}
+
 function showWin(): void {
   document.querySelectorAll('.toast').forEach((t) => t.remove());
   const ov = document.createElement('div');
-  ov.className = 'overlay';
+  ov.className = 'overlay win-overlay';
   const title = document.createElement('div');
   title.className = 'win-title';
   title.textContent = t('win.title');
@@ -1125,9 +1318,11 @@ function attachHud(): void {
       setSpeed(0);
       running = false;
       clearOverlay();
-      // Loaded on demand. The report and its offscreen renderer are dead weight
-      // for every player who never files one, and this is a menu click — there
-      // is no frame budget to protect here.
+      // Loaded on demand. The offscreen renderer itself is no longer the saving
+      // — mapshot.ts is in the main chunk now that previews and the win shot
+      // need it — but the report's own overlay, form and markdown formatter are
+      // still dead weight for every player who never files one, and this is a
+      // menu click with no frame budget to protect.
       const { showReportOverlay } = await import('./game/report-ui');
       // Two fast clicks can both get here while the chunk loads; without this
       // the second stacks a duplicate overlay on the first.

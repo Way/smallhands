@@ -56,6 +56,11 @@ export interface WorldMapDeps {
   resumeLabel: string | null; // "Resume — <level>" when a run is in progress
   bestMedal: (key: string) => 'gold' | 'silver' | 'bronze' | null;
   addMedalBits: (card: HTMLElement, key: string, goldTime: number | null) => void;
+  // A picture of the level's starting map, or null if this device could not
+  // draw one. Owned by main.ts: building it needs a Game and a Renderer, which
+  // this module deliberately does not know about. Called only when a popover
+  // opens, so an unvisited level never costs a draw.
+  levelPreview: (def: LevelDef) => HTMLCanvasElement | null;
   customDone: (id: string) => boolean;
   click: () => void; // UI click sound
   onPlayLevel: (index: number) => void;
@@ -74,6 +79,10 @@ export interface WorldMapDeps {
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Breathing room kept between an anchored level pill and the edge of the map's
+// visible box, so a nudged pill reads as placed rather than jammed.
+const POP_GUTTER = 10;
 
 function svgEl<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -330,6 +339,10 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       return;
     }
     fit();
+    // an open pill was fitted against the *old* visible box — measure it again.
+    // Safe to reach `pop` here: a ResizeObserver callback never runs during the
+    // synchronous body below, where the binding is still in its dead zone.
+    if (pop && !pop.classList.contains('sheet')) fitPopover(pop);
   });
   ro.observe(viewport);
   fit();
@@ -470,6 +483,56 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     popAnchor?.focus();
     popAnchor = null;
   };
+  // Keep an anchored pill inside the map's visible box.
+  //
+  // The pill is positioned from its node in viewBox units, but its *height* is
+  // CSS pixels — and since it carries a map preview (card #72) that height now
+  // varies with the level's aspect ratio, so the `at.y < 470` flip guess can no
+  // longer promise it lands on screen. `.overlay.worldmap` is `overflow: hidden`,
+  // so anything that misses is silently cut off rather than scrollable: measured
+  // at 1280×720, seven of the seventeen pills lost their preview and name off the
+  // top. So flip by measurement, then nudge, then — only if the pill genuinely
+  // cannot fit — let it scroll.
+  //
+  // Both axes, deliberately. `place()` clamps x too, but in *viewBox* units,
+  // which says nothing about CSS pixels once the map is wider than its viewport
+  // and pans (`minMapW` is 900 on fine pointers, 1280 on coarse): a pill
+  // anchored near the visible edge is centred on its node and hangs half of its
+  // 250px outside. Letting the browser's focus scroll-into-view rescue that
+  // instead would pan the whole map out from under the player *and* invalidate
+  // the vertical fit measured here, so this owns both directions.
+  const fitPopover = (el: HTMLElement): void => {
+    el.style.marginTop = '';
+    el.style.marginLeft = '';
+    el.style.maxHeight = '';
+    el.classList.remove('scrolls');
+    const clip = viewport.getBoundingClientRect();
+    const fits = (): boolean => {
+      const r = el.getBoundingClientRect();
+      return r.top >= clip.top && r.bottom <= clip.bottom;
+    };
+    if (!fits()) {
+      el.classList.toggle('below');
+      if (!fits()) el.classList.toggle('below'); // neither side fits — keep the first
+    }
+    const room = clip.height - 2 * POP_GUTTER;
+    if (el.getBoundingClientRect().height > room) {
+      el.style.maxHeight = `${Math.round(room)}px`;
+      el.classList.add('scrolls');
+    }
+    // nudge on both axes. Leading edge wins when the pill is bigger than the box:
+    // seeing the preview and the name beats seeing the status line.
+    const r = el.getBoundingClientRect();
+    const nudge = (near: number, far: number, lo: number, hi: number): number =>
+      near < lo + POP_GUTTER ? lo + POP_GUTTER - near : far > hi - POP_GUTTER ? hi - POP_GUTTER - far : 0;
+    const dy = nudge(r.top, r.bottom, clip.top, clip.bottom);
+    const dx = nudge(r.left, r.right, clip.left, clip.right);
+    // margin, not transform: the transform slot is already carrying the
+    // centring and the above/below flip.
+    if (dy) el.style.marginTop = `${Math.round(dy)}px`;
+    if (dx) el.style.marginLeft = `${Math.round(dx)}px`;
+  };
+
   const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
     closeDrawer(); // popover, drawer and logbook are mutually exclusive
     closeLogbook();
@@ -505,8 +568,26 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
       fill(pop);
       wrap.appendChild(pop);
+      // the flip above is the opening guess; this is the correction, and it can
+      // only run once the pill is in the DOM and has a measurable height
+      fitPopover(pop);
     }
-    (pop.querySelector('.pop-play') as HTMLElement | null)?.focus();
+    const play = pop.querySelector('.pop-play') as HTMLElement | null;
+    if (pop.classList.contains('sheet')) {
+      // The phone sheet is a different animal: fitPopover never touches it, and
+      // it has always been allowed to scroll (`max-height: calc(100% - 160px)`).
+      // On a short landscape phone its content genuinely cannot fit, so the
+      // default focus scroll is the only thing bringing Play into view — keep it.
+      play?.focus();
+    } else {
+      // preventScroll on the anchored pill: Play is its last child, so a plain
+      // focus() scrolls every scrollable ancestor to reveal it — the `.scrolls`
+      // pill itself (which would open past its own preview and name) and
+      // `.map-viewport`, whose pan would silently invalidate the fit measured
+      // above. fitPopover owns both axes, so nothing is left for it to rescue.
+      play?.focus({ preventScroll: true });
+      pop.scrollTop = 0;
+    }
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && pop) {
@@ -528,13 +609,25 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     recordKey: string,
     goldTime: number | null,
     onPlay: () => void,
-    facts: HTMLElement | null = null
+    facts: HTMLElement | null = null,
+    preview: HTMLCanvasElement | null = null
   ) => {
     card.innerHTML = `
       <div class="lv-name"></div>
       <div class="lv-desc"></div>
       <div class="lv-foot"><div class="lv-status ${done ? 'done' : ''}">${done ? t('status.done') : t('status.ready')}</div></div>
     `;
+    // The map itself, above the name: the shape of the mountain is what a player
+    // is actually choosing between, and it reads faster than any blurb.
+    if (preview) {
+      const shot = document.createElement('div');
+      shot.className = 'lv-shot';
+      shot.setAttribute('role', 'img');
+      shot.setAttribute('aria-label', t('map.preview.aria', { name }));
+      preview.className = 'lv-shot-img';
+      shot.appendChild(preview);
+      card.insertBefore(shot, card.firstChild);
+    }
     (card.querySelector('.lv-name') as HTMLElement).textContent = name;
     (card.querySelector('.lv-name') as HTMLElement).id = 'map-pop-title';
     card.setAttribute('aria-labelledby', 'map-pop-title');
@@ -579,7 +672,8 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       node.onclick = () =>
         openPopover(node, p, (card) =>
           popBody(card, t(lv.def.name), t(lv.def.desc), lv.done, `c${lv.def.id}`,
-            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index), levelFactsEl(lv.def))
+            lv.def.medals?.gold ?? null, () => deps.onPlayLevel(lv.index), levelFactsEl(lv.def),
+            deps.levelPreview(lv.def))
         );
       wrap.appendChild(node);
     });

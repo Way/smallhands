@@ -29,8 +29,8 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
 let failures = 0;
-const check = (name, cond) => {
-  console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}`);
+const check = (name, cond, detail = '') => {
+  console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${!cond && detail ? ` — ${detail}` : ''}`);
   if (!cond) failures++;
 };
 
@@ -56,9 +56,126 @@ await page.waitForTimeout(150);
 check('popover opens', !!(await page.$('.map-popover')));
 check('popover has a name', ((await page.textContent('.map-popover .lv-name')) ?? '').length > 0);
 check('popover has medal slots', !!(await page.$('.map-popover .medal-row')));
+
+// ---- level preview (card #72) ----
+// The shot is rendered lazily, when the popover opens, by a throwaway Renderer
+// over a throwaway Game. A blank rectangle would pass a mere presence check, so
+// sample the pixels: a real map is many colours, an empty canvas is one.
+const preview = await page.evaluate(() => {
+  const c = document.querySelector('.map-popover .lv-shot-img');
+  if (!c) return null;
+  const p = document.createElement('canvas');
+  p.width = c.width;
+  p.height = c.height;
+  p.getContext('2d').drawImage(c, 0, 0);
+  const d = p.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  const colors = new Set();
+  for (let i = 0; i < d.length; i += 4 * 97) colors.add(`${d[i]},${d[i + 1]},${d[i + 2]}`);
+  return { w: c.width, h: c.height, colors: colors.size, ratio: c.width / c.height };
+});
+check('popover shows a map preview', !!preview);
+check('preview has real pixels drawn', (preview?.colors ?? 0) > 20);
+// The shot spans the whole level, so its aspect ratio is the world's — and the
+// popover already prints those dimensions, which makes them checkable without a
+// second source of truth. A preview framed on the camera instead of the map
+// would fail here.
+const meta = (await page.textContent('.map-popover .lv-meta')) ?? '';
+const dims = /(\d+)\s*×\s*(\d+)/.exec(meta);
+check('popover states the level size', !!dims);
+check(
+  'preview keeps the level aspect ratio',
+  !!preview && !!dims && Math.abs(preview.ratio - Number(dims[1]) / Number(dims[2])) < 0.05
+);
+
 await page.keyboard.press('Escape');
 await page.waitForTimeout(150);
 check('Escape closes popover', !(await page.$('.map-popover')));
+
+// reopening must not lose the picture: the canvas is cached and re-parented,
+// and a cache that hands back a detached node would silently show nothing
+await page.click('.map-node:not(:disabled)');
+await page.waitForTimeout(150);
+check('preview survives a reopen', !!(await page.$('.map-popover .lv-shot-img')));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(150);
+
+// ---- every pill lands inside the map, at every size ----
+// `.overlay.worldmap` is overflow:hidden, so a pill that misses its visible box
+// is silently cut off — no scrollbar, no error, just a missing Play button or a
+// missing name. The preview made the pills ~100px taller and broke seven of
+// seventeen at 1280×720 before fitPopover measured the flip. Only one node is
+// unlocked on a fresh profile, so the rest are enabled by hand: `disabled` gates
+// the pointer, not the click handler the popover hangs off.
+async function sweepPillFit(w, h) {
+  await page.setViewportSize({ width: w, height: h });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    for (const n of document.querySelectorAll('.map-node')) n.disabled = false;
+  });
+  const n = await page.$$eval('.map-node', (els) => els.length);
+  const bad = [];
+  for (let i = 0; i < n; i++) {
+    await page.evaluate((i) => document.querySelectorAll('.map-node')[i].click(), i);
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => {
+      const p = document.querySelector('.map-popover');
+      if (!p) return null;
+      // .map-viewport, not .overlay.worldmap: the overlay also spans the topbar
+      // above and the legend below, so measuring it would pass a pill parked
+      // under the topbar — clipped in exactly the way this is guarding against.
+      // This is the same box fitPopover fits to.
+      const clip = document.querySelector('.map-viewport').getBoundingClientRect();
+      const pr = p.getBoundingClientRect();
+      // A scrollable pill must OPEN at the top: focusing Play — the last child —
+      // would otherwise scroll the preview and the name out of view before the
+      // player has seen either.
+      const openedAtTop = p.scrollTop === 0;
+      // ...and must still be able to reveal that Play button
+      p.scrollTop = p.scrollHeight;
+      const play = p.querySelector('.pop-play').getBoundingClientRect();
+      // .level-card is a column flex container, so a height-capped pill shrinks
+      // its children rather than scrolling. `.lv-shot` hides its overflow, so it
+      // collapses to its border while the canvas paints outside and is clipped —
+      // a rect check on the pill sees nothing wrong, which is why this compares
+      // the frame against the picture it is supposed to be holding.
+      const wrap = p.querySelector('.lv-shot');
+      const img = p.querySelector('.lv-shot-img');
+      const cropped =
+        wrap && img
+          ? Math.round(img.getBoundingClientRect().height - wrap.getBoundingClientRect().height)
+          : 0;
+      return {
+        cropped,
+        out: Math.round(Math.max(clip.top - pr.top, pr.bottom - clip.bottom)),
+        // horizontal too: place() clamps x in viewBox units, which says nothing
+        // about CSS pixels once the map is wide enough to pan
+        outX: Math.round(Math.max(clip.left - pr.left, pr.right - clip.right)),
+        playIn: play.top >= clip.top - 1 && play.bottom <= clip.bottom + 1,
+        openedAtTop,
+      };
+    }, i);
+    if (!r) bad.push(`node ${i}: no popover`);
+    else if (r.cropped > 2) bad.push(`node ${i}: preview cropped by ${r.cropped}px`);
+    else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside vertically`);
+    else if (r.outX > 0) bad.push(`node ${i}: ${r.outX}px outside horizontally`);
+    else if (!r.openedAtTop) bad.push(`node ${i}: opened scrolled past the preview`);
+    else if (!r.playIn) bad.push(`node ${i}: Play unreachable`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(40);
+  }
+  check(`every pill fits the map at ${w}×${h}`, bad.length === 0, bad.slice(0, 4).join('; '));
+}
+await sweepPillFit(1280, 720);
+// 900px wide keeps the desktop pill (the phone sheet takes over at 820), and
+// 420 tall is short enough that the pills genuinely overflow their measured
+// max-height — the only size where the scroll path is more than decorative.
+await sweepPillFit(900, 420);
+// 860 is the one band on a fine pointer where the map pans horizontally: past
+// the 820 sheet breakpoint, but under the 900 minimum render width. That pan is
+// what makes the x axis a real case rather than a theoretical one.
+await sweepPillFit(860, 700);
+await page.setViewportSize({ width: 1440, height: 860 });
+await page.waitForTimeout(250);
 
 // ---- daily logbook: empty on a fresh profile ----
 await page.click('.map-daily');
@@ -233,6 +350,46 @@ check('replay during a run asks before abandoning', !!(await page.$('.confirm-ov
 await page.click('.confirm-overlay .big-btn.secondary');
 await page.waitForTimeout(200);
 check('cancelling the abandon keeps the logbook open', !!(await page.$('.daily-drawer')));
+
+// ---- the phone sheet ----
+// Below 820px the pill becomes a bottom drawer, which fitPopover deliberately
+// never touches — it has always been allowed to scroll. That makes it the one
+// place where Play can legitimately start off-screen, so it needs its own pass:
+// the preview must not be cropped, and Play must be reachable. Landscape is the
+// tight case (a 390px-tall phone leaves the drawer ~230px) and it is exactly
+// where the preview pushed Play out of view.
+for (const [w, h] of [[844, 390], [390, 844]]) {
+  const phone = await browser.newPage({
+    viewport: { width: w, height: h },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  await phone.goto(BASE_URL);
+  await phone.click('.fd-play');
+  await phone.waitForTimeout(700);
+  await phone.click('.map-node:not(:disabled)');
+  await phone.waitForTimeout(250);
+  const s = await phone.evaluate(() => {
+    const p = document.querySelector('.map-popover');
+    if (!p) return null;
+    const wrap = p.querySelector('.lv-shot');
+    const img = p.querySelector('.lv-shot-img');
+    const pr = p.getBoundingClientRect();
+    const play = p.querySelector('.pop-play').getBoundingClientRect();
+    return {
+      sheet: p.classList.contains('sheet'),
+      cropped: Math.round(img.getBoundingClientRect().height - wrap.getBoundingClientRect().height),
+      shotH: Math.round(img.getBoundingClientRect().height),
+      playVisible: play.top >= pr.top - 1 && play.bottom <= pr.bottom + 1,
+    };
+  });
+  check(`${w}×${h} opens the level sheet`, s?.sheet === true);
+  check(`${w}×${h} sheet preview is not cropped`, !!s && s.cropped <= 2, `${s?.cropped}px hidden`);
+  check(`${w}×${h} sheet preview is a usable size`, !!s && s.shotH > 40, `${s?.shotH}px tall`);
+  check(`${w}×${h} sheet shows Play without hunting`, s?.playVisible === true);
+  await phone.close();
+}
 
 await browser.close();
 if (failures) {

@@ -759,6 +759,24 @@ body.in-game #frontdoor { display: none; }
 }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
+/* The win ceremony grew a photo of the finished map, so on a short screen the
+   medal, gauge, feats and snapshot no longer fit between the title and the
+   button row. A centred flex column clips overflow at the TOP and offers no way
+   to scroll back up to it, so this one scrolls instead — auto margins on the
+   end children keep everything centred whenever there IS room. */
+.overlay.win-overlay {
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 0;
+}
+/* No shrinking: a flex column squeezes its children before it overflows, and
+   .ceremony hides its overflow — so without this the feats and the snapshot are
+   silently cropped on a short screen instead of producing a scrollbar. */
+.overlay.win-overlay > * { flex-shrink: 0; }
+.overlay.win-overlay > :first-child { margin-top: auto; }
+.overlay.win-overlay > :last-child { margin-bottom: auto; }
+
 .title-logo {
   font-size: clamp(40px, 8vw, 76px);
   font-weight: 900;
@@ -1329,6 +1347,41 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 .ceremony .feat.got { border-color: var(--accent); }
 .ceremony .feat.miss { opacity: 0.45; }
 .ceremony .feat small { display: block; color: var(--text-dim); font-size: 10.5px; }
+/* ---- solution snapshot ----
+   The map you just finished, framed like a photo of it. Deliberately the last
+   thing in the ceremony: the medal and the feats are the score, this is the
+   souvenir, and the export buttons belong with the picture, not with the
+   Next Level / Levels row that leaves the screen. */
+.win-shot { margin: 22px 0 0; }
+.ws-frame {
+  padding: 8px 8px 0;
+  border-radius: 5px;
+  background: #0c1420;
+  border: 1px solid var(--panel-border-light);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+.ws-img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  /* both maxima with no explicit size: the canvas keeps its aspect ratio and
+     just fits, whether the map is a wide plain or a narrow shaft. Kept small
+     enough that the ceremony still clears a 900px-tall window without the
+     button row falling below the fold — the frame is the souvenir preview, the
+     exported PNG is full resolution. */
+  max-height: 160px;
+  border-radius: 3px;
+}
+.ws-cap {
+  padding: 7px 2px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ws-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ws-btn { font-size: 12px; padding: 7px 12px; }
+.ws-status { min-height: 15px; margin-top: 7px; font-size: 11px; color: var(--accent2); }
+
 .confetti {
   position: absolute; width: 6px; height: 6px; top: 14px; pointer-events: none;
   animation: confettifall 1.8s linear both;
@@ -1744,6 +1797,17 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   background-repeat: no-repeat;
 }
 .level-card.map-popover.below { transform: translate(-50%, 30px); }
+/* Last resort from fitPopover(): a pill taller than the map's visible box gets a
+   measured max-height and scrolls. Like the phone sheet it drops the gold corner
+   pixels, which a scroll container would clip into stray squares. */
+.level-card.map-popover.scrolls { overflow-y: auto; overscroll-behavior: contain; }
+.level-card.map-popover.scrolls::after { content: none; }
+/* .level-card is a column flex container, so the moment a pill is height-capped
+   — the `.scrolls` pill above, or the phone sheet's `max-height` — its children
+   shrink to fit instead of overflowing, and nothing scrolls. `.lv-shot` is the
+   one that pays: it hides its overflow, so it collapses to its 2px border while
+   the canvas paints outside it and gets clipped. The same trap as .win-overlay. */
+.level-card.map-popover > * { flex-shrink: 0; }
 /* phone bottom drawer: the map pans on small screens, so a node-anchored
    bubble can sit half off-screen — the drawer slides up above the legend bar
    and is always fully visible (appended to the overlay, not the panning wrap) */
@@ -1759,6 +1823,12 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   animation: drawer-up 0.18s ease-out;
 }
 .map-popover.sheet .lv-name { padding-right: 40px; }
+/* The sheet is up to 440px wide, and the preview is sized by width, so left
+   alone it grows to ~205px tall — half the drawer on a landscape phone, and that
+   much further to scroll before reaching Play. Narrow the frame rather than
+   capping the canvas: a max-height on a replaced element does not feed back into
+   the wrapper's height, so the image would just paint past it. */
+.map-popover.sheet .lv-shot { max-width: 250px; margin: -2px auto 10px; }
 /* no gold corner-pixels on the drawer: on a full-width sheet the four floating
    squares read as stray artifacts rather than a frame */
 .level-card.map-popover.sheet::after { content: none; }
@@ -1768,6 +1838,20 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
 }
 .map-popover .lv-name { font-family: var(--font); font-weight: 800; font-size: 17px; color: var(--map-gold); }
 .map-popover .lv-desc { margin-bottom: 10px; }
+
+/* map preview: the level's starting terrain, above its name. Sunk into the card
+   like a window rather than floated on it — the shot is what you are choosing
+   between, so it gets the top of the pill and none of the decoration. */
+.lv-shot {
+  margin: -2px 0 10px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #0c1420;
+  border: 1px solid var(--panel-border-light);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+  line-height: 0;
+}
+.lv-shot-img { display: block; width: 100%; height: auto; }
 
 /* fact block: objectives, condition tags, difficulty, size/tools */
 .lv-facts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
@@ -2267,4 +2351,6 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   .win-title { font-size: 32px; }
   .ceremony { width: min(520px, calc(100vw - 20px)); padding: 18px 16px 20px; }
   .ceremony .feats { gap: 8px; margin-top: 18px; }
+  .win-shot { margin-top: 18px; }
+  .ws-img { max-height: 140px; }
 }

@@ -22,9 +22,12 @@ const check = (name, cond, extra = '') => {
 };
 
 // ---------------------------------------------------------------- copy tables
-// The only strings allowed to say "Smallhands" are the two that name the
-// product to the player. Everything else in the table is about the creatures.
-const BRAND_KEYS = new Set(['import.prompt', 'save.importError']);
+// The only strings allowed to say "Smallhands" are the ones that name the
+// product rather than describe its inhabitants: the two import/save messages
+// that identify a file as ours, and the share-sheet title that carries a
+// solution screenshot out of the game and in front of someone who has never
+// heard of it. Everything else in the table is about the creatures.
+const BRAND_KEYS = new Set(['import.prompt', 'save.importError', 'win.shot.shareTitle']);
 
 const brandLeaks = [];
 for (const [k, [en, de]] of Object.entries(D)) {
@@ -38,9 +41,16 @@ const fdLeaks = Object.entries(S)
   .map(([k]) => k);
 check('no front-door string calls an inhabitant a "smallhand"', fdLeaks.length === 0, fdLeaks.join(', '));
 
-// Both brand strings must survive intact — the rename must not eat the product name.
+// Every brand string must survive intact — the rename must not eat the product name.
 check('brand: import prompt still says Smallhands', /Smallhands level code/.test(D['import.prompt'][0]) && /Smallhands-Level-Code/.test(D['import.prompt'][1]));
 check('brand: save-import error still says Smallhands', /Smallhands save/.test(D['save.importError'][0]) && /Smallhands-Spielstand/.test(D['save.importError'][1]));
+// The share sheet is the one place the game introduces itself to a stranger, so
+// the plural brand — never a bare "Smallhand" — has to be in the title.
+check(
+  'brand: share-sheet title still says Smallhands',
+  BRAND_KEYS.has('win.shot.shareTitle') &&
+    D['win.shot.shareTitle'].every((s) => /Smallhands/.test(s) && !/Smallhand\b/.test(s))
+);
 
 // ---------------------------------------------------------------- the species
 const allPairs = [...Object.entries(D), ...Object.entries(S)];
