@@ -198,9 +198,27 @@ const lanternReady = (x, y) => (g) =>
     def,
     [
       // work the near + mid ground (west of the far shelf) — enough timber and
-      // stone to fill plank 6 / stone 4 without racing all the way east into dark
+      // stone to fill the order without racing all the way east into the dark
       { name: 'mark the near vale', when: () => true, do: (g) => { for (const n of g.nodes) if (n.x < 48) n.marked = true; } },
       { name: 'sawmill in the vale', when: (g) => g.stock.log >= 6, do: (g) => g.placeBuilding('sawmill', 16, 19) },
+      // The clock now closes the work gate mid-run (card #70), which is the whole
+      // point of the level: string the light out over the mid vale WHILE the sun
+      // still holds, or the crew stops where the daylight stopped. Two lanterns
+      // cover the boulders at x19/22 and the timber at x30/33. The keep floor
+      // banks the second lantern's materials — without it the mill eats the log
+      // and the caravan ships the stone long before dusk asks for them.
+      { name: 'bank a lantern', when: () => true, do: (g) => { g.setKeep('log', 1); g.setKeep('stone', 1); } },
+      {
+        name: 'lantern over the near stone',
+        when: (g) => g.stock.log >= 1 && g.stock.stone >= 1,
+        do: (g) => g.placeBuilding('lantern', 21, 20),
+      },
+      {
+        name: 'lantern over the mid timber',
+        when: (g) => g.nightAmount() > 0.1 && g.stock.log >= 1 && g.stock.stone >= 1,
+        do: (g) => g.placeBuilding('lantern', 31, 19),
+      },
+      { name: 'release the order', when: (g) => g.nightAmount() > 0.3, do: (g) => { g.setKeep('log', 0); g.setKeep('stone', 0); } },
     ],
     900
   );

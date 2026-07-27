@@ -87,7 +87,7 @@ function findLadderCells(g, count) {
 // Level 1's only haul work is delivering planks to the caravan (no marked
 // nodes, no buildings), so plank deliveries are a clean probe of the gate.
 {
-  const g = new Game(LEVELS[0]); // objective: plank 8
+  const g = new Game(LEVELS[0]); // objective: a handful of planks
   const plankObj = () => g.objectives.find((o) => o.item === 'plank');
 
   // floor at or above stock → no caravan haul is ever created
@@ -111,7 +111,7 @@ function findLadderCells(g, count) {
 // and everything ships (the reported bug: set a plank floor, yet every plank
 // still gets delivered to target). Probe with loose planks on level 1.
 {
-  const g = new Game(LEVELS[0]); // objective: plank 8, caravan goal
+  const g = new Game(LEVELS[0]); // objective: planks, caravan goal
   const plankObj = () => g.objectives.find((o) => o.item === 'plank');
 
   // empty store, floor of 3, and 5 loose planks dropped on a worker's own cell
@@ -230,8 +230,9 @@ function findLadderCells(g, count) {
 
 // ---- Level 3 shape: stone is both the order and the build material ---------
 {
-  const g = new Game(LEVELS[2]); // objectives include stone 8; goal at west edge
+  const g = new Game(LEVELS[2]); // stone is BOTH the order and the upgrade cost
   const stoneObj = () => g.objectives.find((o) => o.item === 'stone');
+  const need = stoneObj().amount; // read the order, don't pin it (see card #70)
 
   // bank 6 stone (the TH Lv2 upgrade cost); only the surplus of a 10 stock ships
   g.stock.stone = 10;
@@ -240,11 +241,11 @@ function findLadderCells(g, count) {
   check('order stalls at the floor (ships 10-6=4)', stoneObj().delivered === 4);
   check('6 stone stay banked for building', g.stock.stone === 6);
 
-  // release the floor → the order finishes (up to the 8 required)
+  // release the floor → the order finishes (up to whatever the level asks for)
   g.setKeep('stone', 0);
   for (let i = 0; i < 60 * 30; i++) g.tick(1 / 60); // 30s
-  check('lowering the floor lets the order finish', stoneObj().delivered === 8);
-  check('stock drops to the remainder (10-8=2)', g.stock.stone === 2);
+  check('lowering the floor lets the order finish', stoneObj().delivered === need);
+  check('stock drops to the remainder', g.stock.stone === 10 - need);
 }
 
 // ---- Level 3 teaches the reserve exactly when stone is contested -----------
@@ -308,6 +309,161 @@ function findLadderCells(g, count) {
   check('campaign 4 digs five levels deep', LEVELS.filter((l) => l.campaign === 4).length === 5);
 }
 
+// ============================ Card #70: puzzle & timing ======================
+
+// ---- tool limits: a cap on what STANDS, refunded on demolish ----------------
+{
+  const g = new Game(LEVELS[5]); // Monsoon Hollow — the budget's introduction
+  const cap = g.level.toolLimit.platform;
+  check('a budgeted tool reports what is left', g.toolRemaining('platform') === cap);
+  check('an unbudgeted tool reports no limit at all', g.toolRemaining('ladder') === null);
+
+  // laying tiles spends the budget one per tile
+  g.stock.plank = 40;
+  const laid = g.placeBridgeRun(27, 23, 29, 23);
+  check('a 3-tile bridge lands', laid === 3);
+  check('three tiles spent three of the budget', g.toolRemaining('platform') === cap - 3);
+
+  // demolishing gives the slot back — this is what keeps a budget from being a trap
+  check('demolishing a bridge tile refunds the slot', g.demolish(27, 23) === true);
+  check('the slot is back', g.toolRemaining('platform') === cap - 2);
+}
+
+// ---- a budget trims the RUN, not just the drop ------------------------------
+// The Ford's channel takes a known 8-tile bridge, so a 4-tile budget is a clean
+// probe: RunPlan is the one source the ghost, the cursor readout and the drop all
+// read, so trimming it there is what keeps them from promising different runs.
+{
+  const g = new Game({ ...LEVELS[4], toolLimit: { platform: 4 } });
+  g.stock.plank = 40;
+  const plan = g.runPlan('platform', 22, 19, 29, 19);
+  check('the run is cut to the budget, not to the stock', plan.cells.length === 4);
+  check('the trimmed run is fully affordable', plan.affordable === 4);
+  check('and only the trimmed prefix lands', g.placeBridgeRun(22, 19, 29, 19) === 4);
+  check('the budget is spent', g.toolRemaining('platform') === 0);
+  check('nothing lands at zero', g.placeBridgeRun(26, 19, 29, 19) === 0);
+  check('the deck stops where the budget ran out', g.world.get(25, 19) === T.PLATFORM && g.world.get(26, 19) === T.AIR);
+}
+
+// ---- a budget can only ever refund the player's OWN placements --------------
+// Levels author terrain of their own (the Ember Road adits are ladders), and
+// demolishing one must not mint budget nobody spent. A clamp at zero is NOT
+// enough to guarantee that: it only covers the case where nothing has been spent
+// yet, and once the player has spent any budget there is room under the counter
+// for an authored tile to refund into. Hence the placedTiles ledger — so probe
+// BOTH paths, the empty counter and the partly-spent one.
+{
+  const g = new Game({ ...LEVELS[10], toolLimit: { ladder: 2 } }); // Ballast Ridge's adit
+  check('the authored adit ladder is there', g.world.get(30, 18) === T.LADDER);
+  check('the ladder budget starts full', g.toolRemaining('ladder') === 2);
+
+  // path 1: nothing spent yet
+  g.demolish(30, 18);
+  check('tearing down authored terrain mints no budget', g.toolRemaining('ladder') === 2);
+
+  // path 2: one rung of their own already standing — the counter now has room
+  g.stock.log = 10;
+  check("a rung of the player's own goes up", g.placeLadder(30, 18) === true);
+  check('it costs a slot', g.toolRemaining('ladder') === 1);
+  check('another authored rung is still there', g.world.get(30, 19) === T.LADDER);
+  g.demolish(30, 19);
+  check('authored terrain refunds nothing even mid-budget', g.toolRemaining('ladder') === 1);
+
+  // and their own rung still does refund
+  g.demolish(30, 18);
+  check("the player's own rung refunds its slot", g.toolRemaining('ladder') === 2);
+}
+
+// ---- the ghost reads the same gate the placement does -----------------------
+// canAttemptPlacement is the shared predicate (unlock + budget + cost + dark).
+// The ghost previews four buildings/machines and each case used to re-list those
+// checks by hand, which is how the budget gate reached the workshop preview and
+// missed the lift/rope/hoist ones — a green outline over a click the sim refuses.
+{
+  const g = new Game(LEVELS[11]); // The High Forge — exactly one hoist
+  g.stock.plank = 20;
+  g.stock.iron = 5;
+  check('the gate is open before the wheel goes up', g.canAttemptPlacement('hoist', 26, 14) === true);
+  check('the hoist goes up', g.placeHoist(26, 14) === true);
+  check('the gate closes with the budget', g.canAttemptPlacement('hoist', 30, 14) === false);
+  check('and the placement agrees', g.placeHoist(30, 14) === false);
+  // the cost gate is live in the same predicate: the mill wants 6 logs, and the
+  // level opens with 4, so it is refused for price rather than for budget
+  check('an unaffordable tool is refused too', g.canAttemptPlacement('sawmill', 10, 20) === false);
+  g.stock.log = 10;
+  check('an unbudgeted tool passes once it is affordable', g.canAttemptPlacement('sawmill', 10, 20) === true);
+}
+
+// ---- the gate covers the run tools' at-rest preview as well ------------------
+// A tap with Bridge/Ramp is a one-cell run, and runPlan trims runs against the
+// budget — so the single-cell ghost has to see the budget too, or a spent
+// allowance previews green over a tap that lays nothing.
+{
+  const g = new Game(LEVELS[5]); // Monsoon Hollow — six planks of bridge
+  g.stock.plank = 40;
+  check('the bridge gate is open at the start', g.canAttemptPlacement('platform', 27, 23) === true);
+  check('the pond deck lands', g.placeBridgeRun(27, 23, 29, 23) === 3);
+  check('a second deck along the west bank lands', g.placeBridgeRun(24, 22, 26, 22) === 3);
+  check('the budget is spent', g.toolRemaining('platform') === 0);
+  check('the gate closes even though planks remain', g.canAttemptPlacement('platform', 33, 22) === false);
+  check('and a tap really lays nothing', g.placeBridgeRun(33, 22, 33, 22) === 0);
+
+  // a ladder is paid in log-or-plank, so the shared gate must not read its
+  // nominal { log: 1 } cost against an empty log store (unbudgeted here)
+  g.stock.log = 0;
+  check('a ladder with only planks left still reads placeable', g.canAttemptPlacement('ladder', 27, 22) === true);
+  g.stock.plank = 0;
+  check('and is refused with no wood at all', g.canAttemptPlacement('ladder', 27, 22) === false);
+}
+
+// ---- one machine per level: the instance cap --------------------------------
+{
+  const g = new Game(LEVELS[11]); // The High Forge — exactly one wheel
+  check('the level allows a single hoist', g.toolRemaining('hoist') === 1);
+  g.stock.plank = 20;
+  g.stock.iron = 5;
+  check('the first hoist goes up', g.placeHoist(26, 14) === true);
+  check('the budget is spent', g.toolRemaining('hoist') === 0);
+  check('a second hoist is refused', g.placeHoist(30, 14) === false);
+}
+
+// ---- the caravan's dock window ----------------------------------------------
+{
+  // the schedule is pure arithmetic on the run clock — no state to drift
+  const g = new Game(LEVELS[9]); // The Turning Wheel: open 50 / closed 15
+  const c = g.level.convoy;
+  check('the caravan starts docked', g.convoyOpen === true);
+  check('it counts down to its departure', Math.abs(g.convoyRemaining - c.open) < 1e-9);
+  for (let i = 0; i < (c.open + 1) * 30; i++) g.tick(1 / 30);
+  check('it rolls out on schedule', g.convoyOpen === false);
+  check('and counts down to its return', g.convoyRemaining <= c.closed);
+  for (let i = 0; i < c.closed * 30; i++) g.tick(1 / 30);
+  check('it comes back', g.convoyOpen === true);
+
+  // a level without a convoy is always open, forever
+  const plain = new Game(LEVELS[0]);
+  check('no schedule means the dock is always open', plain.convoyOpen === true);
+  check('and never counts down', plain.convoyRemaining === Infinity);
+}
+
+// ---- nothing is dispatched to an empty dock ---------------------------------
+// Level 1 is the clean probe (flat map, plank order, no buildings), so a convoy
+// bolted onto it isolates the dispatch gate from every other haul rule.
+{
+  const def = { ...LEVELS[0], convoy: { open: 0.001, closed: 600 } }; // shut immediately
+  const g = new Game(def);
+  const plankObj = () => g.objectives.find((o) => o.item === 'plank');
+  g.stock.plank = 4;
+  for (let i = 0; i < 60 * 60; i++) g.tick(1 / 60); // a full minute of an empty dock
+  check('nothing ships while the caravan is away', plankObj().delivered + plankObj().inbound === 0);
+  check('the goods wait in the store instead', g.stock.plank === 4);
+
+  // reopen the window (same object, so this is the level's own schedule changing)
+  def.convoy = { open: 600, closed: 1 };
+  for (let i = 0; i < 60 * 40; i++) g.tick(1 / 60);
+  check('the returning caravan is loaded at once', plankObj().delivered > 0);
+}
+
 // ---- water: impassable, unbuildable, bridgeable -----------------------------
 {
   const g = new Game(LEVELS[4]); // The Ford
@@ -321,13 +477,18 @@ function findLadderCells(g, count) {
 
 // ---- weather: deterministic schedule, wet work is slower ---------------------
 {
-  const g = new Game(LEVELS[5]); // Monsoon Hollow: clear 45s -> rain 30s, looping
+  // Monsoon Hollow: clear → rain, looping. Read the durations off the level
+  // rather than hardcoding them — the schedule is a balance knob (card #70 sharpened
+  // it from 45/30 to 55/25), and a test that pins it fails on every retune.
+  const g = new Game(LEVELS[5]);
+  const [calm, wet] = g.level.weather;
   check('weather starts on the first phase', g.weather === 'clear');
   check('clear skies work at full speed', g.workFactor === 1);
-  for (let i = 0; i < 46 * 30; i++) g.tick(1 / 30);
+  const run = (secs) => { for (let i = 0; i < Math.ceil(secs * 30); i++) g.tick(1 / 30); };
+  run(calm.duration + 1);
   check('rain arrives on the forecast', g.weather === 'rain');
   check('rain slows harvest work', g.workFactor < 1);
-  for (let i = 0; i < 30 * 30; i++) g.tick(1 / 30);
+  run(wet.duration);
   check('the sky clears again on schedule', g.weather === 'clear');
 }
 
@@ -337,6 +498,15 @@ function findLadderCells(g, count) {
   g.weatherIdx = 3;
   check('storm phase reads as storm', g.weather === 'storm');
   check('storm also slows harvest', g.workFactor < 1);
+  // rain and storm are no longer the same penalty (card #70): the storm is the
+  // one you plan around — slower work, braked wheels, guttered lanterns
+  g.weatherIdx = 1;
+  const rainFactor = g.workFactor;
+  g.weatherIdx = 3;
+  check('a storm costs more work than rain', g.workFactor < rainFactor);
+  check('a storm brakes the wheels', g.wheelsLocked === true);
+  g.weatherIdx = 1;
+  check('rain leaves the wheels turning', g.wheelsLocked === false);
 }
 
 // ---- the rising tide: floods, sinks goods, rescues smallies, then stops ----
@@ -419,8 +589,11 @@ function findLadderCells(g, count) {
   check('midday, the far ground is lit', g.isLit(35, 2) === true);
   check('the cycle clock starts at noon', Math.abs(g.timeOfDay - 12) < 0.001);
 
-  // run the clock forward ~10 game-hours (rate 0.05 h/s → 200s) into deep night
-  for (let i = 0; i < 800; i++) g.tick(0.25);
+  // run the clock forward ~10 game-hours into deep night. The rate is a balance
+  // knob (card #70 raised it from 0.05 to 0.09 h/s so the dark actually arrives
+  // inside a run), so derive the tick count from the level instead of pinning it.
+  const secsPerHour = 1 / g.level.dayNight.rate;
+  for (let i = 0; i < Math.round((10 * secsPerHour) / 0.25); i++) g.tick(0.25);
   check('the clock moved with the world', g.timeOfDay > 21 && g.timeOfDay < 23);
   check('night has fallen on the cycle', g.nightAmount() > 0.9);
   check('the far ground falls dark at night', g.isLit(35, 2) === false);

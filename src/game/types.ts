@@ -361,8 +361,53 @@ export interface WeatherPhase {
 
 // display names live in the i18n table: t(`weather.${kind}`)
 
-// Harvest progress multiplier while it rains or storms (wet axes bite slower).
-export const WET_WORK_FACTOR = 0.55;
+// ---- what a sky DOES ---------------------------------------------------------
+// One rule table, read by the sim AND by every readout that explains the sky to
+// the player (forecast strip, phase-change toast, machine status lines). Card
+// #70: the weather used to slow harvest by the same 0.55 whether it drizzled or
+// howled, and nothing on screen ever said so — so it was neither *felt* nor
+// *understood*. Now each kind carries its own, small, nameable set of rules:
+//
+//   rain  — wet axes bite slower. Nothing else. The gentle one.
+//   storm — much slower work, the wheels seize (cargo lift + counterweight
+//           hoist), and lantern pools pull in. The one you plan around.
+//
+// Deliberately NOT dimmed by weather: the town hall's and the caravan's own
+// fires. They are sheltered hearths (docs/CAMPAIGN2.md), and dimming them could
+// black out the home base mid-storm — pressure is good, losing your own yard is
+// not. Only the player's lanterns feel the wind.
+export interface WeatherRule {
+  work: number; // harvest progress multiplier (1 = full speed)
+  wheels: boolean; // false = cargo lift and hoist hold their brakes
+  lanternLight: number; // multiplier on a LANTERN's light radius
+}
+
+export const WEATHER_RULES: Record<WeatherKind, WeatherRule> = {
+  clear: { work: 1, wheels: true, lanternLight: 1 },
+  rain: { work: 0.7, wheels: true, lanternLight: 1 },
+  storm: { work: 0.4, wheels: false, lanternLight: 0.6 },
+};
+
+// The active rules as a display list, so the HUD never hand-maintains a second
+// copy of the numbers (they would drift the moment WEATHER_RULES is tuned).
+// `pct` is the whole-percent penalty a player reads — 30 for work 0.7. Labels
+// live in the i18n table: t(`wx.eff.${id}`), with {p} for the percentage.
+export interface WeatherEffect {
+  id: 'work' | 'wheels' | 'light' | 'flood' | 'none';
+  pct?: number;
+}
+
+export function weatherEffects(kind: WeatherKind, floodLevel = false): WeatherEffect[] {
+  const r = WEATHER_RULES[kind];
+  const out: WeatherEffect[] = [];
+  if (r.work < 1) out.push({ id: 'work', pct: Math.round((1 - r.work) * 100) });
+  if (!r.wheels) out.push({ id: 'wheels' });
+  if (r.lanternLight < 1) out.push({ id: 'light', pct: Math.round((1 - r.lanternLight) * 100) });
+  // the tide is a property of the LEVEL, not of the sky, so it is passed in
+  if (floodLevel && kind === 'rain') out.push({ id: 'flood' });
+  if (out.length === 0) out.push({ id: 'none' });
+  return out;
+}
 
 // Seconds to crossfade the weather visuals when a phase flips. Visual-only —
 // gameplay (workFactor, storm blow-off, flood rise) still flips at the boundary.

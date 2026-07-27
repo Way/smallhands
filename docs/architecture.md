@@ -32,6 +32,57 @@ and sweeps the tree, so a half-renamed pair fails loudly instead of shipping. Th
 always plural, so the guard reads any singular form of it as a creature reference the
 rename missed.
 
+## Level pressures & the difficulty curve (card #70)
+
+Every level shares one win condition — fill the caravan's order sheet — so **variety comes
+from the pressures a level switches on**, not from new goals. `LevelDef` carries them as
+optional fields, and each one is deterministic, visible and plannable (never a dice roll):
+
+| Field | Pressure | Reader |
+|---|---|---|
+| `weather` | looping `clear/rain/storm` schedule | `WEATHER_RULES` → `workFactor`, `wheelsLocked`, `lanternRadius` |
+| `flood` | rain raises the water table one row, forever | `riseWater()` |
+| `night` / `dayNight` / `startHour` | the light is a resource | `nightAmount()` → `isLit`, `darkBlocks` |
+| `convoy` | the caravan docks on a window: `{ open, closed }` | `convoyOpen` / `convoyRemaining` |
+| `toolLimit` | how many of a tool may **stand at once** | `toolRemaining(tool)` |
+
+Two rules keep these from turning into frustration, which is the failure mode the card was
+written against:
+
+- **A budget is a cap on what stands, not on what you ever spend.** Demolishing returns the
+  slot, so a mis-placed bridge is a mistake, never a softlock — but only for placements the
+  *player* made. That is what the `placedTiles` / `placedBuildings` ledger is for: a bare
+  clamp at zero is not the guarantee it looks like, because once any budget has been spent
+  there is room under the counter for level-authored terrain (an Ember Road adit ladder) to
+  refund into. Tiles are safe to track by cell because a built tile can only leave the world
+  through `demolish` — every placement path requires `T.AIR`, and digging skips built tiles.
+- **One predicate gates every placement.** `Game.canAttemptPlacement(tool, x, y)` owns the
+  tool-independent half — unlocked at this town-hall level, inside the budget, affordable
+  (with the ladder's log-or-plank exception), not refused for darkness — and each caller adds
+  only its own geometry. Seven ghost previews and four `place*` methods read it. They used to
+  re-list those checks by hand, which is exactly how the budget gate reached the workshop
+  preview and missed the lift, rope, hoist, bridge, ramp and ladder ones: a green outline
+  over a click the sim refuses. Add a new gate here, never at a call site.
+- `toolRemaining` also trims `runPlan`, the single source the ghost, the cursor readout and
+  the drop all read — a drag can never promise tiles the budget won't pay for. `dig` is
+  intentionally unbudgetable: its orders are painted and erased freely, so there is nothing
+  standing to count.
+- **A closed convoy stops dispatch, not cargo.** The planner simply doesn't route to the
+  goal while the caravan is away (`acceptingSinkCells` still lists it — that function
+  answers "could this item *ever* be carried there", and a dock window is transient, like
+  the keep floor). A hauler already walking still delivers on arrival.
+
+**Curve intent.** Campaign 1 must not out-length what follows it: levels 1–4 run roughly
+60 · 90 · 265 · 405 s of sim time in the scripted proofs, and each campaign rises to its own
+finale. Two spikes were caused by the same mistake — re-teaching the town-hall upgrade on a
+huge map with a level-1-sized crew — so levels 4 and 9 now open at `startThLevel: 2`. Each
+new pressure gets an **introduce → experiment → master** arc (the budget: 6 → 12 → 16; the
+convoy: 10 → 11 → 12), and the campaign proofs in `tests/campaign*.mjs` are the guard: they
+print each level's completion time, which is the only difficulty telemetry the repo has.
+Read those numbers before and after any retune. Assertions there (and in `tests/unit.mjs`)
+must derive from the level data — never pin an order amount or a phase duration, or the next
+balance pass fails a test that was only ever measuring a tuning knob.
+
 ## Placement models
 
 The sim (`src/game/sim.ts`) places things into the world through **three intentionally

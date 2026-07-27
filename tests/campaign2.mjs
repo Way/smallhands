@@ -196,11 +196,8 @@ const mark = (pred = () => true) => (g) => {
         when: (g) => g.stock.plank >= 5 && lReady(47, 20)(g),
         do: (g) => g.placeRampRun(49, 16, 45, 20) === 5,
       },
-      {
-        name: 'town hall 2',
-        when: (g) => g.stock.plank >= 8 && g.stock.stone >= 6,
-        do: (g) => g.startThUpgrade(),
-      },
+      // no town-hall upgrade step: the level starts at TH2 now (card #70), so the
+      // forge is legal from the first second and the crew can grow to nine
       { name: 'lantern: the iron, west', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 56, 15) },
       // doubles as the ramp-3 anchor light (reaches the summit edge at 71,11)
       { name: 'lantern: ramp-3 anchor', when: lanternAfford, do: (g) => g.placeBuilding('lantern', 67, 15) },
@@ -211,7 +208,7 @@ const mark = (pred = () => true) => (g) => {
       },
       {
         name: 'forge at base camp',
-        when: (g) => g.thLevel >= 2 && g.stock.plank >= 4 && g.stock.stone >= 4,
+        when: (g) => g.stock.plank >= 4 && g.stock.stone >= 4,
         do: (g) => g.placeBuilding('forge', 20, 24),
       },
       {

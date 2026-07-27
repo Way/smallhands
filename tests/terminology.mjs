@@ -57,6 +57,22 @@ check('DE keeps "Smallie" capitalised', deLower.length === 0, deLower.join(', ')
 const deTranslated = speciesKeys.filter(([, [, de]]) => /Kleinlinge|Kleine Helfer|Winzlinge/.test(de)).map(([k]) => k);
 check('DE keeps the loanword (not a translation)', deTranslated.length === 0, deTranslated.join(', '));
 
+// ------------------------------------------------- dual-consumer copy (card #70)
+// The wx.eff.* lines are rendered THREE ways: as innerHTML (the forecast rows),
+// inside a title="…" attribute in an innerHTML string (the next-phase chips), and
+// as a plain `.title` DOM property on the sky glyph. The first two are parsed as
+// HTML, the third is not — so an entity decodes twice and reads literally once
+// ("🔒 Lift &amp; hoist braked"), and a tag would survive as visible markup unless
+// every plain-text consumer strips it by hand. Neither is worth remembering, so
+// these strings are plain: no entities, no tags, correct in all three sinks.
+const wxEff = Object.entries(D).filter(([k]) => k.startsWith('wx.eff.'));
+check('the weather effect lines exist', wxEff.length >= 4, `${wxEff.length} keys`);
+const ENTITY = /&(?:[a-z]+|#\d+);/i;
+const encoded = wxEff.filter(([, [en, de]]) => ENTITY.test(en) || ENTITY.test(de)).map(([k]) => k);
+check('wx.eff.* carry no HTML entities (one consumer is a .title property)', encoded.length === 0, encoded.join(', '));
+const tagged = wxEff.filter(([, [en, de]]) => /<[^>]+>/.test(en) || /<[^>]+>/.test(de)).map(([k]) => k);
+check('wx.eff.* carry no HTML tags (same reason)', tagged.length === 0, tagged.join(', '));
+
 // ---------------------------------------------------------------- tree sweep
 // The product name is always PLURAL ("Smallhands"), so any singular "smallhand"
 // anywhere in the tree is a creature reference the rename missed. Dated design

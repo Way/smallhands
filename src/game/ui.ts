@@ -13,6 +13,7 @@ import {
   ROLES,
   TH_LEVELS,
   TOOL_DEFS,
+  weatherEffects,
   WX_ICON,
 } from './types';
 import type {
@@ -167,8 +168,15 @@ export class Hud {
   private reservePop: { item: ItemType; el: HTMLElement; refresh: () => void } | null = null;
   private wxNow: HTMLElement | null = null;
   private wxNext: HTMLElement | null = null;
+  private wxEff: HTMLElement | null = null;
   private wxSig = '';
   private objSum: HTMLElement | null = null;
+  // the caravan's dock window (LevelDef.convoy) — one live row under the order
+  private convoyRow: HTMLElement | null = null;
+  private convoySig = '';
+  // remaining-count badges for budgeted tools (LevelDef.toolLimit)
+  private toolLimits = new Map<Tool, HTMLElement>();
+  private toolLimitSig = '';
   private clockEl!: HTMLElement;
   private clockIcEl!: HTMLElement;
   private clockBoxEl!: HTMLElement;
@@ -253,6 +261,12 @@ export class Hud {
       row.onclick = () => this.cbs.onLocate(o.item);
       this.objRows.set(o.item, { row, cnt });
     }
+    // The caravan's dock window, right under the order it feeds — because it
+    // gates that order and nothing else (card #70). update() fills it.
+    if (this.game.level.convoy) {
+      this.convoyRow = el('div', 'convoy-row', obj);
+      this.convoyRow.title = t('convoy.title');
+    }
     this.collapsible(obj, h);
 
     // right column (right track): the crew panel — staff roles + Town-Hall
@@ -318,6 +332,12 @@ export class Hud {
       // name is too wide for the 52px button. The tooltip/confirm bar below
       // still carry the full `tool.<id>.label`.
       label.textContent = tOr(`tool.${def.id}.short`, `tool.${def.id}.label`);
+      // A budgeted tool (LevelDef.toolLimit) wears what it has left. The badge is
+      // the only place the cap is stated, so it exists from the first frame —
+      // a player must never discover a limit by having a drag come up short.
+      if (this.game.toolRemaining(def.id) !== null) {
+        this.toolLimits.set(def.id, el('span', 'tool-limit', btn));
+      }
       btn.onclick = () => this.cbs.onTool(def.id);
       // hover tooltips only where hover exists; on touch the confirm bar
       // carries the tool's name and costs instead
@@ -476,6 +496,11 @@ export class Hud {
       const row = el('div', 'wx-row', wxPop);
       this.wxNow = el('div', 'wx-now', row);
       this.wxNext = el('div', 'wx-next', row);
+      // What the sky is DOING, spelled out under the countdown (card #70): the
+      // forecast used to name the phase and never its consequence, so the rain
+      // read as decoration. Generated from WEATHER_RULES via weatherEffects, so
+      // the text can never drift from the numbers the sim actually applies.
+      this.wxEff = el('div', 'wx-eff', wxPop);
       if (this.game.level.flood) {
         const flood = el('div', 'wx-flood', wxPop);
         flood.title = t('wx.floodTitle');
@@ -519,6 +544,15 @@ export class Hud {
     desc.textContent = t(`tool.${def.id}.desc`);
     const recipe = RECIPES[def.id as BuildingKind];
     if (recipe) this.renderRecipe(tip, recipe);
+    // a budgeted tool states its remaining count in words, next to the badge's
+    // bare number — "3 of 8 left", so the number is never ambiguous
+    const left = this.game.toolRemaining(def.id);
+    if (left !== null) {
+      const cap = this.game.level.toolLimit?.[def.id] ?? 0;
+      const row = el('div', undefined, tip);
+      row.innerHTML = t(left === 0 ? 'tt.limitSpent' : 'tt.limitLeft', { n: left, cap });
+      if (left === 0) row.classList.add('insufficient');
+    }
     if (def.thLevel && this.game.thLevel < def.thLevel) {
       const req = el('div', undefined, tip);
       req.innerHTML = `<span class="insufficient">${t('tt.requiresTh', { n: def.thLevel })}</span>`;
@@ -816,8 +850,10 @@ export class Hud {
       for (const it of Object.keys(recipe.inputs) as ItemType[]) parts.push(b.inputs[it] ?? 0, b.inbound[it] ?? 0);
       for (const it of Object.keys(recipe.outputs) as ItemType[]) parts.push(b.outputs[it] ?? 0);
     }
-    if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY);
-    if (b.kind === 'rope') parts.push(b.ropeBottomY - b.y);
+    // the storm brake flips the lift's and the rope's status lines too — fold the
+    // lock into their signatures or an open readout freezes on the calm text
+    if (b.kind === 'lift') parts.push(b.liftBusy ? 'busy' : 'idle', b.y - b.liftTopY, g.wheelsLocked ? 'storm' : '-');
+    if (b.kind === 'rope') parts.push(b.ropeBottomY - b.y, g.wheelsLocked ? 'storm' : '-');
     // hoist: car weights, cycle/storm lock, and routing all drive the rendered
     // contents + status + chips — include them or the pinned/hover readout freezes
     if (b.kind === 'hoist')
@@ -825,10 +861,14 @@ export class Hud {
         carWeight(b.hoistUpper),
         carWeight(b.hoistLower),
         b.hoistBusy ? 'busy' : '-',
-        g.weather === 'storm' ? 'storm' : '-',
+        g.wheelsLocked ? 'storm' : '-',
         ITEM_TYPES.map((i) => (b.hoistSendDown[i] ? 'd' : '') + (b.hoistSendUp[i] ? 'u' : '')).join(',')
       );
-    if (b.kind === 'goal') for (const o of g.objectives) parts.push(o.delivered, o.amount);
+    if (b.kind === 'goal') {
+      for (const o of g.objectives) parts.push(o.delivered, o.amount);
+      // the caravan's dock line counts down inside the readout — per second
+      if (g.level.convoy) parts.push(g.convoyOpen ? 'in' : 'out', Math.ceil(g.convoyRemaining));
+    }
     return parts.join('|');
   }
 
@@ -959,7 +999,7 @@ export class Hud {
     carRow(t('hoist.bottom'), b.hoistLower);
     let status: string;
     if (b.hoistBusy) status = t('hoist.cycling');
-    else if (g.weather === 'storm') status = t('hoist.stormLocked');
+    else if (g.wheelsLocked) status = t('hoist.stormLocked');
     else if (carCount(b.hoistLower) > 0 && carWeight(b.hoistUpper) <= carWeight(b.hoistLower))
       status = t('hoist.needsBallast');
     else status = t('inspect.idle');
@@ -1029,15 +1069,28 @@ export class Hud {
     const g = this.game;
     if (b.kind === 'lift') {
       el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
-      el('div', 'tt-desc', tip).textContent = b.liftBusy ? t('inspect.carrying') : t('inspect.idle');
+      // the storm brake is the loudest thing that can be true of a lift — say it
+      // here too, not only on the hoist, or an idle car in a gale reads as a bug
+      el('div', 'tt-desc', tip).textContent = g.wheelsLocked
+        ? t('lift.stormLocked')
+        : b.liftBusy
+          ? t('inspect.carrying')
+          : t('inspect.idle');
     } else if (b.kind === 'rope') {
       el('div', 'tt-desc', tip).textContent = t('inspect.rope', { n: b.ropeBottomY - b.y });
+      // ropes are gravity, not machinery: the one route a storm cannot stop
+      if (g.wheelsLocked) el('div', 'tt-desc', tip).textContent = t('rope.stormFree');
     } else if (b.kind === 'goal') {
       const row = el('div', 'tt-cost', tip);
       for (const o of g.objectives) {
         const s = el('span', o.delivered >= o.amount ? 'delivered' : undefined, row);
         icon(ITEM_ICON[o.item], 14, s);
         el('b', undefined, s).textContent = `${o.delivered}/${o.amount}`;
+      }
+      if (g.level.convoy) {
+        el('div', 'tt-desc', tip).innerHTML = t(g.convoyOpen ? 'convoy.docked' : 'convoy.away', {
+          n: Math.max(0, Math.ceil(g.convoyRemaining)),
+        });
       }
     }
   }
@@ -1321,20 +1374,50 @@ export class Hud {
       const s = `${tot.d}/${tot.n}`;
       if (this.objSum.textContent !== s) this.objSum.textContent = s;
     }
-    // weather strip: current phase + countdown, then the next two phases
+    // weather strip: current phase + countdown, its effects, then the next two
     if (this.wxNow && g.weatherSchedule) {
       const rem = Math.max(0, Math.ceil(g.weatherRemaining));
       const sig = `${g.weatherIdx}:${rem}`;
       if (sig !== this.wxSig) {
         this.wxSig = sig;
         this.wxNow.innerHTML = `<span class="wx-ic">${WX_ICON[g.weather]}</span><span class="wx-name">${t(`weather.${g.weather}`)}</span><b>${rem}s</b>`;
+        const flood = !!g.level.flood;
+        const effs = weatherEffects(g.weather, flood);
+        if (this.wxEff) {
+          this.wxEff.innerHTML = effs
+            .map((e) => `<div class="wx-eff-row">${t(`wx.eff.${e.id}`, { p: e.pct ?? 0 })}</div>`)
+            .join('');
+        }
+        // The sky glyph's own tooltip says it too — the forecast is a popover, and
+        // a hover over the pill should already answer "why is the crew crawling?".
+        // NOTE this is a `.title` DOM property: nothing here is parsed as HTML, so
+        // the wx.eff.* strings must be plain text — no tags, no entities. That is
+        // not a convention to remember, it is pinned by tests/terminology.mjs.
+        this.clockIcEl.title = `${t(`weather.${g.weather}`)} · ${rem}s\n${effs
+          .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }))
+          .join('\n')}`;
         const sched = g.weatherSchedule;
         let html = `<span class="wx-then">${t('hud.then')}</span>`;
         for (let i = 1; i <= Math.min(2, sched.length - 1); i++) {
           const p = sched[(g.weatherIdx + i) % sched.length];
-          html += `<span class="wx-chip" title="${t(`weather.${p.kind}`)} · ${p.duration}s">${WX_ICON[p.kind]}<small>${p.duration}s</small></span>`;
+          // the chip's tooltip carries the same effect list, so a player can read
+          // what is COMING and plan the calm window rather than react to it
+          const eff = weatherEffects(p.kind, flood)
+            .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }))
+            .join(' · ');
+          html += `<span class="wx-chip" title="${t(`weather.${p.kind}`)} · ${p.duration}s — ${eff}">${WX_ICON[p.kind]}<small>${p.duration}s</small></span>`;
         }
         if (this.wxNext) this.wxNext.innerHTML = html;
+      }
+    }
+    // the caravan's dock window: docked (with the seconds left to load) or away
+    if (this.convoyRow) {
+      const rem = Math.max(0, Math.ceil(g.convoyRemaining));
+      const sig = `${g.convoyOpen ? 'o' : 'c'}:${rem}`;
+      if (sig !== this.convoySig) {
+        this.convoySig = sig;
+        this.convoyRow.classList.toggle('away', !g.convoyOpen);
+        this.convoyRow.innerHTML = t(g.convoyOpen ? 'convoy.docked' : 'convoy.away', { n: rem });
       }
     }
     this.workerPop.textContent = `${g.workers.length}/${g.maxWorkers}`;
@@ -1384,6 +1467,19 @@ export class Hud {
     // lock indicators on tool buttons
     for (const [id, btn] of this.toolBtns) {
       btn.classList.toggle('locked', !g.toolUnlocked(id));
+    }
+    // remaining budget on the limited tools — one signature over all of them, so
+    // laying a 6-tile bridge repaints the badges once, not six times
+    if (this.toolLimits.size > 0) {
+      const sig = [...this.toolLimits.keys()].map((id) => g.toolRemaining(id)).join(',');
+      if (sig !== this.toolLimitSig) {
+        this.toolLimitSig = sig;
+        for (const [id, badge] of this.toolLimits) {
+          const left = g.toolRemaining(id) ?? 0;
+          badge.textContent = String(left);
+          this.toolBtns.get(id)?.classList.toggle('spent', left === 0);
+        }
+      }
     }
     // a tapped-open panel (town hall / hoist) tracks live state here — it's
     // mobile's only readout, with no hover hint behind it. Drop the reference

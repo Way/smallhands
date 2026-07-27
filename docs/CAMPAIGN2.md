@@ -30,11 +30,33 @@ add randomness; all of them add *planning*.
 
 ### Dynamic weather (`LevelDef.weather`)
 - A looping schedule of `clear | rain | storm` phases; the HUD shows the
-  current phase, a countdown and the next two phases.
-- **Rain**: harvest work runs at 55 % speed (`WET_WORK_FACTOR`) — fell in the
-  sun, saw in the rain.
-- **Storm**: cargo lifts lock their brakes; nobody boards until the gust
-  passes (riders mid-ascent finish their trip). Trees thrash, clouds race.
+  current phase, a countdown, the next two phases — **and what each of them
+  costs you**, generated from the rule table so the text can never drift from
+  the numbers the sim applies.
+- Every rule lives in **`WEATHER_RULES`** (`src/game/types.ts`). Card #70
+  split rain and storm apart, because one shared 0.55 multiplier meant the two
+  skies were mechanically the same event with different art — nothing to feel,
+  nothing to plan:
+
+  | | harvest | wheels (lift + hoist) | lantern light |
+  |---|---|---|---|
+  | clear | full | turning | full |
+  | **rain** | −30 % | turning | full |
+  | **storm** | −60 % | **braked** | **−40 %** |
+
+- **Rain** is the gentle one and does exactly one thing — fell in the sun, saw
+  in the rain.
+- **Storm** is the one you plan around: work crawls, cargo lifts and
+  counterweight hoists lock their brakes (riders mid-ascent finish their trip),
+  and lantern pools visibly pull in — so a night storm shrinks the workable
+  world, not just its speed. Trees thrash, clouds race.
+- Two things deliberately **do not** bend to the weather: the town hall's and
+  the caravan's own fires (sheltered hearths — a gale must never black out the
+  home yard), and **ropes**, which are gravity rather than gears. The rope is
+  the storm-proof route, and finding that is the point.
+- `Game.wheelsLocked` and `Game.lanternRadius` are the single readers of the
+  table; `weatherEffects(kind, floodLevel)` is the single source for every
+  readout (forecast lines, the sky glyph's tooltip, the phase-change toast).
 
 ### The rising tide (`LevelDef.flood`)
 - In flood levels, **every rainfall raises the water table one row**, from
@@ -56,10 +78,10 @@ add randomness; all of them add *planning*.
 | # | Name | Teaches | Twist |
 | --- | --- | --- | --- |
 | 5 | The Ford | Water, bridge-or-lose-it | Goods sink; the caravan is across the river |
-| 6 | Monsoon Hollow | Forecast reading, rain slowdown | A pond blocks the road east |
+| 6 | Monsoon Hollow | Forecast reading, rain slowdown, **the tool budget** | A pond blocks the road east; six planks of bridge, no more |
 | 7 | Lantern Ridge | Night, lantern chains | Forge spears at the end of the light chain |
 | 8 | The Rising Tide | Flood pressure | Basin drowns first; bridge the new lake at shelf height |
-| 9 | Tempest Summit | Everything at once | Night ascent; storms idle the lifts, ramps keep walking |
+| 9 | Tempest Summit | Everything at once | Night ascent; storms idle the lifts *and gutter the lanterns*, ramps keep walking |
 
 All five are proven completable end-to-end by a scripted headless player on
 every run of `npm run test:campaign2`.

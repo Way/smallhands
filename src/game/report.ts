@@ -16,7 +16,7 @@
 // words are copied through verbatim in whatever language they typed.
 
 import { BUILD_TIME, ITEM_TYPES, NODE_YIELD, ROLES } from './types';
-import type { Building, BuildingKind, ItemType, Role } from './types';
+import type { Building, BuildingKind, ItemType, Role, Tool } from './types';
 import type { Game, Worker } from './sim';
 import {
   CONSTRUCTIBLE,
@@ -65,6 +65,8 @@ export interface ReportData {
     night: boolean;
     dayNightRate: number | null;
     flood: { start: number; min: number } | null;
+    convoy: { open: number; closed: number } | null;
+    toolLimit: Record<string, number> | null;
   };
   run: {
     seed: string; // replays this exact run: new Game(level, seed)
@@ -75,6 +77,11 @@ export interface ReportData {
     weather: string;
     weatherNext: string | null;
     weatherIn: number | null;
+    wheelsLocked: boolean;
+    lanternRadius: number;
+    convoyOpen: boolean;
+    convoyIn: number | null;
+    toolsLeft: Record<string, number> | null;
     waterRow: number | null;
     paused: boolean;
     won: boolean;
@@ -251,6 +258,8 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
       night: level.night === true,
       dayNightRate: level.dayNight?.rate ?? null,
       flood: level.flood ?? null,
+      convoy: level.convoy ? { ...level.convoy } : null,
+      toolLimit: level.toolLimit ? { ...(level.toolLimit as Record<string, number>) } : null,
     },
     run: {
       seed: game.seed,
@@ -261,6 +270,15 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
       weather: game.weather,
       weatherNext: nextPhase ? nextPhase.kind : null,
       weatherIn: Number.isFinite(game.weatherRemaining) ? round2(game.weatherRemaining) : null,
+      // what the sky is DOING right now, not just what it is called — a bug report
+      // about "the lift won't move" or "the lantern went dim" is unreadable without it
+      wheelsLocked: game.wheelsLocked,
+      lanternRadius: round2(game.lanternRadius),
+      convoyOpen: game.convoyOpen,
+      convoyIn: Number.isFinite(game.convoyRemaining) ? round2(game.convoyRemaining) : null,
+      toolsLeft: level.toolLimit
+        ? Object.fromEntries(Object.keys(level.toolLimit).map((k) => [k, game.toolRemaining(k as Tool) ?? -1]))
+        : null,
       waterRow: game.waterRow,
       paused: game.paused,
       won: game.won,

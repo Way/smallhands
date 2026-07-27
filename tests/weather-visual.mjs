@@ -104,7 +104,13 @@ try {
   check('sky darkens from clear baseline toward rain across the fade', clearR - hi.r >= 15);
   check('sky-R interpolates (>=8 distinct values, mids strictly between endpoints)', distinctR.size >= 8 && between >= 3);
   check('blend settled into rain (to=rain, t=1)', hi.to === 'rain' && hi.t >= 0.99);
-  check('workFactor flipped discretely 1 -> 0.55 (gameplay decoupled from the visual fade)', wfSeen.includes(1) && wfSeen.includes(0.55));
+  // The POINT is that gameplay flips discretely at the phase boundary while the
+  // visuals crossfade — exactly two values, never a ramp. The wet number itself is
+  // a balance knob (WEATHER_RULES, card #70), so assert the shape, not the value.
+  check(
+    `workFactor flipped discretely (${wfSeen.join(' -> ')}) — gameplay decoupled from the visual fade`,
+    wfSeen.length === 2 && wfSeen.includes(1) && wfSeen.some((v) => v > 0 && v < 1)
+  );
   check('no console errors', consoleErrors.length === 0);
   if (consoleErrors.length) console.log('  console errors:', consoleErrors.slice(0, 5));
 } catch (e) {
