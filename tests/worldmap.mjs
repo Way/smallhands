@@ -133,7 +133,19 @@ async function sweepPillFit(w, h) {
       // ...and must still be able to reveal that Play button
       p.scrollTop = p.scrollHeight;
       const play = p.querySelector('.pop-play').getBoundingClientRect();
+      // .level-card is a column flex container, so a height-capped pill shrinks
+      // its children rather than scrolling. `.lv-shot` hides its overflow, so it
+      // collapses to its border while the canvas paints outside and is clipped —
+      // a rect check on the pill sees nothing wrong, which is why this compares
+      // the frame against the picture it is supposed to be holding.
+      const wrap = p.querySelector('.lv-shot');
+      const img = p.querySelector('.lv-shot-img');
+      const cropped =
+        wrap && img
+          ? Math.round(img.getBoundingClientRect().height - wrap.getBoundingClientRect().height)
+          : 0;
       return {
+        cropped,
         out: Math.round(Math.max(clip.top - pr.top, pr.bottom - clip.bottom)),
         // horizontal too: place() clamps x in viewBox units, which says nothing
         // about CSS pixels once the map is wide enough to pan
@@ -143,6 +155,7 @@ async function sweepPillFit(w, h) {
       };
     }, i);
     if (!r) bad.push(`node ${i}: no popover`);
+    else if (r.cropped > 2) bad.push(`node ${i}: preview cropped by ${r.cropped}px`);
     else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside vertically`);
     else if (r.outX > 0) bad.push(`node ${i}: ${r.outX}px outside horizontally`);
     else if (!r.openedAtTop) bad.push(`node ${i}: opened scrolled past the preview`);
@@ -337,6 +350,46 @@ check('replay during a run asks before abandoning', !!(await page.$('.confirm-ov
 await page.click('.confirm-overlay .big-btn.secondary');
 await page.waitForTimeout(200);
 check('cancelling the abandon keeps the logbook open', !!(await page.$('.daily-drawer')));
+
+// ---- the phone sheet ----
+// Below 820px the pill becomes a bottom drawer, which fitPopover deliberately
+// never touches — it has always been allowed to scroll. That makes it the one
+// place where Play can legitimately start off-screen, so it needs its own pass:
+// the preview must not be cropped, and Play must be reachable. Landscape is the
+// tight case (a 390px-tall phone leaves the drawer ~230px) and it is exactly
+// where the preview pushed Play out of view.
+for (const [w, h] of [[844, 390], [390, 844]]) {
+  const phone = await browser.newPage({
+    viewport: { width: w, height: h },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  await phone.goto(BASE_URL);
+  await phone.click('.fd-play');
+  await phone.waitForTimeout(700);
+  await phone.click('.map-node:not(:disabled)');
+  await phone.waitForTimeout(250);
+  const s = await phone.evaluate(() => {
+    const p = document.querySelector('.map-popover');
+    if (!p) return null;
+    const wrap = p.querySelector('.lv-shot');
+    const img = p.querySelector('.lv-shot-img');
+    const pr = p.getBoundingClientRect();
+    const play = p.querySelector('.pop-play').getBoundingClientRect();
+    return {
+      sheet: p.classList.contains('sheet'),
+      cropped: Math.round(img.getBoundingClientRect().height - wrap.getBoundingClientRect().height),
+      shotH: Math.round(img.getBoundingClientRect().height),
+      playVisible: play.top >= pr.top - 1 && play.bottom <= pr.bottom + 1,
+    };
+  });
+  check(`${w}×${h} opens the level sheet`, s?.sheet === true);
+  check(`${w}×${h} sheet preview is not cropped`, !!s && s.cropped <= 2, `${s?.cropped}px hidden`);
+  check(`${w}×${h} sheet preview is a usable size`, !!s && s.shotH > 40, `${s?.shotH}px tall`);
+  check(`${w}×${h} sheet shows Play without hunting`, s?.playVisible === true);
+  await phone.close();
+}
 
 await browser.close();
 if (failures) {

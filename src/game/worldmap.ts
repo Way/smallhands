@@ -572,13 +572,22 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       // only run once the pill is in the DOM and has a measurable height
       fitPopover(pop);
     }
-    // preventScroll: Play is the pill's last child, so a plain focus() scrolls
-    // every scrollable ancestor to reveal it — the `.scrolls` pill itself (which
-    // would open past its own preview and name) and `.map-viewport`, whose pan
-    // would silently invalidate the fit just measured above. fitPopover owns
-    // both axes now, so there is nothing left for that scroll to rescue.
-    (pop.querySelector('.pop-play') as HTMLElement | null)?.focus({ preventScroll: true });
-    pop.scrollTop = 0;
+    const play = pop.querySelector('.pop-play') as HTMLElement | null;
+    if (pop.classList.contains('sheet')) {
+      // The phone sheet is a different animal: fitPopover never touches it, and
+      // it has always been allowed to scroll (`max-height: calc(100% - 160px)`).
+      // On a short landscape phone its content genuinely cannot fit, so the
+      // default focus scroll is the only thing bringing Play into view — keep it.
+      play?.focus();
+    } else {
+      // preventScroll on the anchored pill: Play is its last child, so a plain
+      // focus() scrolls every scrollable ancestor to reveal it — the `.scrolls`
+      // pill itself (which would open past its own preview and name) and
+      // `.map-viewport`, whose pan would silently invalidate the fit measured
+      // above. fitPopover owns both axes, so nothing is left for it to rescue.
+      play?.focus({ preventScroll: true });
+      pop.scrollTop = 0;
+    }
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && pop) {

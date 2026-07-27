@@ -1753,6 +1753,12 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
    pixels, which a scroll container would clip into stray squares. */
 .level-card.map-popover.scrolls { overflow-y: auto; overscroll-behavior: contain; }
 .level-card.map-popover.scrolls::after { content: none; }
+/* .level-card is a column flex container, so the moment a pill is height-capped
+   — the `.scrolls` pill above, or the phone sheet's `max-height` — its children
+   shrink to fit instead of overflowing, and nothing scrolls. `.lv-shot` is the
+   one that pays: it hides its overflow, so it collapses to its 2px border while
+   the canvas paints outside it and gets clipped. The same trap as .win-overlay. */
+.level-card.map-popover > * { flex-shrink: 0; }
 /* phone bottom drawer: the map pans on small screens, so a node-anchored
    bubble can sit half off-screen — the drawer slides up above the legend bar
    and is always fully visible (appended to the overlay, not the panning wrap) */
@@ -1768,6 +1774,12 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   animation: drawer-up 0.18s ease-out;
 }
 .map-popover.sheet .lv-name { padding-right: 40px; }
+/* The sheet is up to 440px wide, and the preview is sized by width, so left
+   alone it grows to ~205px tall — half the drawer on a landscape phone, and that
+   much further to scroll before reaching Play. Narrow the frame rather than
+   capping the canvas: a max-height on a replaced element does not feed back into
+   the wrapper's height, so the image would just paint past it. */
+.map-popover.sheet .lv-shot { max-width: 250px; margin: -2px auto 10px; }
 /* no gold corner-pixels on the drawer: on a full-width sheet the four floating
    squares read as stray artifacts rather than a frame */
 .level-card.map-popover.sheet::after { content: none; }
