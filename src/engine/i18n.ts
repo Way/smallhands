@@ -327,7 +327,12 @@ export const D: Record<string, [string, string]> = {
   // What the sky is doing to the crew, generated from WEATHER_RULES (card #70).
   // Short, one consequence per line — these are read at a glance mid-play.
   'wx.eff.work': ['🪓 Harvest −{p}%', '🪓 Ernte −{p} %'],
-  'wx.eff.wheels': ['🔒 Lift &amp; hoist braked', '🔒 Aufzug &amp; Seilrad gebremst'],
+  // Bare '&', never '&amp;': the wx.eff.* lines have TWO consumers with different
+  // decoding. The forecast rows and the chip's title= go through innerHTML (an
+  // entity would decode), but the sky glyph's tooltip is a `.title` DOM property
+  // assignment, where nothing decodes and '&amp;' would read literally. A plain
+  // '&' is correct in all three. See the tests/terminology.mjs guard.
+  'wx.eff.wheels': ['🔒 Lift & hoist braked', '🔒 Aufzug & Seilrad gebremst'],
   'wx.eff.light': ['🕯️ Lantern light −{p}%', '🕯️ Laternenlicht −{p} %'],
   'wx.eff.flood': ['🌊 The tide rises a step', '🌊 Die Flut steigt eine Stufe'],
   'wx.eff.none': ['✔ Everything at full speed', '✔ Alles mit voller Kraft'],

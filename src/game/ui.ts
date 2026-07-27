@@ -1388,10 +1388,13 @@ export class Hud {
             .map((e) => `<div class="wx-eff-row">${t(`wx.eff.${e.id}`, { p: e.pct ?? 0 })}</div>`)
             .join('');
         }
-        // the sky glyph's own tooltip says it too — the forecast is a popover, and
-        // a hover over the pill should already answer "why is the crew crawling?"
+        // The sky glyph's own tooltip says it too — the forecast is a popover, and
+        // a hover over the pill should already answer "why is the crew crawling?".
+        // NOTE this is a `.title` DOM property: nothing here is parsed as HTML, so
+        // the wx.eff.* strings must be plain text — no tags, no entities. That is
+        // not a convention to remember, it is pinned by tests/terminology.mjs.
         this.clockIcEl.title = `${t(`weather.${g.weather}`)} · ${rem}s\n${effs
-          .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }).replace(/<[^>]+>/g, ''))
+          .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }))
           .join('\n')}`;
         const sched = g.weatherSchedule;
         let html = `<span class="wx-then">${t('hud.then')}</span>`;
@@ -1400,7 +1403,7 @@ export class Hud {
           // the chip's tooltip carries the same effect list, so a player can read
           // what is COMING and plan the calm window rather than react to it
           const eff = weatherEffects(p.kind, flood)
-            .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }).replace(/<[^>]+>/g, ''))
+            .map((e) => t(`wx.eff.${e.id}`, { p: e.pct ?? 0 }))
             .join(' · ');
           html += `<span class="wx-chip" title="${t(`weather.${p.kind}`)} · ${p.duration}s — ${eff}">${WX_ICON[p.kind]}<small>${p.duration}s</small></span>`;
         }
