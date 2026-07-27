@@ -31,6 +31,7 @@
     "test:autopause": "node tests/autopause.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:drag-tooltip": "node tests/drag-tooltip.mjs",
+    "test:hover-tooltip": "node tests/hover-tooltip.mjs",
     "test:landing": "node tests/landing.mjs",
     "test:weather": "node tests/weather.mjs",
     "test:weather-visual": "node tests/weather-visual.mjs",

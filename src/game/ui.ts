@@ -157,6 +157,11 @@ export class Hud {
   private popovers: { pop: HTMLElement; trigger: HTMLElement }[] = [];
   private toastWrap!: HTMLElement;
   private tooltip: HTMLElement | null = null;
+  // the toolbar tooltip prices a tool against state that moves while it is open
+  // (stock, the tool budget, the town-hall level) — update() re-renders it on a
+  // signature, so it is kept, not rebuilt, when nothing changed
+  private tooltipTool: Tool | null = null;
+  private tooltipSig = '';
   private hint: HTMLElement | null = null;
   private hintSig = '';
   private needs: HTMLElement | null = null;
@@ -536,8 +541,23 @@ export class Hud {
 
   private showTooltip(tool: Tool, anchor: HTMLElement): void {
     this.hideTooltip();
-    const def = TOOL_DEFS.find((t) => t.id === tool)!;
     const tip = el('div', 'tooltip', this.root);
+    this.renderToolBody(tip, tool);
+    const r = anchor.getBoundingClientRect();
+    tip.style.left = `${Math.max(8, r.left + r.width / 2 - 100)}px`;
+    // anchored to the button's top edge, so a re-render grows or shrinks it
+    // upward and the tooltip never creeps over the chip it belongs to
+    tip.style.bottom = `${window.innerHeight - r.top + 8}px`;
+    this.tooltip = tip;
+    this.tooltipTool = tool;
+    this.tooltipSig = this.toolTipSig(tool);
+  }
+
+  // Everything the toolbar tooltip states about a tool: what it is, what it makes,
+  // how much of its budget is left, whether the town hall is high enough yet, and
+  // what it costs — the cost numbers red while stock is short of them.
+  private renderToolBody(tip: HTMLElement, tool: Tool): void {
+    const def = TOOL_DEFS.find((t) => t.id === tool)!;
     const title = el('div', undefined, tip);
     title.innerHTML = `<b>${t(`tool.${def.id}.label`)}</b>`;
     const desc = el('div', 'tt-desc', tip);
@@ -566,15 +586,22 @@ export class Hud {
         n.textContent = String(v);
       }
     }
-    const r = anchor.getBoundingClientRect();
-    tip.style.left = `${Math.max(8, r.left + r.width / 2 - 100)}px`;
-    tip.style.bottom = `${window.innerHeight - r.top + 8}px`;
-    this.tooltip = tip;
+  }
+
+  // Every value renderToolBody colours or counts. Anything added there that can
+  // change while the tooltip is open belongs here too, or the readout goes stale.
+  private toolTipSig(tool: Tool): string {
+    const g = this.game;
+    const def = TOOL_DEFS.find((t) => t.id === tool)!;
+    const cost = def.cost ? Object.keys(def.cost).map((k) => g.stock[k as ItemType]) : [];
+    return [tool, g.thLevel, g.toolRemaining(tool) ?? '-', ...cost].join('|');
   }
 
   private hideTooltip(): void {
     this.tooltip?.remove();
     this.tooltip = null;
+    this.tooltipTool = null;
+    this.tooltipSig = '';
   }
 
   private refreshKeepBadge(item: ItemType): void {
@@ -1478,6 +1505,22 @@ export class Hud {
           const left = g.toolRemaining(id) ?? 0;
           badge.textContent = String(left);
           this.toolBtns.get(id)?.classList.toggle('spent', left === 0);
+        }
+      }
+    }
+    // the toolbar's hover tooltip prices its tool against stock, its budget and
+    // the town-hall gate — all three move under a resting cursor, and a player
+    // hovering a tool they cannot yet afford is precisely the one waiting for
+    // them to move. Same signature dedup, so the panel doesn't churn.
+    if (this.tooltip && this.tooltipTool) {
+      if (!this.tooltip.isConnected) {
+        this.hideTooltip(); // torn out from under us (level restart) — drop it
+      } else {
+        const sig = this.toolTipSig(this.tooltipTool);
+        if (sig !== this.tooltipSig) {
+          this.tooltipSig = sig;
+          this.tooltip.innerHTML = '';
+          this.renderToolBody(this.tooltip, this.tooltipTool);
         }
       }
     }
