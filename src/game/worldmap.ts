@@ -493,8 +493,17 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   // at 1280×720, seven of the seventeen pills lost their preview and name off the
   // top. So flip by measurement, then nudge, then — only if the pill genuinely
   // cannot fit — let it scroll.
+  //
+  // Both axes, deliberately. `place()` clamps x too, but in *viewBox* units,
+  // which says nothing about CSS pixels once the map is wider than its viewport
+  // and pans (`minMapW` is 900 on fine pointers, 1280 on coarse): a pill
+  // anchored near the visible edge is centred on its node and hangs half of its
+  // 250px outside. Letting the browser's focus scroll-into-view rescue that
+  // instead would pan the whole map out from under the player *and* invalidate
+  // the vertical fit measured here, so this owns both directions.
   const fitPopover = (el: HTMLElement): void => {
     el.style.marginTop = '';
+    el.style.marginLeft = '';
     el.style.maxHeight = '';
     el.classList.remove('scrolls');
     const clip = viewport.getBoundingClientRect();
@@ -511,16 +520,17 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       el.style.maxHeight = `${Math.round(room)}px`;
       el.classList.add('scrolls');
     }
+    // nudge on both axes. Leading edge wins when the pill is bigger than the box:
+    // seeing the preview and the name beats seeing the status line.
     const r = el.getBoundingClientRect();
-    const dy =
-      r.top < clip.top + POP_GUTTER
-        ? clip.top + POP_GUTTER - r.top
-        : r.bottom > clip.bottom - POP_GUTTER
-          ? clip.bottom - POP_GUTTER - r.bottom
-          : 0;
+    const nudge = (near: number, far: number, lo: number, hi: number): number =>
+      near < lo + POP_GUTTER ? lo + POP_GUTTER - near : far > hi - POP_GUTTER ? hi - POP_GUTTER - far : 0;
+    const dy = nudge(r.top, r.bottom, clip.top, clip.bottom);
+    const dx = nudge(r.left, r.right, clip.left, clip.right);
     // margin, not transform: the transform slot is already carrying the
     // centring and the above/below flip.
     if (dy) el.style.marginTop = `${Math.round(dy)}px`;
+    if (dx) el.style.marginLeft = `${Math.round(dx)}px`;
   };
 
   const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
@@ -562,9 +572,11 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       // only run once the pill is in the DOM and has a measurable height
       fitPopover(pop);
     }
-    // preventScroll: Play is the pill's last child, so on a `.scrolls` pill a
-    // plain focus() opens it scrolled to the bottom, with the preview and the
-    // level name already off-view above.
+    // preventScroll: Play is the pill's last child, so a plain focus() scrolls
+    // every scrollable ancestor to reveal it — the `.scrolls` pill itself (which
+    // would open past its own preview and name) and `.map-viewport`, whose pan
+    // would silently invalidate the fit just measured above. fitPopover owns
+    // both axes now, so there is nothing left for that scroll to rescue.
     (pop.querySelector('.pop-play') as HTMLElement | null)?.focus({ preventScroll: true });
     pop.scrollTop = 0;
   };

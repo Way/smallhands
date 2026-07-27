@@ -120,7 +120,11 @@ async function sweepPillFit(w, h) {
     const r = await page.evaluate(() => {
       const p = document.querySelector('.map-popover');
       if (!p) return null;
-      const clip = document.querySelector('.overlay.worldmap').getBoundingClientRect();
+      // .map-viewport, not .overlay.worldmap: the overlay also spans the topbar
+      // above and the legend below, so measuring it would pass a pill parked
+      // under the topbar — clipped in exactly the way this is guarding against.
+      // This is the same box fitPopover fits to.
+      const clip = document.querySelector('.map-viewport').getBoundingClientRect();
       const pr = p.getBoundingClientRect();
       // A scrollable pill must OPEN at the top: focusing Play — the last child —
       // would otherwise scroll the preview and the name out of view before the
@@ -131,12 +135,16 @@ async function sweepPillFit(w, h) {
       const play = p.querySelector('.pop-play').getBoundingClientRect();
       return {
         out: Math.round(Math.max(clip.top - pr.top, pr.bottom - clip.bottom)),
+        // horizontal too: place() clamps x in viewBox units, which says nothing
+        // about CSS pixels once the map is wide enough to pan
+        outX: Math.round(Math.max(clip.left - pr.left, pr.right - clip.right)),
         playIn: play.top >= clip.top - 1 && play.bottom <= clip.bottom + 1,
         openedAtTop,
       };
     }, i);
     if (!r) bad.push(`node ${i}: no popover`);
-    else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside`);
+    else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside vertically`);
+    else if (r.outX > 0) bad.push(`node ${i}: ${r.outX}px outside horizontally`);
     else if (!r.openedAtTop) bad.push(`node ${i}: opened scrolled past the preview`);
     else if (!r.playIn) bad.push(`node ${i}: Play unreachable`);
     await page.keyboard.press('Escape');
@@ -149,6 +157,10 @@ await sweepPillFit(1280, 720);
 // 420 tall is short enough that the pills genuinely overflow their measured
 // max-height — the only size where the scroll path is more than decorative.
 await sweepPillFit(900, 420);
+// 860 is the one band on a fine pointer where the map pans horizontally: past
+// the 820 sheet breakpoint, but under the 900 minimum render width. That pan is
+// what makes the x axis a real case rather than a theoretical one.
+await sweepPillFit(860, 700);
 await page.setViewportSize({ width: 1440, height: 860 });
 await page.waitForTimeout(250);
 

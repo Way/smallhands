@@ -34,7 +34,7 @@ import { dailySeed, generateVerifiedLevel, randomSeed } from './game/generator';
 import { dailyLog, dailyStats, dailyStrip } from './game/dailylog';
 import type { DailyLogEntry } from './game/dailylog';
 import { buildWorldMap } from './game/worldmap';
-import { SHOT_FULL, SHOT_THUMB, renderMapShot } from './game/mapshot';
+import { SHOT_CARD, SHOT_FULL, SHOT_THUMB, renderMapShot } from './game/mapshot';
 import {
   CAN_DOWNLOAD,
   CAN_COPY_IMAGE,
@@ -1042,7 +1042,8 @@ function buildCeremony(ov: HTMLElement): void {
 // is a moment, not a structure.
 function buildSolutionShot(cer: HTMLElement): void {
   const g = game!;
-  const canvasShot = renderMapShot(g, { ...SHOT_FULL, hideParticles: true });
+  const shotOpts = { hideParticles: true };
+  const canvasShot = renderMapShot(g, { ...SHOT_CARD, ...shotOpts });
   if (!canvasShot) return;
 
   const fig = document.createElement('div');
@@ -1081,21 +1082,29 @@ function buildSolutionShot(cer: HTMLElement): void {
     return b;
   };
 
-  // Exported at full size, not at whatever the overlay happens to show — the
-  // file is the artefact, the on-screen frame is just the preview of it.
+  // Exported at full size, not at the size the overlay happens to show — the
+  // file is the artefact, the on-screen frame is only a preview of it. Drawn on
+  // the first export and not before: `g` is captured and its world is frozen
+  // (Game.tick short-circuits on `won`), so the picture is the same whenever it
+  // is taken, and the player who just hits Next Level never pays for it.
   //
-  // Encoded at most once. Nothing redraws the canvas after renderMapShot
-  // returns, and on a big map toDataURL plus dataUrlToBlob's per-character walk
-  // over a multi-megabyte base64 string is real work to be doing synchronously
-  // inside a click. `??=` deliberately retries after a null: a toDataURL that
-  // lost to memory pressure once may well succeed on the next press.
+  // Then encoded at most once — on a big map toDataURL plus dataUrlToBlob's
+  // per-character walk over a multi-megabyte base64 string is real work to be
+  // doing synchronously inside a click — and the full-size canvas is dropped as
+  // soon as its pixels live in the blob, so a second Save is instant and holds
+  // a few hundred kB rather than ten megabytes. A failed encode keeps the canvas
+  // for a retry: memory pressure passes.
   const stem = () => fileStem('solution', t(g.level.name), new Date().toISOString());
-  let url: string | null = null;
+  let full: HTMLCanvasElement | null = null;
   let blob: Blob | null = null;
   const png = (): Blob | null => {
-    url ??= canvasDataUrl(canvasShot);
+    if (blob) return blob;
+    full ??= renderMapShot(g, { ...SHOT_FULL, ...shotOpts });
+    if (!full) return null;
+    const url = canvasDataUrl(full);
     if (!url) return null;
-    blob ??= dataUrlToBlob(url);
+    blob = dataUrlToBlob(url);
+    full = null;
     return blob;
   };
 
@@ -1125,7 +1134,11 @@ function buildSolutionShot(cer: HTMLElement): void {
           status.textContent = t('win.shot.failed');
           return;
         }
-        status.textContent = (await copyImage(body)) ? t('win.shot.copied') : t('win.shot.copyFailed');
+        // the copy-failed line sends the player to Save PNG, so only say it
+        // when that button is actually on screen
+        status.textContent = (await copyImage(body))
+          ? t('win.shot.copied')
+          : t(CAN_DOWNLOAD ? 'win.shot.copyFailed' : 'win.shot.failed');
       })();
     });
   }

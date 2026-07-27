@@ -34,6 +34,13 @@ export const SHOT_FULL: MapShotOptions = { maxW: 2048, maxH: 1400, maxZoom: 2 };
 // on a 2× screen.
 export const SHOT_THUMB: MapShotOptions = { maxW: 512, maxH: 320, maxZoom: 2 };
 
+// The win screen's on-screen frame. Bigger than a popover thumb — the plate is
+// up to ~464 CSS px wide — but nowhere near SHOT_FULL, which for a 60×40 level
+// is a 1920×1280 canvas (~10 MB of backing store) hung in the DOM to be
+// composited down to a 160px strip. The export renders SHOT_FULL on demand
+// instead, so only players who actually save or share pay for it.
+export const SHOT_CARD: MapShotOptions = { maxW: 1024, maxH: 420, maxZoom: 2 };
+
 export function renderMapShot(game: Game, opts: MapShotOptions = {}): HTMLCanvasElement | null {
   const maxW = opts.maxW ?? 2048;
   const maxH = opts.maxH ?? 1400;
