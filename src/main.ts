@@ -1909,6 +1909,33 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 });
 
+// The cursor cost readout under the hovered cell: the tool's shortfall badge, or
+// the "too dark to build here" note when darkness is what reddens the ghost.
+//
+// Driven from pointermove AND from frame(), because the thing it reports on moves
+// on its own: the player parks the cursor over the spot and waits for the crew to
+// deliver, and a badge that only re-reads stock on pointermove keeps saying "3/5
+// planks" long after the fifth plank landed. The ghost overlay already recomputes
+// per frame, so the pair would also disagree — a green outline over a red badge.
+// The drag-run total is refreshed the same way, for the same reason (see frame()).
+// Both readouts dedup on a content signature, so a per-frame call rebuilds no DOM
+// unless the numbers actually changed.
+function refreshPlacementReadout(): void {
+  // touch has no hover: the parked aim ghost reports through the confirm bar
+  if (touchPlace) return;
+  if (runAnchor && game && running) {
+    hud?.hidePlacementNeeds(); // a run drag shows its running total instead
+    return;
+  }
+  hud?.hideRunCost();
+  if (!dragging && game && running && hover.visible) {
+    // Darkness trumps the resource readout: if the ghost is red for being unlit,
+    // say so — otherwise spell out any shortfall.
+    if (game.darkBlocks(hover.tool, hover.tx, hover.ty)) hud?.showDarkNeed(lastMx, lastMy);
+    else hud?.showPlacementNeeds(lastMx, lastMy, hover.tool);
+  } else hud?.hidePlacementNeeds();
+}
+
 canvas.addEventListener('pointermove', (e) => {
   const dpr = canvasDpr();
   if (e.pointerType === 'touch' && touchPts.has(e.pointerId)) {
@@ -1981,21 +2008,7 @@ canvas.addEventListener('pointermove', (e) => {
   } else {
     hud?.hideBuildingHint();
   }
-  // cursor cost readout: during a drag-run the run's running total is refreshed
-  // every frame (see frame()) so it tracks live stock even while the cursor is
-  // held still — here we only clear the placement badge. Otherwise, while
-  // placing a cost-bearing tool, spell out any shortfall.
-  if (runAnchor && game && running) {
-    hud?.hidePlacementNeeds();
-  } else {
-    hud?.hideRunCost();
-    if (!dragging && game && running) {
-      // Darkness trumps the resource readout: if the ghost is red for being unlit,
-      // say so — otherwise spell out any shortfall.
-      if (game.darkBlocks(hover.tool, hover.tx, hover.ty)) hud?.showDarkNeed(e.clientX, e.clientY);
-      else hud?.showPlacementNeeds(e.clientX, e.clientY, hover.tool);
-    } else hud?.hidePlacementNeeds();
-  }
+  refreshPlacementReadout();
   if (editor.active) editor.setHover(t.x, t.y, true);
 });
 
@@ -2448,6 +2461,9 @@ function frame(now: number): void {
     const plan = game.runPlan(runAnchor.tool, runAnchor.x, runAnchor.y, hover.tx, hover.ty);
     hud?.showRunCost(lastMx, lastMy, plan.rows, runAnchor.tool);
   }
+  // …and the hover readout the same way, so a shortfall badge under a still
+  // cursor clears itself the moment the crew delivers what it was asking for.
+  refreshPlacementReadout();
 
   // Touch surfaces track live state the same way: the confirm bar's costs and
   // the tap-to-inspect tooltip re-render only when their signatures change.
