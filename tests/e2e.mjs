@@ -126,6 +126,28 @@ if (shotProblems.length) {
   await browser.close();
   process.exit(1);
 }
+
+// The status line is a live region shared by Save / Copy / Share, so each action
+// must clear it before starting: otherwise the previous action's result stands
+// while this one is in flight, or beside a share the player cancelled. Not
+// timing-sensitive — the handler yields at its first await, so reading straight
+// after the click always observes the cleared state.
+const stale = await page.evaluate(async () => {
+  const copy = document.querySelector('.ws-copy');
+  if (!copy) return null; // no ClipboardItem on this browser; nothing to check
+  copy.click();
+  await new Promise((r) => setTimeout(r, 400));
+  const settled = document.querySelector('.ws-status').textContent;
+  copy.click();
+  const during = document.querySelector('.ws-status').textContent;
+  return { settled, during };
+});
+if (stale && (!stale.settled.trim() || stale.during !== '')) {
+  console.error(`FAIL: win snapshot — status line not cleared between actions (${JSON.stringify(stale)})`);
+  await browser.close();
+  process.exit(1);
+}
+
 console.log(`[win-shot] ok — ${shot.colors} colours, ${shot.actions} actions, "${shot.caption}"`);
 
 // ---- Level 2: cargo lift + ladder logistics up a cliff ----------------------

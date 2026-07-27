@@ -1076,6 +1076,12 @@ function buildSolutionShot(cer: HTMLElement): void {
     b.textContent = label;
     b.onclick = () => {
       audio.click();
+      // Each action speaks for itself. Otherwise the previous one's line stands
+      // while this one is still in flight — a "Sent to your downloads." sitting
+      // next to a share the player just cancelled, since a cancelled share
+      // deliberately says nothing — and re-assigning identical text is not
+      // reliably re-announced, so clearing is what makes a second Save audible.
+      status.textContent = '';
       fn();
     };
     row.appendChild(b);
