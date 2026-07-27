@@ -192,7 +192,15 @@ and builds a level's shot the first time its popover opens; `worldmap.ts` only t
 dep, so the map screen stays free of `Game` and `Renderer`. Rendering every level up front
 would cost a Game and an offscreen draw apiece for pictures nobody asked to see, and the world
 map is opened far more often than any single node. No seed is passed, so `Game` falls back to
-`level.id` and a preview is the same picture on every visit.
+`level.id` and the *world* in a preview is identical every time — the picture is not quite, since
+`Renderer` seeds its clouds from `Math.random()` per instance (legitimately `ENTROPY_OK`), so the
+sky differs between sessions. The cache is what holds a preview still within one.
+
+The pill's height therefore varies with the level's aspect ratio, which is why `fitPopover` in
+`worldmap.ts` decides the above/below flip by **measuring** rather than by the old `at.y < 470`
+threshold: `.overlay.worldmap` is `overflow: hidden`, so a pill that misses the visible box is
+silently cut off rather than scrollable. Measured before the fix, seven of the seventeen pills lost
+their preview and name off the top at 1280×720.
 
 **The win snapshot is view-once.** It is not written to the save: `save.records` lives in
 localStorage next to the custom levels, and a PNG per level would eat a real fraction of a

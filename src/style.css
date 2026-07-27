@@ -1748,6 +1748,11 @@ div.level-card { cursor: pointer; font: inherit; color: inherit; text-align: inh
   background-repeat: no-repeat;
 }
 .level-card.map-popover.below { transform: translate(-50%, 30px); }
+/* Last resort from fitPopover(): a pill taller than the map's visible box gets a
+   measured max-height and scrolls. Like the phone sheet it drops the gold corner
+   pixels, which a scroll container would clip into stray squares. */
+.level-card.map-popover.scrolls { overflow-y: auto; overscroll-behavior: contain; }
+.level-card.map-popover.scrolls::after { content: none; }
 /* phone bottom drawer: the map pans on small screens, so a node-anchored
    bubble can sit half off-screen — the drawer slides up above the legend bar
    and is always fully visible (appended to the overlay, not the panning wrap) */

@@ -689,8 +689,15 @@ function bootDaily(d: { seed: string; label: string; difficulty: number }): void
 // map opens would cost a Game and an offscreen draw apiece for pictures nobody
 // asked to see, and the map is opened far more often than any single node.
 //
-// No seed is passed, so Game falls back to the level's own id: a preview is the
-// same picture on every visit instead of re-rolling its idle strolls each time.
+// No seed is passed, so Game falls back to the level's own id and the *world* is
+// identical every time. The picture is not quite: Renderer seeds its clouds from
+// Math.random() per instance, so the sky differs between sessions — the cache is
+// what holds a preview still within one.
+//
+// Keyed by String(def.id) and never evicted: 17 campaign levels at SHOT_THUMB is
+// a few megabytes of backing store at worst. If custom levels ever get previews,
+// this needs a namespaced key — their ids are strings and could collide with a
+// campaign level's number — and probably an eviction policy.
 const previewCache = new Map<string, HTMLCanvasElement | null>();
 
 function levelPreview(def: LevelDef): HTMLCanvasElement | null {
@@ -1072,19 +1079,32 @@ function buildSolutionShot(cer: HTMLElement): void {
 
   // Exported at full size, not at whatever the overlay happens to show — the
   // file is the artefact, the on-screen frame is just the preview of it.
+  //
+  // Encoded at most once. Nothing redraws the canvas after renderMapShot
+  // returns, and on a big map toDataURL plus dataUrlToBlob's per-character walk
+  // over a multi-megabyte base64 string is real work to be doing synchronously
+  // inside a click. `??=` deliberately retries after a null: a toDataURL that
+  // lost to memory pressure once may well succeed on the next press.
   const stem = () => fileStem('solution', t(g.level.name), new Date().toISOString());
-  const png = (): string | null => canvasDataUrl(canvasShot);
+  let url: string | null = null;
+  let blob: Blob | null = null;
+  const png = (): Blob | null => {
+    url ??= canvasDataUrl(canvasShot);
+    if (!url) return null;
+    blob ??= dataUrlToBlob(url);
+    return blob;
+  };
 
   if (CAN_DOWNLOAD) {
     // Stays synchronous inside the click: deferring past the gesture is what
     // gets a generated download blocked.
     act(t('win.shot.save'), 'ws-save', () => {
-      const url = png();
-      if (!url) {
+      const body = png();
+      if (!body) {
         status.textContent = t('win.shot.failed');
         return;
       }
-      downloadAll([{ name: `${stem()}.png`, body: dataUrlToBlob(url) }]);
+      downloadAll([{ name: `${stem()}.png`, body }]);
       // "Sent", not "saved": the page issues the download and cannot observe
       // whether the browser accepted it.
       status.textContent = t('win.shot.saved');
@@ -1093,9 +1113,9 @@ function buildSolutionShot(cer: HTMLElement): void {
 
   if (CAN_COPY_IMAGE) {
     act(t('win.shot.copy'), 'ws-copy', () => {
-      const url = png();
+      const body = png();
       void (async () => {
-        const ok = url ? await copyImage(dataUrlToBlob(url)) : false;
+        const ok = body ? await copyImage(body) : false;
         status.textContent = ok ? t('win.shot.copied') : t('win.shot.copyFailed');
       })();
     });
@@ -1110,13 +1130,13 @@ function buildSolutionShot(cer: HTMLElement): void {
     const probe = new File([new Uint8Array(1)], 'probe.png', { type: 'image/png' });
     if (canShareFiles([probe])) {
       act(t('win.shot.share'), 'ws-share', () => {
-        const url = png();
+        const body = png();
         void (async () => {
-          if (!url) {
+          if (!body) {
             status.textContent = t('win.shot.failed');
             return;
           }
-          const file = new File([dataUrlToBlob(url)], `${stem()}.png`, { type: 'image/png' });
+          const file = new File([body], `${stem()}.png`, { type: 'image/png' });
           const res = await shareFiles([file], {
             title: t('win.shot.shareTitle'),
             text: t('win.shot.cap', { name: t(g.level.name), time: fmtTime(g.time) }),
@@ -1276,9 +1296,11 @@ function attachHud(): void {
       setSpeed(0);
       running = false;
       clearOverlay();
-      // Loaded on demand. The report and its offscreen renderer are dead weight
-      // for every player who never files one, and this is a menu click — there
-      // is no frame budget to protect here.
+      // Loaded on demand. The offscreen renderer itself is no longer the saving
+      // — mapshot.ts is in the main chunk now that previews and the win shot
+      // need it — but the report's own overlay, form and markdown formatter are
+      // still dead weight for every player who never files one, and this is a
+      // menu click with no frame budget to protect.
       const { showReportOverlay } = await import('./game/report-ui');
       // Two fast clicks can both get here while the chunk loads; without this
       // the second stacks a duplicate overlay on the first.

@@ -29,8 +29,8 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
 let failures = 0;
-const check = (name, cond) => {
-  console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}`);
+const check = (name, cond, detail = '') => {
+  console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${!cond && detail ? ` — ${detail}` : ''}`);
   if (!cond) failures++;
 };
 
@@ -98,6 +98,51 @@ await page.waitForTimeout(150);
 check('preview survives a reopen', !!(await page.$('.map-popover .lv-shot-img')));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(150);
+
+// ---- every pill lands inside the map, at every size ----
+// `.overlay.worldmap` is overflow:hidden, so a pill that misses its visible box
+// is silently cut off — no scrollbar, no error, just a missing Play button or a
+// missing name. The preview made the pills ~100px taller and broke seven of
+// seventeen at 1280×720 before fitPopover measured the flip. Only one node is
+// unlocked on a fresh profile, so the rest are enabled by hand: `disabled` gates
+// the pointer, not the click handler the popover hangs off.
+async function sweepPillFit(w, h) {
+  await page.setViewportSize({ width: w, height: h });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    for (const n of document.querySelectorAll('.map-node')) n.disabled = false;
+  });
+  const n = await page.$$eval('.map-node', (els) => els.length);
+  const bad = [];
+  for (let i = 0; i < n; i++) {
+    await page.evaluate((i) => document.querySelectorAll('.map-node')[i].click(), i);
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => {
+      const p = document.querySelector('.map-popover');
+      if (!p) return null;
+      const clip = document.querySelector('.overlay.worldmap').getBoundingClientRect();
+      const pr = p.getBoundingClientRect();
+      // a pill allowed to scroll must still be able to reveal its Play button
+      p.scrollTop = p.scrollHeight;
+      const play = p.querySelector('.pop-play').getBoundingClientRect();
+      return {
+        out: Math.round(Math.max(clip.top - pr.top, pr.bottom - clip.bottom)),
+        playIn: play.top >= clip.top - 1 && play.bottom <= clip.bottom + 1,
+      };
+    }, i);
+    if (!r) bad.push(`node ${i}: no popover`);
+    else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside`);
+    else if (!r.playIn) bad.push(`node ${i}: Play unreachable`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(40);
+  }
+  check(`every pill fits the map at ${w}×${h}`, bad.length === 0, bad.slice(0, 4).join('; '));
+}
+await sweepPillFit(1280, 720);
+// short enough that no pill can fit whole — the measured max-height + scroll path
+await sweepPillFit(900, 560);
+await page.setViewportSize({ width: 1440, height: 860 });
+await page.waitForTimeout(250);
 
 // ---- daily logbook: empty on a fresh profile ----
 await page.click('.map-daily');

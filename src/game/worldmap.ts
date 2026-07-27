@@ -80,6 +80,10 @@ export interface WorldMapDeps {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// Breathing room kept between an anchored level pill and the edge of the map's
+// visible box, so a nudged pill reads as placed rather than jammed.
+const POP_GUTTER = 10;
+
 function svgEl<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string> = {}
@@ -335,6 +339,10 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       return;
     }
     fit();
+    // an open pill was fitted against the *old* visible box — measure it again.
+    // Safe to reach `pop` here: a ResizeObserver callback never runs during the
+    // synchronous body below, where the binding is still in its dead zone.
+    if (pop && !pop.classList.contains('sheet')) fitPopover(pop);
   });
   ro.observe(viewport);
   fit();
@@ -475,6 +483,46 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
     popAnchor?.focus();
     popAnchor = null;
   };
+  // Keep an anchored pill inside the map's visible box.
+  //
+  // The pill is positioned from its node in viewBox units, but its *height* is
+  // CSS pixels — and since it carries a map preview (card #72) that height now
+  // varies with the level's aspect ratio, so the `at.y < 470` flip guess can no
+  // longer promise it lands on screen. `.overlay.worldmap` is `overflow: hidden`,
+  // so anything that misses is silently cut off rather than scrollable: measured
+  // at 1280×720, seven of the seventeen pills lost their preview and name off the
+  // top. So flip by measurement, then nudge, then — only if the pill genuinely
+  // cannot fit — let it scroll.
+  const fitPopover = (el: HTMLElement): void => {
+    el.style.marginTop = '';
+    el.style.maxHeight = '';
+    el.classList.remove('scrolls');
+    const clip = viewport.getBoundingClientRect();
+    const fits = (): boolean => {
+      const r = el.getBoundingClientRect();
+      return r.top >= clip.top && r.bottom <= clip.bottom;
+    };
+    if (!fits()) {
+      el.classList.toggle('below');
+      if (!fits()) el.classList.toggle('below'); // neither side fits — keep the first
+    }
+    const room = clip.height - 2 * POP_GUTTER;
+    if (el.getBoundingClientRect().height > room) {
+      el.style.maxHeight = `${Math.round(room)}px`;
+      el.classList.add('scrolls');
+    }
+    const r = el.getBoundingClientRect();
+    const dy =
+      r.top < clip.top + POP_GUTTER
+        ? clip.top + POP_GUTTER - r.top
+        : r.bottom > clip.bottom - POP_GUTTER
+          ? clip.bottom - POP_GUTTER - r.bottom
+          : 0;
+    // margin, not transform: the transform slot is already carrying the
+    // centring and the above/below flip.
+    if (dy) el.style.marginTop = `${Math.round(dy)}px`;
+  };
+
   const openPopover = (anchor: HTMLElement, at: Pt, fill: (card: HTMLElement) => void) => {
     closeDrawer(); // popover, drawer and logbook are mutually exclusive
     closeLogbook();
@@ -510,6 +558,9 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       place(pop, { x: Math.min(Math.max(at.x, 170), VIEW_W - 170), y: at.y });
       fill(pop);
       wrap.appendChild(pop);
+      // the flip above is the opening guess; this is the correction, and it can
+      // only run once the pill is in the DOM and has a measurable height
+      fitPopover(pop);
     }
     (pop.querySelector('.pop-play') as HTMLElement | null)?.focus();
   };
