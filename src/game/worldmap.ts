@@ -562,7 +562,11 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
       // only run once the pill is in the DOM and has a measurable height
       fitPopover(pop);
     }
-    (pop.querySelector('.pop-play') as HTMLElement | null)?.focus();
+    // preventScroll: Play is the pill's last child, so on a `.scrolls` pill a
+    // plain focus() opens it scrolled to the bottom, with the preview and the
+    // level name already off-view above.
+    (pop.querySelector('.pop-play') as HTMLElement | null)?.focus({ preventScroll: true });
+    pop.scrollTop = 0;
   };
   ov.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && pop) {

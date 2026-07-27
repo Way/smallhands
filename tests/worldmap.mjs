@@ -122,16 +122,22 @@ async function sweepPillFit(w, h) {
       if (!p) return null;
       const clip = document.querySelector('.overlay.worldmap').getBoundingClientRect();
       const pr = p.getBoundingClientRect();
-      // a pill allowed to scroll must still be able to reveal its Play button
+      // A scrollable pill must OPEN at the top: focusing Play — the last child —
+      // would otherwise scroll the preview and the name out of view before the
+      // player has seen either.
+      const openedAtTop = p.scrollTop === 0;
+      // ...and must still be able to reveal that Play button
       p.scrollTop = p.scrollHeight;
       const play = p.querySelector('.pop-play').getBoundingClientRect();
       return {
         out: Math.round(Math.max(clip.top - pr.top, pr.bottom - clip.bottom)),
         playIn: play.top >= clip.top - 1 && play.bottom <= clip.bottom + 1,
+        openedAtTop,
       };
     }, i);
     if (!r) bad.push(`node ${i}: no popover`);
     else if (r.out > 0) bad.push(`node ${i}: ${r.out}px outside`);
+    else if (!r.openedAtTop) bad.push(`node ${i}: opened scrolled past the preview`);
     else if (!r.playIn) bad.push(`node ${i}: Play unreachable`);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(40);
@@ -139,8 +145,10 @@ async function sweepPillFit(w, h) {
   check(`every pill fits the map at ${w}×${h}`, bad.length === 0, bad.slice(0, 4).join('; '));
 }
 await sweepPillFit(1280, 720);
-// short enough that no pill can fit whole — the measured max-height + scroll path
-await sweepPillFit(900, 560);
+// 900px wide keeps the desktop pill (the phone sheet takes over at 820), and
+// 420 tall is short enough that the pills genuinely overflow their measured
+// max-height — the only size where the scroll path is more than decorative.
+await sweepPillFit(900, 420);
 await page.setViewportSize({ width: 1440, height: 860 });
 await page.waitForTimeout(250);
 

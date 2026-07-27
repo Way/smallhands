@@ -104,6 +104,8 @@ const shot = await page.evaluate(async () => {
     worldRatio: g.world.w / g.world.h,
     colors,
     caption: document.querySelector('.ws-cap')?.textContent ?? '',
+    // a figcaption only names its figure when it is a direct child of one
+    captionBound: document.querySelector('.ws-cap')?.parentElement?.tagName === 'FIGURE',
     actions: document.querySelectorAll('.ws-btn').length,
     lookLeft: g.lookEvents.length,
   };
@@ -115,6 +117,7 @@ if (Math.abs(shot.ratio - shot.worldRatio) > 0.05) {
   shotProblems.push(`snapshot is not the whole map (${shot.ratio} vs world ${shot.worldRatio})`);
 }
 if (!shot.caption.trim()) shotProblems.push('snapshot has no caption');
+if (!shot.captionBound) shotProblems.push('caption is not a direct child of its figure');
 // headless Chromium supports downloads, so at least Save PNG must be offered
 if (shot.actions < 1) shotProblems.push('snapshot offers no way to keep it');
 if (shot.lookLeft !== 0) shotProblems.push('live renderer stopped draining lookEvents');

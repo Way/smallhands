@@ -1045,9 +1045,13 @@ function buildSolutionShot(cer: HTMLElement): void {
   const canvasShot = renderMapShot(g, { ...SHOT_FULL, hideParticles: true });
   if (!canvasShot) return;
 
-  const fig = document.createElement('figure');
+  const fig = document.createElement('div');
   fig.className = 'win-shot';
-  const frame = document.createElement('div');
+  // The <figure> is the framed plate itself, so the caption stays a direct child
+  // of it — a figcaption nested one div deeper is invalid and buys nothing over
+  // two plain divs. The export buttons live outside the figure: they are chrome
+  // for the picture, not part of it.
+  const frame = document.createElement('figure');
   frame.className = 'ws-frame';
   canvasShot.className = 'ws-img';
   canvasShot.setAttribute('role', 'img');
@@ -1115,8 +1119,13 @@ function buildSolutionShot(cer: HTMLElement): void {
     act(t('win.shot.copy'), 'ws-copy', () => {
       const body = png();
       void (async () => {
-        const ok = body ? await copyImage(body) : false;
-        status.textContent = ok ? t('win.shot.copied') : t('win.shot.copyFailed');
+        // A failed encode is not a failed clipboard: "use Save PNG instead"
+        // would send the player to a button that fails identically.
+        if (!body) {
+          status.textContent = t('win.shot.failed');
+          return;
+        }
+        status.textContent = (await copyImage(body)) ? t('win.shot.copied') : t('win.shot.copyFailed');
       })();
     });
   }
