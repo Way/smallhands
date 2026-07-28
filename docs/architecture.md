@@ -83,6 +83,60 @@ Read those numbers before and after any retune. Assertions there (and in `tests/
 must derive from the level data — never pin an order amount or a phase duration, or the next
 balance pass fails a test that was only ever measuring a tuning knob.
 
+Campaign 5 (ids 18–22) adds **no pressure at all** — every field it uses already existed — so
+its arc is built out of *pairings none of the earlier campaigns made*, and `flood` × `dig` is
+the one it exists for. Its proofs run 154 · 241 · 129 · 190 · 408 s. Level 20 is a deliberate
+dip rather than a regression: what escalates across the campaign is the number of schedules a
+player must read at once (one, then two, then three), and the finale is still the longest run
+in the game outside campaign 2's summit. `tests/campaign5.mjs` therefore prints **two** numbers
+per level — the completion time and the wall-clock of the first rise — because `flood.min` and
+the rain cadence are coupled, and a level whose tide lands after the sheet is already full has
+lost the thing it was built to show (the level-17 mistake, in a new costume).
+
+## The rising tide (cards #70, #75)
+
+`flood` was a campaign-2 mechanic that only ever met open meadow. Campaign 5 digs into it, and
+two rules had to exist before "a mine on the water's clock" was true rather than decorative.
+Both live in `sim.ts`, and each is one line away from silently un-teaching its own level:
+
+- **`openCell` — a cell opened at or below the table fills with water, not air.** `riseWater`
+  converts what is air *at the instant of a rise*, so without this a gallery cut open after the
+  last rain stayed permanently dry and the winning move on every flood level was to sit out the
+  weather and then mine in peace. With it the rule is one sentence — **you cannot dig below the
+  water table** — and it enforces itself: a shaft driven past the line fills as it is cut, and
+  water is not `isSolid`, so it is not diggable and nothing drains a lake. It is the single
+  path by which the world gains empty space after the level is built (a Digger finishing a
+  tile, a demolish), which is why both callers route through it.
+- **`sweepTile` — timber standing in a flooding row is swept away.** A `LADDER` cell is
+  passable and a smallie standing on one is not "in water", so a laddered shaft used to be a
+  dry corridor through the lake and a laddered gallery let a crew mine below the table for
+  ever. The sweep **deletes the cell's `placedTiles` entry** so a `toolLimit` slot comes back:
+  `toolRemaining` counts what stands through that ledger, and sweeping without clearing it
+  spends a slot for ever, which is a genuine softlock. No material refund — the water keeps
+  wood exactly as it keeps goods. Authored tiles are swept and credit nothing, the same
+  asymmetry `demolish` has.
+
+Consequently a budgeted tile now leaves the world by **two** paths, `demolish` and the sweep,
+and both clear the ledger. Nothing else can: every placement path requires `T.AIR` and digging
+skips built tiles.
+
+**Authoring a flood level** (both asserted from level data by `tests/campaign5.mjs`, because
+each is a softlock that never throws):
+
+1. **The town hall, the caravan, and the row each RESTS ON must stay above `flood.min`.** The
+   footprint alone is not enough — water is not `isSupport`, so flooding the support row stops
+   the floor being standable and the dock becomes unreachable. A buried caravan needs its floor
+   *and* the rock under it dry.
+2. **The order sheet must be fillable from above the final waterline, with margin.** A drowned
+   hauler's load is gone, so an exact-fit sheet softlocks on one mistake. Deep seams are the
+   fast route and the medal route, never the only route.
+
+Two hazards found while tuning campaign 5, neither of which throws: a **two-deep scrape strands
+its digger** (it stands in the cell it opens, so the second cut drops it into a trench whose lip
+has lost its support, and an unstandable lip cannot be stepped onto), and the **keep floor
+starves machines** — `spare()` gates every autonomous consumer, so banking stone to protect a
+hoist's ballast also stops haulers loading it into the cars.
+
 ## Placement models
 
 The sim (`src/game/sim.ts`) places things into the world through **three intentionally

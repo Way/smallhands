@@ -107,7 +107,7 @@ export const S: Record<string, Str> = {
     'Wo die Flut steigt, hebt jeder Regenguss das Wasser um eine Stufe, und es sinkt nie wieder. Es schluckt tiefen Grund, versenkt liegengelassene Waren und spült watende Smallies nach Hause. Sei schneller als das Wasser.',
   ],
   contentHead: ['Everything in the box', 'Was in der Kiste steckt'],
-  feat1: ['4 hand-crafted campaigns · 17 levels', '4 handgemachte Kampagnen · 17 Level'],
+  feat1: ['5 hand-crafted campaigns · 22 levels', '5 handgemachte Kampagnen · 22 Level'],
   feat2: ['Meadows, cliffs, rising floods & mine shafts', 'Wiesen, Klippen, steigende Fluten & Stollen'],
   feat3: ['Living day-night cycle, rain, storms & lanterns', 'Lebendiger Tag-Nacht-Zyklus, Regen, Stürme & Laternen'],
   feat4: ['Level editor + generator, 6 landscapes', 'Level-Editor + Generator, 6 Landschaften'],

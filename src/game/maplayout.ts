@@ -93,6 +93,41 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
       { x: 985, y: 808 },
     ],
   },
+  {
+    campaign: 5,
+    nameKey: 'map.terr5',
+    // The drowned coast: the south-west sea, the lowest land on the map. The band of
+    // open water here is the tightest on the board — Home Meadows' belly hangs to
+    // y≈686 and the legend divider crosses at y≈849 — so this island is wider and
+    // flatter than its neighbours rather than being squeezed into a circle.
+    outline:
+      'M 158 820 C 166 768 250 742 340 748 C 430 754 500 776 492 828 C 484 880 380 894 288 886 C 210 879 150 872 158 820 Z',
+    // 33 units of water above the rim, matching campaign 4's gap. Both halves of the
+    // clearance matter and neither is obvious from the numbers: too high and the
+    // dashed underline prints into Home Meadows' belly, too low and it prints onto
+    // this island's own rim (which is what shipped first — the underline ran across
+    // the shore and behind level 20's flag).
+    label: { x: 325, y: 712 },
+    badge: { x: 325, y: 820 },
+    // Play order runs anticlockwise from the EAST shore, because the journey line
+    // arrives from campaign 4's last node at (915, 838): entering on the near shore
+    // keeps that hop a short run of open water south of Home Meadows instead of a
+    // diagonal across it. From 18 the trail climbs the top (19), crosses west (20),
+    // drops down the west flank (21) and returns along the bottom (22) — a C that
+    // never crosses itself. The 6th slot is unused headroom.
+    //
+    // Every slot sits a full node's height inside the rim: a pin is a ~26-unit circle
+    // with a flag rising ~30 above it, so a slot placed on the outline reads as a
+    // level standing in the sea.
+    nodes: [
+      { x: 444, y: 826 },
+      { x: 386, y: 802 },
+      { x: 300, y: 800 },
+      { x: 224, y: 818 },
+      { x: 302, y: 860 },
+      { x: 390, y: 858 },
+    ],
+  },
 ];
 
 // The daily-challenge lighthouse island: a fixed landmark, not a campaign.

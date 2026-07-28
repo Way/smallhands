@@ -1309,4 +1309,509 @@ export const LEVELS: LevelDef[] = [
     ],
     camera: { x: 8, y: 16 },
   },
+
+  // ---- Campaign 5 — Deep & Drowning ------------------------------------------
+  // Water and digging have never met: campaign 2 flooded a meadow, campaign 4 dug
+  // a dry mine. Here the water table sits INSIDE the rock and every rainfall raises
+  // it one row, so a gallery is not something you build, it is something you
+  // borrow. Two sim rules carry the whole campaign (both in sim.ts, card #75):
+  //
+  //   · A cell opened at or below the table fills as it is cut (`openCell`), so
+  //     **you cannot dig below the water table** — the shaft stops itself, and
+  //     water is not diggable, so nothing ever drains a lake.
+  //   · Timber standing in a flooding row is swept away (`sweepTile`), so a
+  //     laddered shaft is not a dry corridor through the lake.
+  //
+  // Authoring rules, both asserted from the level data by tests/campaign5.mjs
+  // because both are silent softlocks:
+  //   1. The town hall, the caravan and the rows they are approached along stay
+  //      ABOVE `flood.min`. riseWater does not spare building cells.
+  //   2. The order sheet must be fillable from above the final waterline. A deep
+  //      seam is the FAST route and the medal route — never the only route.
+  {
+    id: 18,
+    campaign: 5,
+    name: 'lvl18.name',
+    desc: 'lvl18.desc',
+    width: 56,
+    height: 26,
+    biome: 'redrock',
+    objectives: [
+      { item: 'iron', amount: 16 },
+      { item: 'stone', amount: 18 },
+    ],
+    medals: { gold: 240, silver: 360, bronze: 560 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'lift', 'dig', 'demolish'],
+    // two shovels: a digger keeps its shovel for good, so the spare is only there
+    // to cover a second digger — never a softlock, as in level 15
+    startStock: { log: 4, plank: 6, stone: 4, shovel: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    // Rains at t≈100 and 165, then the schedule loops (285, 350…). The first calm
+    // has to be long enough to sink a shaft, drive a ten-tile drift through rock and
+    // raise a lift — roughly 70s of digging — or the deep ore is a tease rather than
+    // a decision. The 45s gap between the first two rains is deliberate: a scripted
+    // run finishes in ~180s, so BOTH of the meaningful rises land inside a good
+    // playthrough instead of one arriving after the sheet is already full.
+    weather: [
+      { kind: 'clear', duration: 100 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 20 },
+    ],
+    // Three rises: 23 (the deep drift, t≈100), 22 (the shaft below the mid drift,
+    // t≈165) and 21 (the mid drift itself, t≈285). The scrape at row 18 is above the
+    // ceiling and therefore safe for ever — that is the level's guarantee.
+    flood: { start: 23, min: 21 },
+    build: (g) => {
+      // Flat redrock ground with two very different sources of iron: a shallow
+      // scrape you can always work, and a deep drift that pays triple and drowns.
+      // The shallow veins sit in the first solid row, so a single dig from the
+      // surface opens them and the ore steps UP one tile to the ground — free,
+      // both empty and loaded. The drift at row 23 needs a shaft, a tunnel and a
+      // Cargo Lift standing on the shaft floor, campaign 4's own move (level 14).
+      //
+      // And that floor is row 23 — the row the water takes. A lift CANNOT be
+      // parked one row higher to dodge it: liftTopFor needs a standable base, and
+      // the cell above the floor is standing on air the moment the floor is dug.
+      // So the whole wheel is on the drift's clock with the ore, which is the
+      // level's lesson: how deep you commit is how much you can lose. Nothing is
+      // trapped — the scrape needs no machine at all.
+      terrain(g, runs([[8, 56]])); // ground from row 18; rock 21–24, bedrock 25
+      townhall(g, 3);
+      goal(g, 50); // the caravan waits east, a long haul from the west quarry
+      tree(g, 8);
+      tree(g, 10);
+      tree(g, 12);
+      boulder(g, 15);
+      boulder(g, 17);
+      boulder(g, 19);
+      boulder(g, 21);
+      boulder(g, 23);
+      // The shallow scrape (row 18): 20 iron in five single-cell digs, above the
+      // ceiling and safe for ever. A miner stands IN the opened cell to work the vein
+      // and the ore steps up to the surface — no machine anywhere. This is the slog
+      // that guarantees the sheet, and the reason the drifts are allowed to be lethal.
+      g.addNode('vein', 26, 18);
+      g.addNode('vein', 28, 18);
+      g.addNode('vein', 30, 18);
+      g.addNode('vein', 32, 18);
+      g.addNode('vein', 34, 18);
+      // the mid drift (row 21): 8 iron, drowns on the third rise (t≈310)
+      g.addNode('vein', 41, 21);
+      g.addNode('vein', 44, 21);
+      // the deep drift (row 23): 12 iron, drowns on the FIRST rise (t≈100)
+      g.addNode('vein', 41, 23);
+      g.addNode('vein', 44, 23);
+      g.addNode('vein', 47, 23);
+    },
+    hints: [
+      {
+        id: 'table',
+        text: 'lvl18.hint.table',
+        when: () => true,
+      },
+      {
+        id: 'wheel',
+        text: 'lvl18.hint.wheel',
+        when: (g) => g.workers.some((w) => w.cy >= 22),
+      },
+      {
+        id: 'risen',
+        text: 'lvl18.hint.risen',
+        when: (g) => g.waterRow !== null,
+      },
+    ],
+    camera: { x: 6, y: 10 },
+  },
+  {
+    id: 19,
+    campaign: 5,
+    name: 'lvl19.name',
+    desc: 'lvl19.desc',
+    width: 64,
+    height: 28,
+    biome: 'redrock',
+    objectives: [
+      { item: 'iron', amount: 8 },
+      { item: 'stone', amount: 12 },
+    ],
+    medals: { gold: 380, silver: 540, bronze: 840 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'lift', 'dig', 'demolish'],
+    startStock: { log: 6, plank: 6, stone: 4, shovel: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    weather: [
+      { kind: 'clear', duration: 90 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'clear', duration: 50 },
+      { kind: 'rain', duration: 20 },
+    ],
+    // Four rises — 26, 25, 24, 23 — so the lower gallery (row 25) goes under on the
+    // SECOND rain while the upper (row 22) is above the ceiling and safe for ever.
+    flood: { start: 26, min: 23 },
+    build: (g) => {
+      // Level 18 gave one drift and one clock. This one gives two galleries at two
+      // depths and ONE wheel (toolLimit) — so the level is a question about order:
+      // the lower gallery is where the stone is, and it is the one the water takes.
+      // Sink both shafts early, quarry the deep one first, then MOVE the wheel up to
+      // the shallow shaft when the tide arrives. A demolished lift hands back both
+      // its slot and half its materials, which is what makes the move affordable.
+      terrain(g, runs([[9, 64]])); // ground from row 19; rock 22–26, bedrock 27
+      townhall(g, 3);
+      goal(g, 56);
+      tree(g, 8);
+      tree(g, 10);
+      tree(g, 12);
+      // dry stone on the surface: the slow guarantee for the stone half of the sheet
+      boulder(g, 15);
+      boulder(g, 17);
+      boulder(g, 19);
+      // the upper gallery (row 22, west shaft at x26): iron, above the ceiling
+      g.addNode('vein', 29, 22);
+      g.addNode('vein', 32, 22);
+      g.addNode('vein', 35, 22);
+      // the lower gallery (row 25, east shaft at x42): the stone, on the tide's clock
+      g.addNode('boulder', 45, 25);
+      g.addNode('boulder', 48, 25);
+      g.addNode('boulder', 51, 25);
+    },
+    // One wheel for two shafts. Not a restriction so much as the level's question:
+    // which gallery is worth the mast right now, and when do you carry it upstairs?
+    toolLimit: { lift: 1 },
+    hints: [
+      {
+        id: 'two',
+        text: 'lvl19.hint.two',
+        when: () => true,
+      },
+      {
+        id: 'move',
+        text: 'lvl19.hint.move',
+        when: (g) => g.waterRow !== null && g.waterRow <= 25,
+      },
+    ],
+    camera: { x: 6, y: 12 },
+  },
+  {
+    id: 20,
+    campaign: 5,
+    name: 'lvl20.name',
+    desc: 'lvl20.desc',
+    width: 64,
+    height: 30,
+    biome: 'redrock',
+    objectives: [
+      { item: 'iron', amount: 24 },
+      { item: 'stone', amount: 20 },
+    ],
+    medals: { gold: 210, silver: 310, bronze: 500 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'hoist', 'dig', 'demolish'],
+    // Four iron, not the one the wheel costs: iron is ALSO an order item, so the
+    // caravan starts shipping the stockpile on the first tick. A level whose core
+    // machine costs an order item has to leave slack for that, or the player watches
+    // their hoist money roll away before they can spend it (the keep floor is the
+    // other half of the answer, and the level's first hint says so).
+    startStock: { log: 6, plank: 6, stone: 4, iron: 4, shovel: 2 },
+    // A small crew on purpose: a plateau this compact fills the sheet off the dry
+    // scrape alone if it is over-staffed, and the basin never gets a look in. One of
+    // each trade is still the floor, though — a level that shows trees and ships
+    // `0/0 Woodcutters` reads as an oversight, and spare spawns all become haulers.
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    // A rainy sky, and deliberately rainier than the tide needs: only the first
+    // three rains raise anything (the table stops at 21), so every one after that is
+    // pure weather — wet axes, slower work, a longer run. That is the cheap way to
+    // give a compact map a real length without inflating the order sheet.
+    weather: [
+      { kind: 'clear', duration: 60 },
+      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 25 },
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 25 },
+    ],
+    // Three rises against a STEPPED basin, so the quarry drowns from its middle
+    // outward instead of all at once: 23 takes the deep floor (t≈60), 22 the two
+    // benches (t≈130), 21 the cliff foot (t≈200) — which is the hoist's own lower
+    // station, and the moment the wheel becomes an ornament.
+    flood: { start: 23, min: 21 },
+    build: (g) => {
+      // The counterweight hoist, on a clock. The whole crew lives up on the dry
+      // plateau; the rich ore lies in a basin below, and a wheel on the cliff edge
+      // brings it up on plateau-stone ballast (level 11's lesson, level 16's move).
+      //
+      // What is new is that the wheel has a SHELF LIFE. A machine's geometry is
+      // measured once, at placement, and never re-measured — so as the water climbs
+      // the basin, the cars keep swinging while the lower station itself turns to
+      // lake, and the last thing the hoist does is drop ballast into water, where it
+      // is gone for good. Read the forecast and know when to stop feeding it.
+      terrain(
+        g,
+        runs([
+          [8, 8], // the cliff-foot bench, west — stand row 21, drowns last
+          [7, 8], // a step down — stand row 22
+          [6, 12], // the deep basin floor — stand row 23, drowns FIRST
+          [7, 6], // back up a step
+          [8, 6], // the cliff foot proper — the hoist's lower station
+          [16, 24], // the plateau: town, caravan, ballast, and the dry scrape
+        ])
+      );
+      // The caravan docks AT THE CLIFF TOP, one tile from where the hoist sets its
+      // load down, and the dry scrape is banished to the far east end. That is what
+      // makes the wheel worth building rather than decorative: the basin's ore
+      // arrives at the caravan's door, the safe ore is an eighteen-tile carry.
+      goal(g, 41);
+      townhall(g, 45);
+      tree(g, 50);
+      tree(g, 52);
+      // Ballast stone — which the order also wants, so the wheel and the caravan
+      // compete for it; that is the level's second decision, and the keep floor is
+      // how it is settled. Five boulders (20 stone) against an 8-stone sheet: the
+      // margin has to be wide, because a hoist with no ballast is a hoist that never
+      // turns, and the caravan will happily ship the last stone out from under it.
+      boulder(g, 50);
+      boulder(g, 53);
+      boulder(g, 56);
+      boulder(g, 59);
+      boulder(g, 61);
+      boulder(g, 63);
+      // The dry scrape: 16 iron in the FIRST solid row, one dig per vein, and its
+      // slowness is the eighteen-tile carry back to the cliff — never depth. A
+      // two-deep scrape would strand the digger: it stands on the cell it is opening,
+      // so the second cut drops it into a trench whose lip has nothing left holding
+      // it up, and nothing but a ladder gets it out again (see docs/architecture.md).
+      // (never the last column — the world edge is undiggable, so a vein there
+      // could never be opened)
+      g.addNode('vein', 49, 14);
+      g.addNode('vein', 52, 14);
+      g.addNode('vein', 55, 14);
+      g.addNode('vein', 58, 14);
+      g.addNode('vein', 60, 14);
+      g.addNode('vein', 62, 14);
+      g.addNode('vein', 47, 14);
+      // the basin's open ore, drowning in three waves — deep floor first
+      g.addNode('vein', 18, 23);
+      g.addNode('vein', 21, 23);
+      g.addNode('vein', 24, 23);
+      g.addNode('vein', 10, 22);
+      g.addNode('vein', 30, 22);
+      g.addNode('vein', 36, 21);
+    },
+    toolLimit: { hoist: 1 },
+    hints: [
+      {
+        id: 'wheel',
+        text: 'lvl20.hint.wheel',
+        when: () => true,
+      },
+      {
+        id: 'ballast',
+        text: 'lvl20.hint.ballast',
+        when: (g) => g.hoists.some((b) => b.state === 'ready'),
+      },
+      {
+        id: 'bilge',
+        text: 'lvl20.hint.bilge',
+        when: (g) => g.waterRow !== null,
+      },
+    ],
+    camera: { x: 30, y: 14 },
+  },
+  {
+    id: 21,
+    campaign: 5,
+    name: 'lvl21.name',
+    desc: 'lvl21.desc',
+    width: 68,
+    height: 30,
+    biome: 'redrock',
+    objectives: [
+      { item: 'plank', amount: 12 },
+      { item: 'stone', amount: 12 },
+      { item: 'iron', amount: 4 },
+    ],
+    medals: { gold: 300, silver: 430, bronze: 680 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'rope', 'hoist', 'dig', 'demolish'],
+    startStock: { log: 4, plank: 4, stone: 4, iron: 2, shovel: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    // Storms, and enough of them to matter: every wheel in the level holds its brake
+    // while one blows (WEATHER_RULES), and only the rain phases move the table.
+    weather: [
+      { kind: 'clear', duration: 70 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'storm', duration: 25 },
+      { kind: 'clear', duration: 45 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'storm', duration: 30 },
+    ],
+    // Three rises: 26, 25, 24. The ceiling stops at 24 for a reason that is easy to
+    // get wrong — the vault's floor is row 22, but the row it RESTS on is 23, and
+    // water is not support (`isSupport`). Flood row 23 and the gallery floor stops
+    // being standable, so the caravan becomes unreachable and the level is lost with
+    // no warning. Hence the campaign's first authoring invariant, and hence the
+    // caravan's own row plus the row under it both staying above the ceiling.
+    flood: { start: 26, min: 24 },
+    build: (g) => {
+      // The caravan is walled into the deep (level 15's shape), so DELIVERIES RUN
+      // DOWNHILL — and that is the only direction a rope carries cargo. This is the
+      // level that finally teaches what campaign 2 only wrote down: a storm brakes
+      // every wheel in the world, and a rope is not a wheel. It is gravity. Hang a
+      // Counterweight Hoist over the well and it will out-run the rope in the calm
+      // and stand dead still in the gusts; the rope never stops.
+      //
+      // The tide's part is a quarry BELOW the gallery: three boulders at row 25, rich
+      // and close to the dock, and a staircase of single steps carries their stone up
+      // to the caravan without any machine at all (a one-tile step is free in both
+      // directions, loaded or not). Dig it and the stone half of the sheet is a short
+      // walk instead of a thirty-tile carry from the surface — for as long as the
+      // water lets you keep it. Everything the sheet needs also exists up top.
+      terrain(g, runs([[10, 68]])); // ground from row 20; rock 23–28, bedrock 29
+      const { world } = g;
+      // the caravan's vault, sealed at the east end of the gallery (levels 13/15)
+      for (let x = 48; x <= 52; x++) for (let y = 20; y <= 22; y++) world.set(x, y, T.AIR);
+      g.addBuilding('goal', 48, 20);
+      townhall(g, 3);
+      // the surface: timber for the mill, stone for the sheet, and the safe iron
+      tree(g, 8);
+      tree(g, 10);
+      tree(g, 12);
+      tree(g, 14);
+      boulder(g, 18);
+      boulder(g, 21);
+      boulder(g, 24);
+      boulder(g, 27);
+      g.addNode('vein', 32, 20); // two shallow scrapes: 8 dry iron, one dig each
+      g.addNode('vein', 35, 20);
+      // the deep quarry under the gallery: 12 stone a stone's throw from the dock,
+      // drowning from the bottom up as the three rains land
+      g.addNode('boulder', 56, 25);
+      g.addNode('boulder', 59, 25);
+      g.addNode('boulder', 62, 25);
+    },
+    hints: [
+      {
+        id: 'downhill',
+        text: 'lvl21.hint.downhill',
+        when: () => true,
+      },
+      {
+        id: 'storm',
+        text: 'lvl21.hint.storm',
+        when: (g) => g.weather === 'storm',
+      },
+      {
+        id: 'drift',
+        text: 'lvl21.hint.drift',
+        when: (g) => g.waterRow !== null && g.waterRow <= 24,
+      },
+    ],
+    camera: { x: 6, y: 12 },
+  },
+  {
+    id: 22,
+    campaign: 5,
+    name: 'lvl22.name',
+    desc: 'lvl22.desc',
+    width: 84,
+    height: 32,
+    biome: 'redrock',
+    objectives: [
+      { item: 'spear', amount: 5 },
+      { item: 'stone', amount: 8 },
+    ],
+    medals: { gold: 660, silver: 900, bronze: 1320 },
+    allowedTools: ['select', 'harvest', 'ladder', 'platform', 'ramp', 'sawmill', 'forge', 'lift', 'hoist', 'dig', 'demolish'],
+    startStock: { log: 4, plank: 8, stone: 6, iron: 2, shovel: 2 },
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
+    startThLevel: 2,
+    weather: [
+      { kind: 'clear', duration: 80 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'clear', duration: 50 },
+      { kind: 'storm', duration: 25 },
+      { kind: 'rain', duration: 20 },
+      { kind: 'clear', duration: 45 },
+      { kind: 'storm', duration: 30 },
+      { kind: 'rain', duration: 20 },
+    ],
+    // Three rises — 27, 26, 25 — so the drift the crew cuts at row 26 goes under on
+    // the SECOND rain, and the shaft with it.
+    flood: { start: 27, min: 25 },
+    // The finale names its machines out loud, as campaign 4's did: one well-lift, one
+    // cliff-wheel. Both are storm-brakeable and one of them is on the tide's clock,
+    // which is the whole level in a sentence.
+    toolLimit: { lift: 1, hoist: 1 },
+    convoy: { open: 40, closed: 20 },
+    build: (g) => {
+      // Everything at once, and three schedules to read together: the RAIN raises the
+      // table into the drift, the STORM brakes both wheels, and the CARAVAN is only
+      // at its dock for forty seconds in every sixty. None of the three is random and
+      // all of them are printed on the HUD — which is the campaign's whole argument.
+      //
+      // The shape is campaign 4's finale inverted: iron in the deep under the meadow,
+      // the caravan high on the plateau, spears forged in between. The old Ember Road
+      // crew left their adit and ladder chimney in the cliff foot again, so empty
+      // hands can climb — cargo still needs the wheel.
+      terrain(
+        g,
+        runs([
+          [10, 46], // the meadow: town, timber, the scrape, and the shaft
+          [18, 38], // the plateau: the caravan, its ballast stone — an 8-tile cliff
+        ])
+      );
+      const { world } = g;
+      // the old adit: a floor-level tunnel into the cliff with a ladder chimney up
+      for (let x = 46; x < 52; x++) world.set(x, 21, T.AIR);
+      for (let y = 14; y <= 21; y++) world.set(52, y, T.LADDER);
+      townhall(g, 3);
+      goal(g, 62); // high on the plateau, and only home two thirds of the time
+      tree(g, 8);
+      tree(g, 10);
+      tree(g, 12);
+      tree(g, 14);
+      // the meadow scrape: 8 dry iron, one dig each — enough for the whole sheet
+      g.addNode('vein', 20, 22);
+      g.addNode('vein', 23, 22);
+      // the deep drift (row 26): 12 iron, and the second rain is coming for it
+      g.addNode('vein', 33, 26);
+      g.addNode('vein', 36, 26);
+      g.addNode('vein', 39, 26);
+      // plateau stone: the order's other half AND the cliff-wheel's ballast
+      boulder(g, 56);
+      boulder(g, 59);
+      boulder(g, 62);
+      boulder(g, 65);
+      boulder(g, 68);
+    },
+    hints: [
+      {
+        id: 'three',
+        text: 'lvl22.hint.three',
+        when: () => true,
+      },
+      {
+        id: 'dock',
+        text: 'lvl22.hint.dock',
+        when: (g) => !g.convoyOpen,
+      },
+      {
+        id: 'both',
+        text: 'lvl22.hint.both',
+        when: (g) => g.weather === 'storm',
+      },
+      {
+        id: 'drowned',
+        text: 'lvl22.hint.drowned',
+        when: (g) => g.waterRow !== null && g.waterRow <= 26,
+      },
+    ],
+    camera: { x: 10, y: 16 },
+  },
 ];
