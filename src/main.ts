@@ -1400,7 +1400,7 @@ function startGame(def: LevelDef): void {
     cam,
     // exposed so cues can be auditioned by ear at runtime, which is the only way
     // an audio change can be judged: `audio.click('metal')`, `audio.harvest(…)`,
-    // `music.padOn`, `music.setVolume(…)`
+    // `audio.placeBuilding()`, `music.setVolume(…)`
     audio,
     music,
     startLevel,

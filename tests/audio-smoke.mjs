@@ -190,8 +190,6 @@ check(
 // At 112bpm a bar is ~2.14s, so ~5s crosses two chord turns.
 const bed = await page.evaluate(async () => {
   const { music } = window.__smallhands;
-  music.padOn = true;
-  music.pulseOn = true;
   music.setVolume(0.19);
   music.setEnabled(true);
   music.setPlaying(true);
@@ -200,9 +198,7 @@ const bed = await page.evaluate(async () => {
   music.setVolume(0.06); // exercise the live ramp on a running master
   await new Promise((r) => setTimeout(r, 400));
   const lowered = music.volume;
-  music.padOn = false;
-  music.pulseOn = false;
-  await new Promise((r) => setTimeout(r, 2400)); // and the bed without them
+  await new Promise((r) => setTimeout(r, 2400)); // keep scheduling past a section edge
   music.setPlaying(false);
   return { v, lowered, enabled: music.isEnabled };
 });

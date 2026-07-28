@@ -347,10 +347,6 @@ class MusicEngine {
   // Still under the SFX master (0.35) so cues stay on top of the music.
   private vol = 0.19;
 
-  // A/B knobs for the two new bed voices, so the draft can be judged by ear
-  // (`__smallhands.music.padOn = false`) instead of by rebuild.
-  padOn = true;
-  pulseOn = true;
 
   // Build the persistent graph once: master → destination, plus a cross-feedback
   // ping-pong delay on the lead bus (dotted-eighth) for width without a chorus.
@@ -557,14 +553,14 @@ class MusicEngine {
     // arrives in section 1 is a build, not a bed. One voicing per *chord* rather
     // than per bar — the chord turns every two bars, and re-attacking a sustained
     // voice on the bar line inside it is audible as a swell that shouldn't be there.
-    if (this.padOn && bar % 2 === 0) {
+    if (bar % 2 === 0) {
       const pg = 0.075 * (section === 0 ? 0.7 : 1);
       this.pad(t, 2 * M_BAR, midiFreq(chord.root), pg);
       this.pad(t, 2 * M_BAR, midiFreq(chord.fifth), pg * 0.6);
     }
     // Beats 1 and 3, weaker on 3, and never in the sparse section — the pulse is
     // what turns the bed from ambient into a pace, so it wants somewhere to enter.
-    if (this.pulseOn && section >= 1) {
+    if (section >= 1) {
       this.pulse(t, 0.13);
       this.pulse(t + 2 * M_BEAT, 0.1);
     }
