@@ -439,10 +439,14 @@ export function buildWorldMap(deps: WorldMapDeps): HTMLElement {
   );
   svg.appendChild(isle);
 
-  // decorative compass rose resting on the open water below the meadows
+  // Decorative compass rose, resting on open water. It sat at (250, 798) — "below
+  // the meadows" — until campaign 5's island was drawn into exactly that water and
+  // the rose ended up under the island with its N poking over the shore. Moved to
+  // the empty top-middle, which is where a chart puts one anyway. Purely decorative;
+  // nothing reads this position.
   {
-    const cx = 250;
-    const cy = 798;
+    const cx = 600;
+    const cy = 150;
     const r = 50;
     const arm = 40;
     const w = 9;

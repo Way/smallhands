@@ -1515,11 +1515,12 @@ export const LEVELS: LevelDef[] = [
     // their hoist money roll away before they can spend it (the keep floor is the
     // other half of the answer, and the level's first hint says so).
     startStock: { log: 6, plank: 6, stone: 4, iron: 4, shovel: 2 },
-    // A small crew on purpose. Seven pairs of hands on a plateau this compact fill
-    // the sheet off the dry scrape alone in under a minute and the basin never gets
-    // a look in; five make the hoist worth its plank and its iron.
-    startRoles: { hauler: 2, builder: 1, miner: 1, digger: 1 },
-    startWorkers: 5,
+    // A small crew on purpose: a plateau this compact fills the sheet off the dry
+    // scrape alone if it is over-staffed, and the basin never gets a look in. One of
+    // each trade is still the floor, though — a level that shows trees and ships
+    // `0/0 Woodcutters` reads as an oversight, and spare spawns all become haulers.
+    startRoles: { hauler: 2, builder: 1, woodcutter: 1, miner: 1, digger: 1 },
+    startWorkers: 6,
     startThLevel: 2,
     // A rainy sky, and deliberately rainier than the tide needs: only the first
     // three rains raise anything (the table stops at 21), so every one after that is
