@@ -81,7 +81,14 @@ export const D: Record<string, [string, string]> = {
   'building.rope': ['Rope Anchor', 'Seilanker'],
   'building.hoist': ['Counterweight Hoist', 'Gegengewichts-Aufzug'],
   'building.lantern': ['Lantern', 'Laterne'],
-  'building.goal': ['Delivery target', 'Lieferziel'],
+  // The goal is the trade caravan, and it is named after what it is rather than
+  // after its role in the rules — the wagon on screen has to be the thing the
+  // inspector talks about (card #71).
+  'building.goal': ['Trade caravan', 'Handelskarawane'],
+  'goal.desc': [
+    'Every order is loaded into this wagon. Nothing counts until it is aboard — and then the caravan rolls on.',
+    'Jede Bestellung wird auf diesen Wagen geladen. Es zählt erst, was aufliegt — dann zieht die Karawane weiter.',
+  ],
 
   // tools
   'tool.select.label': ['Inspect', 'Prüfen'],
