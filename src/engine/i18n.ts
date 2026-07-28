@@ -628,11 +628,99 @@ export const D: Record<string, [string, string]> = {
     'Die Nacht bricht herein. Jenseits des Laternenlichts wird nichts geerntet — treibt den Schein weiter hinaus, sonst ruht das ferne Land bis zum Morgengrauen.',
   ],
 
+  'lvl18.name': ['The Seeping Floor', 'Der sickernde Boden'],
+  'lvl18.desc': [
+    'Red rock, and iron in two places: a scrape at your feet, and a rich drift far below. The water table lies one rain above that drift — dig deep early, or lose it to the dark water.',
+    'Roter Fels und Eisen an zwei Orten: eine Schürfe vor den Füßen und ein reicher Gang tief darunter. Der Wasserspiegel liegt einen Regen über diesem Gang — grabt früh in die Tiefe, oder verliert ihn ans dunkle Wasser.',
+  ],
+  'lvl18.hint.table': [
+    'The shallow <b>scrape</b> beside the town always pays — the ore steps up to the surface on its own. The <b>deep drift</b> pays triple, but it lies below the water table: sink a shaft and tunnel east <b>before the first rain</b>.',
+    'Die flache <b>Schürfe</b> neben der Stadt zahlt immer — das Erz steigt von selbst an die Oberfläche. Der <b>tiefe Gang</b> zahlt dreifach, liegt aber unter dem Wasserspiegel: schlagt Schacht und Stollen nach Osten <b>vor dem ersten Regen</b>.',
+  ],
+  'lvl18.hint.wheel': [
+    'Your crew is at the drift. A <b>Cargo Lift</b> on the shaft floor brings the ore up — but that floor is the row the water takes, and the wheel goes under with the ore. <b>Ship what you dig, while you dig it.</b>',
+    'Deine Leute sind am Gang. Ein <b>Lastenaufzug</b> auf dem Schachtboden holt das Erz herauf — doch dieser Boden ist die Reihe, die sich das Wasser holt, und das Rad geht mit dem Erz unter. <b>Verschifft, was ihr grabt, während ihr grabt.</b>',
+  ],
+  'lvl18.hint.risen': [
+    'The table has risen. The drift is lake now — water cannot be dug, so that ore is gone for good. Work the shallow scrape and finish the sheet.',
+    'Der Wasserspiegel ist gestiegen. Der Gang ist jetzt See — Wasser lässt sich nicht graben, das Erz ist endgültig verloren. Arbeitet die flache Schürfe ab und füllt den Auftrag.',
+  ],
+
+  'lvl19.name': ['Two Galleries', 'Zwei Stollen'],
+  'lvl19.desc': [
+    'Two galleries at two depths, and one wheel between them. The stone lies in the lower one — which is the one the water is coming for.',
+    'Zwei Stollen in zwei Tiefen und ein Rad dazwischen. Der Stein liegt im unteren — und genau den holt sich das Wasser.',
+  ],
+  'lvl19.hint.two': [
+    'Sink <b>both shafts</b> early, then hang your only <b>Cargo Lift</b> in the deep one and empty it first. The upper gallery is above the waterline; it will still be there when the rain has done its worst.',
+    'Schlagt <b>beide Schächte</b> früh, hängt euren einzigen <b>Lastenaufzug</b> in den tiefen und leert ihn zuerst. Der obere Stollen liegt über dem Wasserspiegel; er ist noch da, wenn der Regen sein Schlimmstes getan hat.',
+  ],
+  'lvl19.hint.move': [
+    'The lower gallery is going under. <b>Tear the lift out and rebuild it in the shallow shaft</b> — a demolished machine hands back half its materials <i>and</i> its place in the budget.',
+    'Der untere Stollen versinkt. <b>Reißt den Aufzug heraus und baut ihn im flachen Schacht neu</b> — eine abgerissene Maschine gibt die Hälfte des Materials <i>und</i> ihren Platz im Budget zurück.',
+  ],
+  'lvl20.name': ['Ballast & Bilge', 'Ballast und Bilge'],
+  'lvl20.desc': [
+    'The crew lives high and dry; the rich ore lies in the basin below. A wheel on the cliff edge will fetch it up on stone ballast — for as long as the basin has a floor to stand on.',
+    'Die Mannschaft lebt hoch und trocken; das reiche Erz liegt im Becken darunter. Ein Rad an der Klippenkante holt es mit Steinballast herauf — solange das Becken noch einen Boden hat.',
+  ],
+  'lvl20.hint.wheel': [
+    'Hang a <b>Counterweight Hoist</b> on the cliff edge and the basin\'s ore lands at the caravan\'s door. <b>Bank a few stone with the keep floor first</b> — the caravan will happily ship the last of it out from under your wheel.',
+    'Hänge einen <b>Gegengewichts-Aufzug</b> an die Klippenkante, und das Erz des Beckens landet direkt am Karawanentor. <b>Legt zuerst etwas Stein mit dem Behalten-Regler zurück</b> — die Karawane verschifft sonst genau den, den euer Rad braucht.',
+  ],
+  'lvl20.hint.ballast': [
+    'The wheel turns on weight: <b>stone rides down, ore rides up</b>. Stone dropped into water is gone for good, so watch the waterline before you feed it.',
+    'Das Rad dreht sich mit Gewicht: <b>Stein fährt hinab, Erz fährt hinauf</b>. Stein, der ins Wasser fällt, ist endgültig verloren — achtet auf den Wasserstand, bevor ihr nachlegt.',
+  ],
+  'lvl20.hint.bilge': [
+    'The basin is filling from its middle outward. When the water reaches the cliff foot the wheel keeps swinging over a station nobody can stand on — that is the moment to work the dry scrape at the far end instead.',
+    'Das Becken füllt sich von der Mitte nach außen. Erreicht das Wasser den Klippenfuß, schwingt das Rad über einer Station, auf der niemand mehr stehen kann — dann ist es Zeit für die trockene Schürfe am anderen Ende.',
+  ],
+  'lvl21.name': ['The Rope Shift', 'Die Seilschicht'],
+  'lvl21.desc': [
+    'The caravan is walled into the deep, so every delivery runs downhill. Storms seize the wheels — but a rope is not a wheel, it is gravity, and gravity never takes a shift off.',
+    'Die Karawane ist in der Tiefe eingemauert, also läuft jede Lieferung bergab. Stürme packen die Räder — doch ein Seil ist kein Rad, es ist die Schwerkraft, und die macht keine Schicht frei.',
+  ],
+  'lvl21.hint.downhill': [
+    'Sink a well to the buried vault and hang a <b>Rope</b> beside it — cargo slides down, empty hands climb the ladder home. Sling the rope <b>before</b> you ladder the well: a laddered shaft reads as ground and refuses the anchor.',
+    'Schlagt einen Schacht zum vergrabenen Gewölbe und hängt ein <b>Seil</b> daneben — Ladung gleitet hinab, leere Hände klettern die Leiter heim. Spannt das Seil, <b>bevor</b> ihr den Schacht beleitert: ein beleiterter Schacht gilt als Boden und verweigert den Anker.',
+  ],
+  'lvl21.hint.storm': [
+    'The <b>storm</b> has every brake locked — a hoist would stand dead still right now. The rope does not care. This is the shift it was hung for.',
+    'Der <b>Sturm</b> hat jede Bremse verriegelt — ein Aufzug stünde jetzt still. Dem Seil ist das gleich. Das ist die Schicht, für die es hängt.',
+  ],
+  'lvl21.hint.drift': [
+    'The quarry under the gallery is drowning. Its stone was the short carry; the surface still has plenty, and the long walk never floods.',
+    'Der Bruch unter dem Stollen versinkt. Sein Stein war der kurze Weg; oben liegt noch genug, und der lange Weg überflutet nie.',
+  ],
+  'lvl22.name': ['Low Water', 'Niedrigwasser'],
+  'lvl22.desc': [
+    'Iron in the deep, the caravan on the heights, and three schedules to read together: the rain that raises the water, the storms that seize both wheels, and a dock that is only home two thirds of the time.',
+    'Eisen in der Tiefe, die Karawane in der Höhe und drei Zeitpläne, die zusammen gelesen werden müssen: der Regen, der das Wasser hebt, die Stürme, die beide Räder packen, und ein Dock, das nur zwei Drittel der Zeit besetzt ist.',
+  ],
+  'lvl22.hint.three': [
+    'Nothing here is random and all of it is early. Cut the <b>deep drift</b> and empty it before the second rain, forge in the meadow, and send the spears up the cliff on <b>plateau-stone ballast</b>. The old adit ladder carries empty hands.',
+    'Nichts hier ist Zufall, und alles kommt früh. Schlagt den <b>tiefen Gang</b> und leert ihn vor dem zweiten Regen, schmiedet in der Wiese und schickt die Speere mit <b>Plateau-Stein als Ballast</b> die Klippe hinauf. Der alte Stollen mit Leiter trägt leere Hände.',
+  ],
+  'lvl22.hint.dock': [
+    'The caravan has rolled out. Nothing is dispatched while the dock stands empty — <b>stockpile through the gap</b> and empty the store into the window when it returns.',
+    'Die Karawane ist ausgerollt. Solange das Dock leer steht, wird nichts losgeschickt — <b>legt in der Lücke Vorräte an</b> und leert das Lager ins Fenster, sobald sie zurückkehrt.',
+  ],
+  'lvl22.hint.both': [
+    'A <b>storm</b>: the well-lift and the cliff-wheel are both braked at once. Dig, saw and forge through the gusts — the calm is for shipping.',
+    'Ein <b>Sturm</b>: Schachtaufzug und Klippenrad sind gleichzeitig gebremst. Grabt, sägt und schmiedet durch die Böen — die Ruhe ist zum Verschiffen da.',
+  ],
+  'lvl22.hint.drowned': [
+    'The drift is lake. Whatever iron is still down there stays down there — the meadow scrape will have to finish the sheet.',
+    'Der Gang ist See. Was dort unten noch an Eisen liegt, bleibt dort — die Wiesen-Schürfe muss den Auftrag vollenden.',
+  ],
+
   // world map (level select)
   'map.terr1': ['Home Meadows', 'Heimatwiesen'],
   'map.terr2': ['Storm & Tide', 'Sturm & Flut'],
   'map.terr3': ['Weight & Wheel', 'Gewicht & Rad'],
   'map.terr4': ['Shaft & Seam', 'Schacht & Ader'],
+  'map.terr5': ['Deep & Drowning', 'Tief & Trübe'],
   'map.lockedHint': ['Finish {name} to unlock', 'Schließe {name} ab zum Freischalten'],
   'dev.badge': ['🔧 DEV · all levels unlocked', '🔧 DEV · alle Level freigeschaltet'],
   'map.nodeAria': ['Level {n}: {name} — {status}', 'Level {n}: {name} — {status}'],

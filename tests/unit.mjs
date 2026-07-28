@@ -302,11 +302,15 @@ function findLadderCells(g, count) {
 
 // ---- campaign structure -----------------------------------------------------
 {
-  check('seventeen campaign levels ship', LEVELS.length === 17);
+  check('twenty-two campaign levels ship', LEVELS.length === 22);
   check('level ids stay sequential', LEVELS.every((l, i) => l.id === i + 1));
   check('campaign 1 keeps its four levels', LEVELS.filter((l) => (l.campaign ?? 1) === 1).length === 4);
   check('campaign 2 brings five levels', LEVELS.filter((l) => l.campaign === 2).length === 5);
   check('campaign 4 digs five levels deep', LEVELS.filter((l) => l.campaign === 4).length === 5);
+  check('campaign 5 drowns five levels', LEVELS.filter((l) => l.campaign === 5).length === 5);
+  // Campaign 5 is the first territory to leave the meadow palette, and a biome typo
+  // fails silently (the look just falls back), so pin it as data.
+  check('campaign 5 is redrock throughout', LEVELS.filter((l) => l.campaign === 5).every((l) => l.biome === 'redrock'));
 }
 
 // ============================ Card #70: puzzle & timing ======================
@@ -529,6 +533,70 @@ function findLadderCells(g, count) {
   check('the tide never climbs past its ceiling', g.world.get(31, 23) === T.AIR);
   g.stock.plank = 20;
   check('a shelf-height bridge still crosses the lake', g.placeBridgeRun(26, 23, 37, 23) === 12);
+}
+
+// ---- the tide takes the timber (card #75) -----------------------------------
+// riseWater used to convert only AIR, so a LADDER left in a flooded row survived
+// as a passable, DRY corridor through the lake — a fully laddered gallery let a
+// crew mine below the water table for ever, which is the hole a flood-and-dig
+// campaign drains its tension out of. Wood in a flooding row is swept now.
+//
+// The budget slot the sweep hands back is the load-bearing half: `toolRemaining`
+// counts what stands through the placedTiles ledger, so a swept tile that kept its
+// entry would spend that slot for ever — a real softlock on a budgeted level. And
+// authored terrain must still credit nothing, exactly as under demolish.
+{
+  const g = new Game({ ...LEVELS[7], toolLimit: { platform: 8, ladder: 4 } });
+  g.stock.plank = 40;
+  g.stock.log = 40;
+  // the basin floor (row 25) drowns on the first rise; row 23 sits above the
+  // ceiling (flood.min = 24) and must never be touched
+  const deck = g.placeBridgeRun(30, 25, 33, 25);
+  check('a deck lands on the dry basin floor', deck === 4);
+  const shelf = g.placeBridgeRun(26, 23, 29, 23);
+  check('a shelf deck lands above the tide', shelf === 4);
+  check('both runs spent their slots', g.toolRemaining('platform') === 0);
+  check("a rung of the player's own goes up in the basin", g.placeLadder(29, 25) === true);
+  check('the rung spent a slot', g.toolRemaining('ladder') === 3);
+  // an authored rung beside it: absent from the ledger is what "authored" MEANS
+  g.world.set(28, 25, T.LADDER);
+
+  g.riseWater();
+  check('the tide sweeps the deck it caught', g.world.get(30, 25) === T.WATER && g.world.get(33, 25) === T.WATER);
+  check('the swept deck hands its slots back', g.toolRemaining('platform') === 4);
+  check("the tide sweeps the player's rung too", g.world.get(29, 25) === T.WATER);
+  check('the swept rung hands its slot back', g.toolRemaining('ladder') === 4);
+  check('authored terrain is swept as well', g.world.get(28, 25) === T.WATER);
+  check('but swept authored terrain mints no budget', g.toolRemaining('ladder') === 4);
+  check('timber refunds no materials — the water keeps it', g.stock.plank === 40 - 8);
+
+  g.riseWater();
+  g.riseWater();
+  check('a deck above the ceiling is never swept', g.world.get(26, 23) === T.PLATFORM && g.world.get(29, 23) === T.PLATFORM);
+  check('and it keeps its slots spent', g.toolRemaining('platform') === 4);
+}
+
+// ---- the water table is a TABLE, not three timed events (card #75) ----------
+// riseWater converts what is air at the INSTANT of a rise, so a cell opened
+// afterwards — a Digger finishing a tile, a deck torn out — used to leave a dry
+// pocket below the waterline. On a flood-and-dig level that made "sit out the
+// weather, then mine in peace" the winning move, which is the exact pressure the
+// campaign exists to apply. Opening a cell below the table now yields water, so
+// the rule is one sentence: you cannot dig below the water table.
+{
+  const g = new Game(LEVELS[7]); // The Rising Tide
+  g.stock.plank = 20;
+  check('a deck lands on the dry basin floor', g.placeBridgeRun(30, 25, 32, 25) === 3);
+  check('a shelf deck lands above the tide', g.placeBridgeRun(26, 23, 28, 23) === 3);
+  // the table arrives without a rise, so neither deck is swept — this probes the
+  // opening path on its own
+  g.waterRow = 25;
+  check('tearing out a deck below the table leaves water', g.demolish(31, 25) === true && g.world.get(31, 25) === T.WATER);
+  check('above the table it still leaves air', g.demolish(27, 23) === true && g.world.get(27, 23) === T.AIR);
+  // and the shaft stops itself at the waterline: water is not diggable terrain
+  g.riseWater();
+  check('the flooded row is not diggable', g.canDig(31, 25) === false);
+  check('so nothing can drain a lake', g.world.get(31, 25) === T.WATER);
 }
 
 // ---- night: work only in the light; lanterns push the frontier ---------------

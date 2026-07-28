@@ -41,13 +41,14 @@ await page.waitForTimeout(400);
 
 // ---- structure on a fresh profile ----
 check('worldmap overlay shown', !!(await page.$('.overlay.worldmap')));
-check('4 territories', (await page.$$('.territory')).length === 4);
-check('3 territories fogged', (await page.$$('.territory.locked')).length === 3);
-check('3 lock hints', (await page.$$('.terr-lock')).length === 3);
+check('5 territories', (await page.$$('.territory')).length === 5);
+check('4 territories fogged', (await page.$$('.territory.locked')).length === 4);
+check('4 lock hints', (await page.$$('.terr-lock')).length === 4);
 const nodes = await page.$$('.map-node');
-check('17 level nodes', nodes.length === 17);
+check('22 level nodes', nodes.length === 22);
 check('exactly 1 unlocked node', (await page.$$('.map-node:not(:disabled)')).length === 1);
 check('daily lighthouse present', !!(await page.$('.map-daily')));
+// four fixed tools (generate · editor · import · mine), not one per campaign
 check('legend has 4 buttons', (await page.$$('.legend-btn')).length === 4);
 
 // ---- popover open/close ----

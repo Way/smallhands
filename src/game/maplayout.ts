@@ -93,6 +93,32 @@ export const MAP_LAYOUT: TerritoryLayout[] = [
       { x: 985, y: 808 },
     ],
   },
+  {
+    campaign: 5,
+    nameKey: 'map.terr5',
+    // the drowned coast: the south-west corner, the lowest land on the map
+    outline:
+      'M 168 806 C 176 744 262 716 350 726 C 436 736 480 776 468 830 C 456 884 358 890 268 880 C 196 872 160 862 168 806 Z',
+    // The label goes LEFT of centre rather than above the island's middle: campaign
+    // 1's belly hangs down to y≈690 around x 380–420, and a centred anchor would
+    // print the territory name into it. At x 250 the water above is open.
+    label: { x: 250, y: 706 },
+    badge: { x: 318, y: 810 },
+    // Play order runs anticlockwise from the EAST shore, because the journey line
+    // arrives from campaign 4's last node at (915, 838): entering on the near shore
+    // keeps that hop a short run of open water south of Home Meadows instead of a
+    // diagonal across it. From 18 the trail climbs the top (19), crosses west (20),
+    // drops down the west flank (21) and returns along the bottom (22) — a C that
+    // never crosses itself. The 6th slot is unused headroom.
+    nodes: [
+      { x: 430, y: 800 },
+      { x: 360, y: 758 },
+      { x: 268, y: 762 },
+      { x: 215, y: 820 },
+      { x: 300, y: 852 },
+      { x: 390, y: 848 },
+    ],
+  },
 ];
 
 // The daily-challenge lighthouse island: a fixed landmark, not a campaign.

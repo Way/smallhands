@@ -214,9 +214,10 @@ export class Game {
   private toolUsed: Partial<Record<Tool, number>> = {};
   // Ledger of what the PLAYER put there, so a demolish refunds their own
   // placements and never terrain the level authored: world index → the tool that
-  // laid the tile, plus the ids of player-built buildings. A budgeted tile can
-  // only ever leave the world through demolish() — every placement path requires
-  // T.AIR and digging skips built tiles — so these entries cannot go stale.
+  // laid the tile, plus the ids of player-built buildings. A budgeted tile leaves
+  // the world through exactly two paths — demolish() and the flood's sweepTile()
+  // — and both clear their entry here; every placement path requires T.AIR and
+  // digging skips built tiles, so no other route can strand one.
   private placedTiles = new Map<number, Tool>();
   private placedBuildings = new Set<number>();
 
@@ -940,7 +941,9 @@ export class Game {
     }
     const t = this.world.get(x, y);
     if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) {
-      this.world.set(x, y, T.AIR);
+      // openCell, not a bare AIR: a deck torn out below the water table leaves
+      // water behind, the same as one the tide swept (see sweepTile).
+      this.openCell(x, y);
       // Hand the budget slot back — a tile taken down is a tile the player may
       // spend again, which is what keeps a limited-tool level a puzzle instead of
       // a trap. Only for tiles THEY laid: the ledger is what makes that exact, so
@@ -2063,7 +2066,7 @@ export class Game {
       if (this.randFx() < dt * 3) this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 2);
       if (w.workT >= (DIG_TIME[tile] ?? DIG_TIME_DEFAULT)) {
         w.workT = 0;
-        this.world.set(task.tx, task.ty, T.AIR);
+        this.openCell(task.tx, task.ty);
         this.digOrders.delete(idx);
         this.spawnBurst(task.tx + 0.5, task.ty + 0.5, '#8a6a45', 8);
         this.onEvent({ type: 'dug', x: task.tx, y: task.ty });
@@ -2351,8 +2354,9 @@ export class Game {
     this.onEvent({ type: 'convoy', open });
   }
 
-  // Raise the water table one row: AIR at or below the new row floods, goods
-  // in the water are lost, and smallies caught wading scramble home.
+  // Raise the water table one row: AIR at or below the new row floods, timber
+  // standing in it is swept away, goods in the water are lost, and smallies
+  // caught wading scramble home.
   riseWater(): void {
     const f = this.level.flood;
     if (!f) return;
@@ -2362,7 +2366,9 @@ export class Game {
     const { world } = this;
     for (let x = 0; x < world.w; x++) {
       for (let y = next; y < world.h; y++) {
-        if (world.get(x, y) === T.AIR) world.set(x, y, T.WATER);
+        const t = world.get(x, y);
+        if (t === T.AIR) world.set(x, y, T.WATER);
+        else if (t === T.LADDER || t === T.PLATFORM || t === T.RAMP) this.sweepTile(x, y);
       }
     }
     this.groundItems = this.groundItems.filter((gi) => {
@@ -2378,6 +2384,51 @@ export class Game {
       }
     }
     this.onEvent({ type: 'flood', row: next, rescued });
+  }
+
+  // Open a cell that terrain used to fill — the one path by which the world gains
+  // empty space after the level is built (a Digger finishing a tile, a demolish).
+  //
+  // Below the water table it fills with water instead of air, and that is what
+  // makes `waterRow` a TABLE rather than three timed events (card #75). `riseWater`
+  // only converts what is air *at the instant of the rise*, so without this a
+  // gallery cut open after the last rain would stay permanently dry: the winning
+  // move on any flood-and-dig level would be to sit out the weather and then mine
+  // in peace, which is precisely the pressure campaign 5 exists to apply. With it
+  // the rule is one sentence — **you cannot dig below the water table** — and it
+  // enforces itself: a shaft sunk past the line fills as it is cut, and water is
+  // not diggable (`isSolid` excludes it), so the shaft simply stops there. Nothing
+  // drains a lake.
+  private openCell(x: number, y: number): void {
+    const drowned = this.waterRow !== null && y >= this.waterRow;
+    this.world.set(x, y, drowned ? T.WATER : T.AIR);
+  }
+
+  // The tide takes timber, not just air (card #75). A LADDER, PLATFORM or RAMP
+  // left standing in a flooding row is swept away: the cell becomes water like any
+  // other, and nothing is refunded in materials — the water keeps wood exactly as
+  // it keeps goods (see sinkItem).
+  //
+  // Without this a laddered shaft is a DRY CORRIDOR through the lake — a ladder
+  // cell is passable and a smallie standing on one is not "in water", so a fully
+  // laddered gallery would let a crew mine below the water table indefinitely.
+  // On a campaign built on the tide (campaign 5) that isn't a tactic, it's the
+  // hole the tension drains out of.
+  //
+  // Handing the budget slot back is the load-bearing half. `toolRemaining` counts
+  // what STANDS, through `placedTiles`, so sweeping a tile without clearing its
+  // entry would spend that slot forever — a genuine softlock on a budgeted level,
+  // which is the one thing the ledger exists to prevent. Authored tiles aren't in
+  // the ledger, so they are swept and credit nothing: the same asymmetry demolish
+  // already has.
+  private sweepTile(x: number, y: number): void {
+    const idx = this.world.idx(x, y);
+    const laidBy = this.placedTiles.get(idx);
+    if (laidBy !== undefined) {
+      this.placedTiles.delete(idx);
+      this.restoreTool(laidBy);
+    }
+    this.world.set(x, y, T.WATER);
   }
 
   // A smallie caught by the water scrambles back to the town hall, dropping
