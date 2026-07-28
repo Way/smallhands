@@ -36,8 +36,8 @@ export const S: Record<string, Str> = {
   ],
   teaserHead: ['See it in motion', 'Sieh es in Bewegung'],
   teaserCap: [
-    '35 seconds: indirect control, the climb rule, the counterweight hoist, storms that lock the lifts, the rising tide, the turning day — and the race for gold.',
-    '35 Sekunden: indirekte Steuerung, die Leiterregel, der Gegengewichts-Aufzug, Stürme, die die Aufzüge lahmlegen, die steigende Flut, das schwindende Licht und das Rennen ums Gold.',
+    '45 seconds: indirect control, the climb rule, shafts cut through solid rock, the counterweight hoist, a caravan that docks on a schedule, storms that lock the lifts, a tide that takes the deep, the turning day — and the race for gold.',
+    '45 Sekunden: indirekte Steuerung, die Leiterregel, Schächte durch massiven Fels, der Gegengewichts-Aufzug, eine Karawane, die nach Plan hält, Stürme, die die Aufzüge lahmlegen, eine Flut, die den Stollen holt, das schwindende Licht und das Rennen ums Gold.',
   ],
   teaserPlayAria: ['Play the teaser video', 'Teaser-Video abspielen'],
   sweetHead: ['Two classics, one sweet spot', 'Zwei Klassiker, ein Sweet Spot'],
