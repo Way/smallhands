@@ -102,7 +102,16 @@ export interface Objective extends ObjectiveReq {
 }
 
 export type GameEvent =
-  | { type: 'place' }
+  // `what` names which of the three placement models fired (see docs/architecture),
+  // because the models feel different and so should sound different: a blueprint is
+  // a heavy commitment, a terrain tile is a brush stroke, and an order is a marker
+  // the player paints and erases freely. It is required rather than optional so the
+  // compiler lists every emitter when a new one is added.
+  // `node` is set only when the placement targets a resource — flagging one for
+  // harvest — so the cue can answer in that resource's own material. The sim reports
+  // the node rather than a material name because it has no opinion about how a
+  // boulder sounds; the mapping belongs to the caller.
+  | { type: 'place'; what: 'building' | 'tile' | 'order'; node?: ResourceNode }
   | { type: 'invalid' }
   | { type: 'chop'; x: number; y: number; node: ResourceNode }
   | { type: 'itemSpawn'; item: ItemType }
@@ -687,7 +696,7 @@ export class Game {
     this.spendTool('ladder');
     this.placedTiles.set(this.world.idx(x, y), 'ladder');
     this.world.set(x, y, T.LADDER);
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'tile' });
     return true;
   }
 
@@ -748,7 +757,7 @@ export class Game {
       this.placedTiles.set(this.world.idx(x, y), tool);
       this.world.set(x, y, tile);
     }
-    this.onEvent({ type: plan.affordable > 0 ? 'place' : 'invalid' });
+    this.onEvent(plan.affordable > 0 ? { type: 'place', what: 'tile' } : { type: 'invalid' });
     return plan.affordable;
   }
 
@@ -805,7 +814,7 @@ export class Game {
         added++;
       }
     }
-    this.onEvent({ type: added > 0 ? 'place' : 'invalid' });
+    this.onEvent(added > 0 ? { type: 'place', what: 'order' } : { type: 'invalid' });
     return added;
   }
 
@@ -831,7 +840,7 @@ export class Game {
     this.payCost(def.cost!);
     this.spendTool(kind);
     this.placedBuildings.add(this.addBuilding(kind, x, y, false).id);
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'building' });
     return true;
   }
 
@@ -849,7 +858,7 @@ export class Game {
     this.placedBuildings.add(b.id);
     b.liftTopY = topY;
     b.liftCarY = y;
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'building' });
     return true;
   }
 
@@ -871,7 +880,7 @@ export class Game {
     this.placedBuildings.add(b.id);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'building' });
     return true;
   }
 
@@ -894,7 +903,7 @@ export class Game {
     this.placedBuildings.add(b.id);
     b.ropeSide = drop.side;
     b.ropeBottomY = drop.bottomY;
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'building' });
     return true;
   }
 
@@ -1029,7 +1038,7 @@ export class Game {
       const w = this.workers.find((wk) => wk.id === n.workerId);
       if (w) this.abortTask(w);
     }
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'order', node: n });
     return true;
   }
 
@@ -1041,7 +1050,7 @@ export class Game {
     }
     this.payCost(cost);
     this.thUpgrade = { progress: 0, time: TH_LEVELS[this.thLevel - 1].upgradeTime, builderId: null };
-    this.onEvent({ type: 'place' });
+    this.onEvent({ type: 'place', what: 'building' });
     return true;
   }
 
