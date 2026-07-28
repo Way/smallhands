@@ -4,9 +4,10 @@ import { detectLang, getLang, setLang, t } from './engine/i18n';
 import type { Lang } from './engine/i18n';
 import { BIOMES } from './engine/biomes';
 import type { Biome } from './engine/biomes';
-import type { MedalTier, Tool } from './game/types';
+import type { ItemType, MedalTier, NodeKind, Tool } from './game/types';
 import { buildAtlas, drawIconTo, sprite } from './engine/sprites';
 import { audio, music } from './engine/audio';
+import type { Material } from './engine/audio';
 import {
   deleteCustomLevel,
   exportAllData,
@@ -1294,7 +1295,10 @@ function attachHud(): void {
       } else {
         panTarget = { x: tx, y: ty };
       }
-      audio.click();
+      // the pill answers in its own material: tapping Iron should not sound like
+      // tapping Logs. The name comes off the *result* for the same reason the
+      // toast above does — a spear whose iron is mined out is still a spear.
+      audio.click(ITEM_MATERIAL[item]);
     },
     onRole: (r, d) => {
       game!.setDesired(r, game!.desiredRoles[r] + d);
@@ -1394,6 +1398,11 @@ function startGame(def: LevelDef): void {
   (window as unknown as Record<string, unknown>).__smallhands = {
     game,
     cam,
+    // exposed so cues can be auditioned by ear at runtime, which is the only way
+    // an audio change can be judged: `audio.click('metal')`, `audio.harvest(…)`,
+    // `music.padOn`, `music.setVolume(…)`
+    audio,
+    music,
     startLevel,
     setSpeed,
     setTool,
@@ -1408,17 +1417,44 @@ function startGame(def: LevelDef): void {
   };
 }
 
+// What each resource sounds like. Both tables live here rather than in `audio.ts`
+// because the engine describes sounds, not game entities — nothing in it should
+// need to know what a `vein` is. Each is a full `Record`, so a fourth resource or a
+// seventh item is a build error here rather than a silent fallback to wood, which
+// is the one failure this feature exists to prevent: resources that all sound the
+// same is indistinguishable from the cue never having been wired up.
+const HARVEST_MATERIAL: Record<NodeKind, Material> = {
+  tree: 'wood',
+  boulder: 'stone',
+  vein: 'metal',
+};
+
+// The crafted tools go with their working end, not their handle: a shovel is a
+// wooden shaft, but what you hear when one is set down is the blade.
+const ITEM_MATERIAL: Record<ItemType, Material> = {
+  log: 'wood',
+  plank: 'wood',
+  stone: 'stone',
+  iron: 'metal',
+  spear: 'metal',
+  shovel: 'metal',
+};
+
 function handleEvent(e: GameEvent): void {
   const h = hud!;
   switch (e.type) {
     case 'place':
-      audio.place();
+      // a blueprint lands like a crate; a harvest flag answers in the resource's
+      // own material; a bare tile or order stays light
+      if (e.what === 'building') audio.placeBuilding();
+      else if (e.node) audio.click(HARVEST_MATERIAL[e.node.kind]);
+      else audio.place();
       break;
     case 'invalid':
       audio.invalid();
       break;
     case 'chop':
-      audio.chop();
+      audio.harvest(HARVEST_MATERIAL[e.node.kind]);
       break;
     case 'deposit':
       if (e.sink === 'goal') audio.goalDeposit();

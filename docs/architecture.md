@@ -158,6 +158,20 @@ builder (decided on card #20):
 The dividing line: **paint terrain tiles instantly · order terrain removal via a Digger ·
 construct functional machines via a Builder.**
 
+**The `place` event names which model fired.** `{ type: 'place' }` used to be bare, so every
+placement sounded identical — a sawmill and a single ladder rung got the same blip. It now
+carries `what: 'building' | 'tile' | 'order'`, and the field is **required**, not optional:
+there are nine emitters, and the only reliable way to enumerate them is to let the compiler
+do it. Two of the nine are not where you would guess — the harvest flag (`toggleMark`) is an
+`order`, because a flag is an intent marker the player paints and erases exactly like a dig
+order, and the **town-hall upgrade is a `building`**, because it is genuinely the
+blueprint+builder model (it is in the list above). It had been chirping like a ladder.
+A tenth emitter added later cannot compile without choosing.
+
+`node` rides along on the one placement that targets a resource — flagging it — so the cue
+can answer in that resource's own material. The sim reports the *node*, never a material
+name: it has no opinion about how a boulder sounds.
+
 **Why ladders/ramps are not moved to the blueprint+builder model:** a ladder's whole purpose
 is to *create* reachability. If a builder had to reach the cell it was about to build, it
 could not — pathing cannot route over a not-yet-built `LADDER` tile — so descending ladders
@@ -391,3 +405,67 @@ an exact pin of all five untouched biomes under all three weathers); `npm run te
 is the eyeball helper — it writes every biome × weather × night case plus campaign levels 18
 and 22 to `tests/.hills-out/`, which is how this pass was judged. Neither can be skipped: no
 number settles whether a horizon looks like it belongs to the ground.
+
+## Sound is material, not entity
+
+Every cue is synthesized at runtime in `src/engine/audio.ts` — no asset files, which is why
+"add a sample" is never the cheap fix here. Two rules keep that from turning into a pile of
+one-off beeps.
+
+**One vocabulary: `Material = 'wood' | 'stone' | 'metal'`.** Clicks and harvests both key off
+it, deliberately, so the HUD and the world agree about what iron sounds like. The engine
+knows nothing about trees or veins — `main.ts` owns `HARVEST_MATERIAL` (by `NodeKind`) and
+`ITEM_MATERIAL` (by `ItemType`), and both are full `Record`s so a fourth resource is a build
+error rather than a silent fallback to wood. That fallback is the failure this exists to
+prevent: resources that all sound the same is indistinguishable from the cue never having
+been wired up, and it never throws. Crafted tools go with their working end, not their
+handle — a shovel is a wooden shaft, but what you hear is the blade.
+
+`click(material = 'wood')` defaults because wood is the game's *neutral* material: menus,
+buttons and toolbar chips are the neutral surface, which is also why the ~20 existing callers
+needed no argument.
+
+**Materials are separated by decay and harmonicity, never by pitch.** Pitch-shift one cue
+three ways and it is audibly the same cue three times. So wood cracks and is gone, stone is
+the shortest and most brittle, and metal rings — `ring()` uses plate-like ratios (1 / 2.76 /
+5.4) precisely *because* they are inharmonic; whole-number partials read as a bell or a
+plucked note, and ore should read as a dull clang.
+
+The one apparent inconsistency is intentional: **struck ore rings (`harvest('metal')`, 0.42s)
+but worked iron thunks (`click('metal')`, 0.08s)**. A ring at click frequency nags, which is
+the one thing a UI cue must never do.
+
+`tone()`'s 8ms attack is **not** to be shortened. Fourteen cues are voiced against it, so
+changing it there retunes the whole game at once. That ramp is longer than the entire
+transient a click is made of, which is why a lone square read as a soft beep and why the
+click has its own `tick()` (contact — band-passed noise, sub-millisecond attack) and `body()`
+(material — pitched, falling as it decays) instead. `placeBuilding` stacks three layers and
+is the loudest thing the engine plays, because a blueprint is the heaviest commitment the
+player makes.
+
+`npm run test:audio-smoke` is the guard, and it is honest about its limit: it cannot hear.
+What it catches is the failure that reaches players — WebAudio throws on a bad param at call
+time, and a cue that throws is silence plus a console line nobody reads — plus the wiring
+that silently degrades: flagging a resource must emit an order **carrying its kind**, or the
+cue has nothing to pick a material from and quietly falls back to neutral.
+
+## The wordmark grows out of its baseline (front door)
+
+`fd-logo-raise` in `src/frontdoor.css` is a baseline-anchored vertical squash: `scaleY: 0 → 1`
+with `transform-origin: bottom`, full opacity throughout, 0.6s. Every glyph is *whole* at
+every moment and merely compressed — a squashed `a` keeps its bowl — which is the difference
+between reading as growth and reading as an unveiling. A bottom-up `clip-path` reveal looks
+near-identical in a still and wrong in motion, so the distinction cannot be eyeballed from a
+screenshot.
+
+The keyframe stops **are a measurement**, sampled per frame and normalised, which is why
+interpolation between them is `linear` — the curve lives in the stops, and an easing function
+on top would apply it twice. Retime by scaling the duration, never by editing the stops.
+
+`fd-float` must stay last in the `animation-name` list: both animations drive `transform`, and
+they are kept from overlapping by delay alone (raise ends at 0.72s, float starts at 1.4s).
+
+`npm run test:frontdoor-logo` asserts what is mechanizable — each stop tracks its keyframe, the
+baseline does not drift, and reduced motion lands on the finished wordmark opaque at full
+height rather than on a frozen squash — and writes the stops to `tests/.logo-out/` for the part
+that isn't: whether whole-glyph squash actually reads as growth.

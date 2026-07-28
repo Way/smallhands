@@ -29,6 +29,8 @@
     "test:report-e2e": "node tests/report-e2e.mjs",
     "test:terminology": "node tests/terminology.mjs",
     "test:frontdoor-data": "node tests/frontdoor-data.mjs",
+    "test:frontdoor-logo": "node tests/frontdoor-logo-shot.mjs",
+    "test:audio-smoke": "node tests/audio-smoke.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:mobile": "node tests/mobile.mjs",
     "test:autopause": "node tests/autopause.mjs",
