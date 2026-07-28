@@ -448,3 +448,24 @@ What it catches is the failure that reaches players — WebAudio throws on a bad
 time, and a cue that throws is silence plus a console line nobody reads — plus the wiring
 that silently degrades: flagging a resource must emit an order **carrying its kind**, or the
 cue has nothing to pick a material from and quietly falls back to neutral.
+
+## The wordmark grows out of its baseline (front door)
+
+`fd-logo-raise` in `src/frontdoor.css` is a baseline-anchored vertical squash: `scaleY: 0 → 1`
+with `transform-origin: bottom`, full opacity throughout, 0.6s. Every glyph is *whole* at
+every moment and merely compressed — a squashed `a` keeps its bowl — which is the difference
+between reading as growth and reading as an unveiling. A bottom-up `clip-path` reveal looks
+near-identical in a still and wrong in motion, so the distinction cannot be eyeballed from a
+screenshot.
+
+The keyframe stops **are a measurement**, sampled per frame and normalised, which is why
+interpolation between them is `linear` — the curve lives in the stops, and an easing function
+on top would apply it twice. Retime by scaling the duration, never by editing the stops.
+
+`fd-float` must stay last in the `animation-name` list: both animations drive `transform`, and
+they are kept from overlapping by delay alone (raise ends at 0.72s, float starts at 1.4s).
+
+`npm run test:frontdoor-logo` asserts what is mechanizable — each stop tracks its keyframe, the
+baseline does not drift, and reduced motion lands on the finished wordmark opaque at full
+height rather than on a frozen squash — and writes the stops to `tests/.logo-out/` for the part
+that isn't: whether whole-glyph squash actually reads as growth.
