@@ -1108,6 +1108,7 @@ export class Hud {
       // ropes are gravity, not machinery: the one route a storm cannot stop
       if (g.wheelsLocked) el('div', 'tt-desc', tip).textContent = t('rope.stormFree');
     } else if (b.kind === 'goal') {
+      el('div', 'tt-desc', tip).textContent = t('goal.desc');
       const row = el('div', 'tt-cost', tip);
       for (const o of g.objectives) {
         const s = el('span', o.delivered >= o.amount ? 'delivered' : undefined, row);

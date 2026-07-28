@@ -409,6 +409,60 @@ function bfoundation(g: Grid, x0: number, y0: number, x1: number, y1: number, p:
     bset(g, x1, y, p.m);
   }
 }
+// A cart wheel: a bright rim, a filled disc, four spokes and a lit hub boss.
+// FILLED on purpose. Left open between the spokes it reads as a wire ring at this
+// size, and the daylight through it turns the space under the bed into a gap the
+// eye takes for stilts — which made the first pass look like a market stall.
+// Stamp wheels BEFORE the bed so the bed hides their tops and they cross the
+// body line the way a real wheel does.
+function bwheel(
+  g: Grid,
+  cx: number,
+  cy: number,
+  r: number,
+  p: { tyre: string; body: string; spoke: string; hub: string }
+): void {
+  for (let y = cy - r; y <= cy + r; y++) {
+    for (let x = cx - r; x <= cx + r; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > r + 0.4) continue;
+      if (d > r - 1.1) bset(g, x, y, p.tyre);
+      else if (dx === 0 || dy === 0) bset(g, x, y, p.spoke);
+      else bset(g, x, y, p.body);
+    }
+  }
+  bbox(g, cx - 1, cy - 1, cx + 1, cy + 1, p.spoke); // hub boss
+  bset(g, cx, cy, p.hub);
+}
+// A canvas tilt over wagon hoops: shoulders curving in to a flat crown,
+// alternating stripes, a sunlit crown line and a shaded hem. The stripes are
+// what makes it read as cloth stretched over ribs rather than as a roof.
+// Returns the canvas top per column (indexed from x0) so the caller can roll the
+// cloth back over the hoops at one end without re-deriving the arch.
+function btilt(
+  g: Grid,
+  x0: number,
+  x1: number,
+  yTop: number,
+  yBot: number,
+  p: { A: string; B: string; hi: string; hem: string }
+): number[] {
+  const cx = (x0 + x1) / 2;
+  const half = (x1 - x0) / 2;
+  const tops: number[] = [];
+  for (let x = x0; x <= x1; x++) {
+    const u = (x - cx) / half;
+    const top = Math.round(yTop + (1 - Math.sqrt(Math.max(0, 1 - u * u))) * (yBot - yTop) * 0.62);
+    const stripe = Math.floor((x - x0) / 3) % 2 === 0 ? p.A : p.B;
+    for (let y = top; y <= yBot; y++) bset(g, x, y, stripe);
+    bset(g, x, top, p.hi); // crown/shoulder catches the light
+    bset(g, x, yBot, p.hem); // hem falls into shadow
+    tops.push(top);
+  }
+  return tops;
+}
 
 export function buildAtlas(): void {
   // ---- terrain tiles (16x16), one family per biome ----
@@ -852,27 +906,100 @@ export function buildAtlas(): void {
   bbox(ws, 17, 9, 19, 10, 'i'); // blade
   bset(ws, 18, 10, 'I');
   makeSprite('workshop', workshopPal, brows(ws));
-  const goalPal = {
-    R: '#e0cda6', r: '#c8b28a', q: '#93815f', // sandstone pediment roof
-    W: '#e0cda6', w: '#c8b28a', k: '#93815f', // sandstone wall / columns
-    g: '#c9a6ec', G: '#eaddfb', b: '#5f4a2b', o: '#3f3018', // portal glow, frame, recess
-    D: '#8a5aa8', v: '#a878c8', B: '#c8a0e0', // portal fill, banner mid / light
-    n: '#a89474', N: '#c8b28a', m: '#7a6848',
-    p: '#6b4a26',
+  // The delivery goal is the trade caravan (card #71) — the order sheet is not
+  // handed to a temple, it is loaded onto a wagon that then rolls out. Two
+  // sprites rather than one, on the same 4x3 footprint grid so they line up for
+  // free: the DOCK stays put and keeps marking the delivery station while the
+  // wagon is away on a `convoy` level, and the WAGON is what slides off it. The
+  // wagon keeps the name `goal`, so the editor palette icon shows the wagon.
+  const caravanPal = {
+    C: '#f6ead0', R: '#c8503c', r: '#a33c2c', // canvas: cream stripe / red stripe / shaded red
+    H: '#fff8e6', o: '#6d5636', // sunlit crown / hem shadow and tilt interior
+    W: '#c08f56', w: '#a4753e', k: '#6b4a26', // wagon planks: lit / mid / dark
+    b: '#4f3418', // ironwork, hoops, draw bar
+    S: '#a4753e', u: '#f0dcbe', // wheel rim and spokes / hub glint
+    F: '#ffd94d', // bow pennant
+    n: '#a89474', N: '#c8b28a', m: '#7a6848', // kerb stone, chalked order board
   };
-  const goal = bgrid(32, 24);
-  bbox(goal, 15, 1, 15, 5, 'p'); // banner pole
-  bbox(goal, 16, 1, 19, 1, 'B');
-  bbox(goal, 16, 2, 18, 2, 'v');
-  bbox(goal, 16, 3, 17, 3, 'v');
-  broof(goal, 15, 5, 11, 15, { hi: 'R', mid: 'r', sh: 'q', eave: 'q' });
-  bwall(goal, 1, 12, 29, 20, { W: 'W', w: 'w', k: 'k' });
-  bwindow(goal, 4, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
-  bwindow(goal, 23, 14, { frame: 'b', glass: 'g', glint: 'G', sill: 'o' });
-  bdoor(goal, 12, 18, 13, 20, { frame: 'b', door: 'D', recess: 'g' }); // glowing delivery portal
-  bset(goal, 15, 16, 'G');
-  bfoundation(goal, 1, 21, 29, 23, { n: 'n', N: 'N', m: 'm' });
-  makeSprite('goal', goalPal, brows(goal));
+  const wagon = bgrid(32, 24);
+  // Rows 0-1 stay clear: the bunting is drawn live over the sprite
+  // (drawCaravanFlags) so it can wave.
+  const tops = btilt(wagon, 5, 26, 2, 12, { A: 'C', B: 'R', hi: 'H', hem: 'o' }); // striped canvas over the hoops
+  // The rear of the tilt has the canvas rolled back: bare hoops over a dark
+  // interior, so the crates standing inside are visible and the dock's loading
+  // ramp leads into something. Keeps the arch silhouette — only the cloth is
+  // missing. Kept to a third of the span; wider, the stripes stop reading as a
+  // caravan tilt at all.
+  for (let x = 5; x <= 11; x++) {
+    const top = tops[x - 5];
+    bbox(wagon, x, top + 1, x, 12, 'o');
+    bset(wagon, x, top, 'b'); // the rolled cloth's shadow line along the rim
+  }
+  for (const x of [5, 8, 11]) bbox(wagon, x, tops[x - 5], x, 12, 'b'); // three bare hoops
+  // A light rim over the darkest disc on the wagon, under the LIGHTEST part of
+  // the body: a wheel toned like its undercarriage merges into one brown mass,
+  // and a grey iron tyre — the obvious choice — merges with the rock behind it.
+  bwheel(wagon, 10, 18, 5, { tyre: 'S', body: 'b', spoke: 'w', hub: 'u' }); // rear wheel (big)
+  bwheel(wagon, 24, 19, 4, { tyre: 'S', body: 'b', spoke: 'w', hub: 'u' }); // front wheel (small)
+  bbox(wagon, 3, 12, 28, 15, 'w'); // wagon bed — the wheels cross its lower rows
+  bbox(wagon, 3, 12, 28, 12, 'W'); // lit top rail
+  bbox(wagon, 3, 15, 28, 15, 'b'); // iron-shod bottom rail
+  for (let x = 6; x < 28; x += 5) bset(wagon, x, 13, 'k'); // plank seams
+  // Boat-shaped belly under the bed, then the reach beam between the axles. Both
+  // are here to close the daylight between the wheels: left open, the eye reads
+  // the two wheels as legs and the whole wagon as a stall on stilts.
+  bbox(wagon, 5, 16, 26, 17, 'W');
+  bbox(wagon, 8, 17, 23, 17, 'w'); // the belly tapers as it goes down...
+  bbox(wagon, 13, 18, 21, 18, 'w');
+  bbox(wagon, 13, 19, 21, 19, 'k');
+  bbox(wagon, 5, 16, 5, 17, 'b'); // ...between shadowed end posts
+  bbox(wagon, 26, 16, 26, 17, 'b');
+  bbox(wagon, 27, 9, 29, 11, 'k'); // driver's bench back
+  bbox(wagon, 26, 11, 29, 11, 'W'); // bench plank
+  bbox(wagon, 29, 13, 31, 14, 'b'); // draw bar out to the yoke — it faces the road
+  bbox(wagon, 31, 11, 31, 13, 'b');
+  bbox(wagon, 30, 4, 30, 11, 'b'); // bow pennant staff (the static one — it is the palette icon)
+  bbox(wagon, 27, 4, 29, 4, 'F');
+  bbox(wagon, 28, 5, 29, 5, 'F');
+  bset(wagon, 29, 6, 'r');
+  makeSprite('goal', caravanPal, brows(wagon));
+  // The dock: the order board on its post, a kerb of flagstones the wheels stand
+  // on, and the lashing post. This is the half that must still read as "deliver
+  // here" with no wagon on it, so it is where the station's furniture lives —
+  // and it is deliberately NOT a full-width deck, which only flattens the wagon.
+  const dock = bgrid(32, 24);
+  // The order board rides ABOVE the wagon's rear, not beside it: level with the
+  // load it reads as one more crate in the pile.
+  bbox(dock, 0, 2, 5, 8, 'k'); // order board frame
+  bbox(dock, 1, 3, 4, 7, 'N'); // a chalked slate, not parchment — the canvas is already cream
+  bbox(dock, 2, 4, 3, 4, 'r'); // ...with two lines of writing on it
+  bbox(dock, 2, 6, 3, 6, 'm');
+  bbox(dock, 2, 8, 3, 23, 'k'); // board post, down to the ground
+  bbox(dock, 2, 8, 2, 23, 'w');
+  bbox(dock, 27, 17, 28, 23, 'k'); // lashing post at the head of the wagon
+  bbox(dock, 27, 17, 27, 23, 'w');
+  // The loading ramp is dock furniture, NOT the wagon's tailgate. Hung off the
+  // wagon it rolled away with it and read as a flight of steps floating in the
+  // air; bolted to the dock it goes on saying "carry it up here".
+  bbox(dock, 4, 16, 6, 17, 'W');
+  bbox(dock, 2, 18, 5, 19, 'W');
+  bbox(dock, 0, 20, 3, 21, 'w');
+  bfoundation(dock, 0, 22, 31, 23, { n: 'n', N: 'N', m: 'm' }); // flagstone kerb
+  for (const x of [8, 14, 20]) bset(dock, x, 22, 'm'); // wheel ruts worn into it
+  makeSprite('goal_dock', caravanPal, brows(dock));
+  // A lashed crate, drawn per delivered slice of the order sheet (crateLoad).
+  // Kept to a lid seam and a rim: at the ~7px it is drawn, anything finer (an X
+  // brace, individual slats) turns to mush.
+  makeSprite('crate', { C: '#d8a86a', H: '#eec48c', k: '#6b4a26' }, [
+    'kkkkkkkk',
+    'kHHHHHCk',
+    'kCCCCCCk',
+    'kkkkkkkk',
+    'kCCCCCCk',
+    'kCCCCCCk',
+    'kCCCCCCk',
+    'kkkkkkkk',
+  ]);
   // lift mast segment + car
   makeSprite('lift_mast', { m: '#7c5830', M: '#9a7040', k: '#5f3c1b' }, [
     'Mk............Mk',

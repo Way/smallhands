@@ -9,6 +9,7 @@ import type { Game } from './sim';
 import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
 import type { WeatherLook, RGB, RGBA } from './weather-look';
 import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
+import { caravanRoll, crateLoad, CRATE_SPOTS, CRATE_PX } from './caravan-look';
 
 // A terrain shading overlay in one of the biome's light-model colours. Callers
 // resolve these once per frame, never per tile — the shading loop is hot.
@@ -1035,6 +1036,10 @@ export class Renderer {
         this.drawHoist(b);
         continue;
       }
+      if (b.kind === 'goal') {
+        this.drawCaravan(b, game, t);
+        continue;
+      }
       const fw = footprintW(b) * TILE;
       const fh = footprintH(b) * TILE;
       const px = b.x * TILE;
@@ -1124,15 +1129,127 @@ export class Renderer {
           ctx.fillRect(bx + 4, by, 2, 7);
         }
       }
-      if (b.kind === 'goal') {
-        // delivered progress ring of items over the goal
-        const total = game.objectives.reduce((s, o) => s + o.amount, 0);
-        const done = game.objectives.reduce((s, o) => s + o.delivered, 0);
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(px + 2, py - 6, fw - 4, 4);
-        ctx.fillStyle = '#a878c8';
-        ctx.fillRect(px + 2, py - 6, (fw - 4) * (total ? done / total : 0), 4);
-      }
+    }
+  }
+
+  // The goal caravan (card #71). Three things the other buildings don't need:
+  //
+  //  - It is TWO sprites. The dock stays where the level put it — that is what
+  //    keeps saying "deliver here" — and the wagon is what leaves, so the pair
+  //    must be drawn separately and only the wagon carries the roll offset.
+  //  - Its load is the order sheet. Crates accumulate in the open rear as
+  //    deliveries land, which is the only place the player reads progress off
+  //    the world itself instead of the HUD.
+  //  - On a `convoy` level the wagon must not be standing on the dock while the
+  //    sim refuses cargo. `caravanRoll` derives that from the same schedule the
+  //    sim gates dispatch on, so the picture cannot drift from the rule.
+  //
+  // No blueprint branch: a goal is level furniture, placed through `addBuilding`
+  // with its default `ready = true` from every call site (`levels.ts`,
+  // `leveldata.ts`), and no tool can build one.
+  private drawCaravan(b: Building, game: Game, t: number): void {
+    const { ctx } = this;
+    const fw = footprintW(b) * TILE;
+    const fh = footprintH(b) * TILE;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    const total = game.objectives.reduce((s, o) => s + o.amount, 0);
+    const done = game.objectives.reduce((s, o) => s + o.delivered, 0);
+
+    ctx.drawImage(sprite('goal_dock').canvas, px, py, fw, fh);
+
+    const roll = caravanRoll(game.level.convoy, game.convoyOpen, game.convoyRemaining);
+    const dx = roll.shift * TILE;
+    if (roll.alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = roll.alpha;
+      // contact shadow travels with the wagon, not with the dock
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath();
+      ctx.ellipse(px + dx + fw / 2, py + fh - 2, fw * 0.42, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.drawImage(sprite('goal').canvas, px + dx, py, fw, fh);
+      this.drawCaravanLoad(crateLoad(done, total), px + dx, py);
+      this.drawCaravanFlags(px + dx, py, roll.rolling ? 2.2 : 1, t);
+      // Dust inside the same alpha as the wagon: at full strength behind a wagon
+      // that has almost faded out, it reads as a puff with nothing making it.
+      // It trails the way the wagon came — out to the road, back from it.
+      if (roll.rolling) this.drawWheelDust(px + dx + fw / 2, py + fh, game.convoyOpen ? 1 : -1, t);
+      ctx.restore();
+    }
+
+    // delivered progress along the order sheet — pinned to the dock, since it is
+    // the station's readout and has to stay legible while the wagon is gone
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(px + 2, py - 6, fw - 4, 4);
+    ctx.fillStyle = '#e0b060';
+    ctx.fillRect(px + 2, py - 6, (fw - 4) * (total ? done / total : 0), 4);
+  }
+
+  // Crates standing in the wagon's open rear, one slice of the order sheet each.
+  // The pyramid they stack in is `CRATE_SPOTS` (see caravan-look.ts).
+  private drawCaravanLoad(n: number, px: number, py: number): void {
+    if (n <= 0) return;
+    const crate = sprite('crate').canvas;
+    for (let i = 0; i < Math.min(n, CRATE_SPOTS.length); i++) {
+      const [ox, oy] = CRATE_SPOTS[i];
+      this.ctx.drawImage(crate, px + ox, py + oy, CRATE_PX, CRATE_PX);
+    }
+  }
+
+  // A bunting garland strung over the tilt: the little flags that say "trade
+  // caravan" at a glance, and the one part of the wagon that moves while it is
+  // standing still. `gust` stiffens the cloth while the wheels are turning.
+  //
+  // The garland has to lie ON the canvas, and the canvas is an arch stamped into
+  // the sprite — so the line follows a parabola fitted to that arch (crown at
+  // screen y+3, dropping ~16px at the shoulders) rather than running flat, which
+  // leaves the end flags hanging in the sky.
+  private drawCaravanFlags(px: number, py: number, gust: number, t: number): void {
+    const { ctx } = this;
+    const wave = (phase: number): number => (this.reduceMotion ? 0 : Math.sin(t * 3 + phase) * 1.2 * gust);
+    const arch = (fx: number): number => {
+      const u = (fx - (px + 31)) / 21.5;
+      return py + 3 + 14 * u * u;
+    };
+    const bx0 = px + 18;
+    const bx1 = px + 50;
+    const N = 5;
+    ctx.strokeStyle = '#6d5636';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const fx = bx0 + ((bx1 - bx0) * i) / N;
+      const y = arch(fx) + wave(i);
+      if (i === 0) ctx.moveTo(fx, y);
+      else ctx.lineTo(fx, y);
+    }
+    ctx.stroke();
+    for (let i = 0; i < N; i++) {
+      const fx = bx0 + ((bx1 - bx0) * (i + 0.5)) / N;
+      const top = arch(fx) + wave(i + 0.5);
+      ctx.fillStyle = i % 2 === 0 ? '#ffd94d' : '#f6ead0';
+      ctx.beginPath();
+      ctx.moveTo(fx - 2, top);
+      ctx.lineTo(fx + 2, top);
+      ctx.lineTo(fx, top + 4);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Dust kicked up under a rolling wagon, drifting `drift` (±1) — away from the
+  // direction of travel, so it always looks left behind. Deterministic in `t` —
+  // no rng, so a replayed seed replays the same departure (docs/architecture.md).
+  private drawWheelDust(cx: number, groundY: number, drift: number, t: number): void {
+    if (this.reduceMotion) return;
+    const { ctx } = this;
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 1.6 + i * 0.33) % 1;
+      ctx.fillStyle = `rgba(196,176,144,${(0.34 * (1 - p)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(cx + drift * (10 + p * 20), groundY - 3 - p * 5, 2 + p * 4, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 

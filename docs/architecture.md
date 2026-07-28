@@ -259,3 +259,43 @@ localStorage next to the custom levels, and a PNG per level would eat a real fra
 `src/game/share.ts` (download · clipboard image · Web Share), each feature-detected and each
 reporting what actually happened — a Share button that opens nothing, or a "saved!" over a
 file the browser refused, is worse than not offering it.
+
+## The goal is a caravan (card #71)
+
+Every level's win condition is "fill the caravan's order sheet", and the story the copy tells
+is that the crew **loads the wagon before it rolls on**. The goal used to be drawn as a
+sandstone temple with a glowing portal, so the picture and the fiction disagreed — the one
+object the player is working *towards* all level was the only one that didn't say what it was.
+It is now a covered trade wagon, and three rules keep that honest:
+
+- **Two sprites, not one.** `goal` is the wagon; `goal_dock` is the station it stands on (order
+  board, loading ramp, lashing post, flagstone kerb). The split exists because on a `convoy`
+  level the wagon *leaves* — so something has to stay behind and go on saying "deliver here".
+  Anything bolted to the wagon travels with it, which is why the loading ramp is dock furniture:
+  as the wagon's own tailgate it rolled away and read as a flight of steps floating in mid-air.
+- **The wagon's position is derived, never stored.** `caravanRoll` in `src/game/caravan-look.ts`
+  turns `Game.convoyOpen` / `convoyRemaining` into a slide offset and an alpha, so the picture
+  reads the *same* schedule that gates dispatch (`sim.ts` routes to the goal only while the
+  window is open) and cannot drift from it — mid-animation included, restart included. The
+  property that matters is the one a picture can silently break: a wagon parked on the dock
+  must mean the window is open, and a wagon out of sight must mean it is shut.
+  `tests/caravan.mjs` asserts both by stepping a real convoy level through three full cycles.
+- **The load is the order sheet.** `crateLoad` stacks up to `CARAVAN_CRATES` crates in the
+  wagon's open rear — the only place the player reads delivery progress off the world rather
+  than the HUD. Two deliberate non-linearities: the *first* delivery must move the pile (plain
+  rounding hides deliveries 1–2 of a 40-unit order, and a load that doesn't budge reads as
+  broken hauling), and a full stack must mean a full sheet (so "loaded" never lies).
+
+**The art lesson, because it cost four passes:** at a 4×3 footprint a wagon reads as a wagon
+only if the **wheels are big, filled and cross the body line**, and if the space between them
+is closed by a belly and a reach beam. The first pass had thin see-through wheels under a deep
+bed on a full-width plank deck: every horizontal line landed at the same place and the whole
+thing read as a market stall on stilts. Sprites are authored by stamping onto a char grid
+(`bgrid`/`bbox`/`bwheel`/`btilt` in `src/engine/sprites.ts`) — `btilt` returns its per-column
+canvas top so the rear third can have the cloth rolled back over bare hoops without
+re-deriving the arch, and `drawCaravanFlags` fits a parabola to that same arch so the bunting
+lies *on* the canvas instead of hanging in the sky.
+
+`npm run test:caravan` is the headless guard (load arithmetic, roll-vs-window, copy);
+`npm run test:caravan-shot` is the eyeball helper — it writes the wagon at four load levels and
+three convoy states to `tests/.caravan-out/`, which is how the passes above were judged.
