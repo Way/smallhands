@@ -39,6 +39,7 @@
     "test:weather": "node tests/weather.mjs",
     "test:weather-visual": "node tests/weather-visual.mjs",
     "test:biome-light": "node tests/biome-light.mjs",
+    "test:biome-hills": "node tests/biome-hills.mjs",
     "test:vale-visual": "node tests/vale-visual.mjs",
     "test:restart-scenery": "node tests/restart-scenery.mjs",
     "test:gen-biome": "node tests/gen-biome.mjs",

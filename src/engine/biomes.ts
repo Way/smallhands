@@ -94,6 +94,19 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     stone: { r: '#cfcaba', R: '#e5e1d4', k: '#a8a291', K: '#87816f' },
     accent: '#7f9fd8',
     accent2: '#e8e4f0',
+    // Checked in the same pass as redrock and deliberately left alone (card #76).
+    // Chalk's own ground carries green grass over pale stone, so green downs
+    // behind white cliffs agree with the foreground — the mismatch was redrock's
+    // alone, whose blades are dry olive and whose bedrock is terracotta.
+    //
+    // Worth knowing before touching this tint, because it does not do what its
+    // numbers suggest: [150,190,170] sits within a few units of the CLEAR
+    // weather look's own hills, so by day it moves the picture barely at all. It
+    // earns its keep on the wet looks, where it is much lighter than what it is
+    // mixing into and lifts the rain and storm hills by up to 22 units — a pale
+    // chalk haze that survives bad weather. Zeroing it as a dead knob (the first
+    // attempt at this card) is therefore a visible change to chalk's storm, not
+    // a cleanup.
     hillTint: [150, 190, 170],
     hillTintAmt: 0.25,
     skyTint: [200, 230, 240],
@@ -108,8 +121,23 @@ export const BIOME_LOOK: Record<Biome, BiomeLook> = {
     stone: { r: '#b05a38', R: '#c97a4e', k: '#8a4227', K: '#66301c' },
     accent: '#d8b04c',
     accent2: '#77a06a',
+    // The tint has to do nearly all the work, because what it is mixing INTO is
+    // a strong sage green (`weatherLook('clear').hills`, [143,199,168]). At the
+    // old 0.4 the mix landed on rgb(164,167,133) — an olive in which green still
+    // won the hue, so the horizon read meadow while the ground read desert
+    // (card #76). Two numbers bound this knob from either side, which is why it
+    // is 0.85 and not 1, and why raising it further is not a free win:
+    //   - below ~0.76 the sky-drowned horizon layer cannot come out warm at all,
+    //     whatever the tint says: it is 55% sky (HILL_SKY_MIX.horizon) and this
+    //     biome's sky is still blue;
+    //   - above ~0.87 the storm stops darkening the near scrub line. Luma is
+    //     linear through the mix, so that layer's clear→storm drop is exactly
+    //     (1 - hillTintAmt) of the weather look's own 60.8 — at 0.85 it is 9.1,
+    //     and at 1.0 every weather would paint the scrub the identical colour.
+    //     The scrub line is the only layer with no sky mix to carry it instead.
+    // tests/biome-light.mjs holds both ends; tests/biome-hills.mjs is the eyeball.
     hillTint: [196, 120, 80],
-    hillTintAmt: 0.4,
+    hillTintAmt: 0.85,
     skyTint: [255, 200, 160],
     skyTintAmt: 0.15,
     snowcaps: false,
