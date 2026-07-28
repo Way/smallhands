@@ -85,6 +85,51 @@ export function lerpLook(a: WeatherLook, b: WeatherLook, t: number): WeatherLook
   };
 }
 
+// ---- biome atmosphere -------------------------------------------------------
+//
+// A biome does not own its sky and hills; it *leans* on the weather look's.
+// The weather carries the value relationships — the two hill layers' separation
+// and the whole clear→rain→storm darkening — and the biome rotates the hue.
+// Applied after the weather blend, so a phase crossfade keeps working.
+//
+// These live here, exported, rather than inline in drawSky for one reason: they
+// are the only colours in the scene no rendered frame can be asserted against
+// (treetop sway means no two frames are equal — see tests/biome-light.mjs). A
+// palette pass has to be checked against these numbers and then judged on
+// screen, so both readers have to be able to call the *same* function the
+// renderer does instead of re-deriving the mix and slowly drifting from it.
+
+export const mixRgb = (c: RGB, to: readonly number[], amt: number): RGB =>
+  amt <= 0 ? c : [c[0] + (to[0] - c[0]) * amt, c[1] + (to[1] - c[1]) * amt, c[2] + (to[2] - c[2]) * amt];
+
+// How much sky each distant layer is drowned in (drawDistantTerrain). Aerial
+// perspective: the horizon range is mostly sky, the midground ridge barely any,
+// and the near scrub line none at all. Constants because the horizon layer is
+// the one that reads greenest, so a guard on the hill palette has to be able to
+// compute what the horizon actually ends up as, not just what the hills are.
+export const HILL_SKY_MIX = { horizon: 0.55, mid: 0.15 } as const;
+
+interface Atmosphere {
+  hillTint: RGB;
+  hillTintAmt: number;
+  skyTint: RGB;
+  skyTintAmt: number;
+}
+
+/** The daytime sky gradient stops a biome shows under a weather look. */
+export function biomeSky(look: WeatherLook, bl: Atmosphere): [RGB, RGB, RGB] {
+  return [
+    mixRgb(look.sky[0], bl.skyTint, bl.skyTintAmt),
+    mixRgb(look.sky[1], bl.skyTint, bl.skyTintAmt),
+    mixRgb(look.sky[2], bl.skyTint, bl.skyTintAmt),
+  ];
+}
+
+/** The two daytime parallax hill layers a biome shows under a weather look. */
+export function biomeHills(look: WeatherLook, bl: Atmosphere): [RGB, RGB] {
+  return [mixRgb(look.hills[0], bl.hillTint, bl.hillTintAmt), mixRgb(look.hills[1], bl.hillTint, bl.hillTintAmt)];
+}
+
 export const rgbCss = (c: RGB): string => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
 export const rgbaCss = (c: RGBA): string =>
   `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${c[3].toFixed(3)})`;

@@ -4,6 +4,7 @@ dist/
 tools/trailer/out/
 tests/.vale-out/
 tests/.caravan-out/
+tests/.hills-out/
 .DS_Store
 
 # Local agent tooling (worktree scratch space, per-machine Harmony board linkage)

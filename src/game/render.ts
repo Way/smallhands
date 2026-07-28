@@ -6,7 +6,7 @@ import type { Biome } from '../engine/biomes';
 import { t } from '../engine/i18n';
 import { footprintH, footprintW, liftTopFor, ropeDropFor, canPlaceLadder, canPlacePlatform, canPlaceRamp, canPlaceBuilding, rampFacesLeft } from './world';
 import type { Game } from './sim';
-import { weatherLook, lerpLook, rgbCss, rgbaCss } from './weather-look';
+import { weatherLook, lerpLook, rgbCss, rgbaCss, mixRgb, biomeSky, biomeHills, HILL_SKY_MIX } from './weather-look';
 import type { WeatherLook, RGB, RGBA } from './weather-look';
 import { MotionLayer, RIPPLE_DUR, PUFF_DUR } from './motion';
 import { caravanRoll, crateLoad, CRATE_SPOTS, CRATE_PX } from './caravan-look';
@@ -192,8 +192,6 @@ export class Renderer {
     // blend so crossfades keep working); the fixed night palette is crossfaded
     // in by nA on top, so a cycle level slides day→night rather than snapping.
     const bl = BIOME_LOOK[(game.level.biome ?? 'meadow') as Biome];
-    const bmix = (c: RGB, to: readonly number[], amt: number): RGB =>
-      amt <= 0 ? c : [c[0] + (to[0] - c[0]) * amt, c[1] + (to[1] - c[1]) * amt, c[2] + (to[2] - c[2]) * amt];
     const mix3 = (a: RGB, b: RGB, t: number): RGB =>
       t <= 0 ? a : [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
     const mix4 = (a: RGBA, b: RGBA, t: number): RGBA =>
@@ -202,15 +200,8 @@ export class Renderer {
     // day palettes (biome-tinted) and the fixed night palette, crossfaded by nA.
     // Night is a level condition, not weather: it overrides the sky palette, but
     // the wet tint/streaks (drawn in drawWeatherFx) still crossfade on top.
-    const dayStops: [RGB, RGB, RGB] = [
-      bmix(look.sky[0], bl.skyTint, bl.skyTintAmt),
-      bmix(look.sky[1], bl.skyTint, bl.skyTintAmt),
-      bmix(look.sky[2], bl.skyTint, bl.skyTintAmt),
-    ];
-    const dayHills: [RGB, RGB] = [
-      bmix(look.hills[0], bl.hillTint, bl.hillTintAmt),
-      bmix(look.hills[1], bl.hillTint, bl.hillTintAmt),
-    ];
+    const dayStops = biomeSky(look, bl);
+    const dayHills = biomeHills(look, bl);
     const nightStops: [RGB, RGB, RGB] = [
       [10, 16, 40],
       [20, 30, 66],
@@ -287,7 +278,7 @@ export class Renderer {
     // distant terrain in three strict parallax layers: a sky-drowned horizon
     // range, a mid ridge with biome character (plus its dressing), and a near
     // scrub line. Contrast rises toward the playable grid, never above it.
-    this.drawDistantTerrain(game, W, H, cam, hillsRgb, stopsRgb[1], bmix);
+    this.drawDistantTerrain(game, W, H, cam, hillsRgb, stopsRgb[1]);
 
     // clouds — the storm drives them hard across the sky
     const cloudSpeed = look.cloudSpeed;
@@ -346,8 +337,7 @@ export class Renderer {
     H: number,
     cam: Camera,
     hills: [RGB, RGB],
-    skyMid: RGB,
-    bmix: (c: RGB, to: readonly number[], amt: number) => RGB
+    skyMid: RGB
   ): void {
     const { ctx } = this;
     const biome = (game.level.biome ?? 'meadow') as Biome;
@@ -366,11 +356,11 @@ export class Renderer {
     const midShape = biome === 'redrock' ? buttes : biome === 'chalk' ? dunes : rolling;
 
     // 1. horizon range — drowned in sky to read as far distance
-    const horizonCol = bmix(hills[0], skyMid, 0.55);
+    const horizonCol = mixRgb(hills[0], skyMid, HILL_SKY_MIX.horizon);
     this.silhouette(W, H, cam, 0.05, rgbCss(horizonCol), 0.62, 95, horizonShape);
     // snow tips on the highest horizon peaks of snow-capped biomes
     if (BIOME_LOOK[biome].snowcaps) {
-      ctx.fillStyle = rgbCss(bmix(horizonCol, [246, 249, 255], 0.6));
+      ctx.fillStyle = rgbCss(mixRgb(horizonCol, [246, 249, 255], 0.6));
       for (let x = 0; x <= W; x += 8) {
         const wx = (x + cam.x * 0.05) * 0.008;
         const s = horizonShape(wx);
@@ -382,14 +372,14 @@ export class Renderer {
     }
 
     // 2. midground ridge + dressing
-    const midCol = bmix(hills[0], skyMid, 0.15);
+    const midCol = mixRgb(hills[0], skyMid, HILL_SKY_MIX.mid);
     this.silhouette(W, H, cam, 0.12, rgbCss(midCol), 0.72, 60, midShape);
     const treeline = BIOME_LOOK[biome].treeline;
     if (treeline !== 'none') {
       // a distant tree line along the mid crest, anchored in layer space so it
       // parallaxes with its hill; conifers for the highlands, blobs elsewhere
       const par = 0.12;
-      const treeCol = rgbCss(bmix(midCol, [0, 0, 0], 0.14));
+      const treeCol = rgbCss(mixRgb(midCol, [0, 0, 0], 0.14));
       ctx.fillStyle = treeCol;
       const g0 = Math.floor((cam.x * par) / 26) - 1;
       const g1 = Math.floor((cam.x * par + W) / 26) + 1;

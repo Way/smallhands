@@ -353,3 +353,41 @@ lies *on* the canvas instead of hanging in the sky.
 `npm run test:caravan` is the headless guard (load arithmetic, roll-vs-window, copy);
 `npm run test:caravan-shot` is the eyeball helper — it writes the wagon at four load levels and
 three convoy states to `tests/.caravan-out/`, which is how the passes above were judged.
+
+## A biome tints the weather, it doesn't own it (card #76)
+
+The sky and the three parallax layers behind a level belong to the **weather look**
+(`src/game/weather-look.ts`); a biome only leans on them. The weather carries every value
+relationship — the two hill layers' separation and the whole clear→rain→storm darkening — and
+`BIOME_LOOK.hillTint` / `skyTint` rotate the hue, applied after the weather blend so a phase
+crossfade keeps working. `biomeSky`, `biomeHills` and `HILL_SKY_MIX` are exported from that
+module and are the *only* place the mix happens: `render.ts` calls them and so do the tests,
+because a copy of the arithmetic in a test would drift from `drawSky` and go on passing while
+the screen was wrong. That is exactly how `redrock` shipped a sage-green horizon over
+terracotta ground — nothing pinned the numbers, and the layer that reads worst is the one
+hardest to eyeball.
+
+**`hillTintAmt` is a trade-off, not a strength dial.** Two bounds squeeze it from either side,
+and both are properties of *where* the layer sits:
+
+- The horizon range is 55% sky (`HILL_SKY_MIX.horizon`). Under a blue sky no tint below ~0.76
+  can bring it out warm at all, whatever the biome asks for — which is why "raise the number a
+  bit" was not enough for redrock and 0.85 is.
+- The near scrub line gets **no** sky mix, so the tint is the only thing colouring it. Luma is
+  linear through the mix, so that layer's clear→storm drop is exactly `(1 - hillTintAmt)` of
+  the weather look's own — at 1.0 every weather paints the scrub the identical colour and the
+  storm stops registering on the layer closest to the player.
+
+Which biomes must obey the no-green rule is **derived, not listed** (a list is what let the bug
+exist): a biome with red bedrock *and* dry grass has no green anywhere in its country, so it
+may have none in its distance. That rules `chalk` out without an exemption — chalk grows green
+grass over pale stone, so green downs behind its white cliffs agree with its foreground — and
+covers the next desert biome the day it is added. Chalk's own tint was examined and left: it
+looks like a dead knob (within a few units of the clear hills) but lifts the *rain and storm*
+hills by up to 22 units, so zeroing it is a visible change, not a cleanup.
+
+`npm run test:biome-light` is the headless guard (hue bands, the storm-still-darkens floor, and
+an exact pin of all five untouched biomes under all three weathers); `npm run test:biome-hills`
+is the eyeball helper — it writes every biome × weather × night case plus campaign levels 18
+and 22 to `tests/.hills-out/`, which is how this pass was judged. Neither can be skipped: no
+number settles whether a horizon looks like it belongs to the ground.
