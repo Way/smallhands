@@ -371,7 +371,11 @@ function buildScenes(copy) {
         // sink the shaft off camera, so the scene opens on a mine mouth that is
         // already there rather than on a smallie walking towards nothing
         window.__H.runSteps([{ do: (g) => g.paintDigRun(24, 16, 24, 19) > 0 }], 10);
-        window.__H.ffUntil((g) => g.world.get(24, 19) === 0, 240);
+        // Throw rather than shoot dead footage: if the shaft never lands, the drift
+        // orders below paint into solid rock and the scene quietly becomes a smallie
+        // standing in a hole. A render that reds is cheap; one that lies is not.
+        if (!window.__H.ffUntil((g) => g.world.get(24, 19) === 0, 240))
+          throw new Error('dig scene: the shaft never reached the gallery row');
         // then drive the drift east toward the buried seam and land the capture a
         // beat before a tile gives way, so rock visibly falls on camera (rock is
         // DIG_TIME 2.8 s, so a 4 s scene otherwise shows a smallie standing still)
@@ -427,9 +431,28 @@ function buildScenes(copy) {
         SH.startLevel(10); // Ballast Ridge — the caravan docks 40 s, then is away 20 s
         window.__H.markAll();
         window.__H.countEvents();
-        // the ridge's own boulders need no machine, so a few crates land in the bed
-        // without staging the wheel: the load IS the order sheet (caravan-look.ts)
-        window.__H.ffUntil(() => (window.__evc.goalDeposit || 0) >= 6, 300);
+        // The ridge's own boulders need no machine, so stone reaches the bed without
+        // staging the wheel: the load IS the order sheet (caravan-look.ts). Wait for
+        // the deposits to PLATEAU rather than for a count — an order amount pinned
+        // here is a tuning knob this file does not own (docs/architecture.md), and
+        // six happens to be exactly level 11's stone objective, so the day that is
+        // retuned down the predicate can never trip and the wagon rolls off empty.
+        // A shut dock stalls dispatch without meaning "done", so it resets the wait.
+        let seen = -1;
+        let still = 0;
+        window.__H.ffUntil((g) => {
+          const n = window.__evc.goalDeposit || 0;
+          if (n !== seen) {
+            seen = n;
+            still = 0;
+            return false;
+          }
+          if (!g.convoyOpen) {
+            still = 0;
+            return false;
+          }
+          return n > 0 && ++still >= 30; // ffUntil polls every 10 ticks — ~5 s quiet
+        }, 300);
         // land ~1.3 s before the window shuts, so the scene opens on a parked, loaded
         // wagon (the crates read only while it is opaque), then rolls it out over
         // CARAVAN_ROLL_TIME and leaves the dock standing
@@ -502,17 +525,23 @@ function buildScenes(copy) {
         // flooding row is swept (sweepTile), and losing it mid-shot reads as a glitch
         // rather than as the rule it is.
         window.__H.runSteps([{ do: (g) => g.paintDigRun(39, 18, 39, 23) > 0 }], 10);
-        window.__H.ffUntil((g) => g.world.get(39, 23) === 0, 300);
+        if (!window.__H.ffUntil((g) => g.world.get(39, 23) === 0, 300))
+          throw new Error('drown scene: the shaft never reached the drift floor');
         // (every run placer returns a COUNT, and runSteps only retries on a literal
         // false — so a step that placed nothing must report it as false itself)
         window.__H.runSteps([{ do: (g) => g.placeLadderRun(39, 19, 39, 22) > 0 }], 20);
-        // then drive the drift east through all three veins
+        // Then drive the drift east through all three veins — and it has to be open
+        // BEFORE the first rain, not merely eventually: past that point `openCell`
+        // fills every cell cut at row >= 23 with water instead of air, so the orders
+        // silently stop producing gallery and the scene would open on a static lake.
         window.__H.runSteps([{ do: (g) => g.paintDigRun(40, 23, 47, 23) > 0 }], 10);
-        window.__H.ffUntil((g) => g.world.get(44, 23) === 0, 400);
+        const dug = window.__H.ffUntil((g) => g.world.get(44, 23) === 0, 400);
+        if (!dug || window.__smallhands.game.waterRow !== null)
+          throw new Error('drown scene: the drift was not open and dry before the first rain');
         // Stop a beat BEFORE the downpour. The rise fires on the phase boundary into
         // rain (tickWeather) and floods instantly, so landing after it would open on
         // a lake that was always there; opening on dry rock makes the water ARRIVE on
-        // camera — with the shaft's timber swept and the crew scrambling out.
+        // camera, taking the drift and the ore standing in it.
         window.__H.ffUntil((g) => g.weather === 'clear' && g.weatherRemaining < 1.2, 200);
       },
     },

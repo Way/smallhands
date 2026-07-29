@@ -13,7 +13,11 @@
 import { chromium } from 'playwright-core';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
-const TOL = 0.6; // the badge is whole seconds; VP9 and H.264 also differ by a frame
+// Both numbers are whole seconds written by hand against a fractional render, and
+// the two containers differ by a frame or two, so compare against the UNROUNDED
+// duration with a second of slack either way. That still catches the failure this
+// exists for — a deck that was retimed and left the copy behind is seconds out.
+const TOL = 1.0;
 
 let fails = 0;
 const check = (label, ok, detail) => {
@@ -40,6 +44,7 @@ try {
       hasVideo: !!document.querySelector('.teaser-frame video'),
       posterSrc: btn?.querySelector('img')?.getAttribute('src') ?? null,
       badge: btn?.querySelector('.teaser-dur')?.textContent?.trim() ?? null,
+      caption: document.querySelector('.teaser-band .chain-cap')?.textContent?.trim() ?? null,
     };
   });
   check('the teaser frame starts as a poster button', before.hasButton && !before.hasVideo);
@@ -80,8 +85,18 @@ try {
   const badgeS = m * 60 + s;
   check(
     'the badge matches the shipped file',
-    Number.isFinite(meta.duration) && Math.abs(Math.ceil(meta.duration) - badgeS) <= TOL,
+    Number.isFinite(meta.duration) && Math.abs(meta.duration - badgeS) <= TOL,
     `badge ${before.badge} (${badgeS}s) vs ${meta.duration?.toFixed(2)}s`
+  );
+
+  // The caption opens with the runtime in words ("45 seconds: …"), which is the exact
+  // number this suite was written for: it said 35 for the ten days after the deck grew
+  // to 45, and nothing anywhere could tell.
+  const capS = Number((before.caption ?? '').match(/\d+/)?.[0]);
+  check(
+    'the caption states the runtime of the shipped file',
+    Number.isFinite(capS) && Math.abs(meta.duration - capS) <= TOL,
+    `caption "${(before.caption ?? '').slice(0, 40)}…" (${capS}s) vs ${meta.duration?.toFixed(2)}s`
   );
 } finally {
   await browser.close();

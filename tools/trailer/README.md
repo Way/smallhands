@@ -44,13 +44,22 @@ flips the caption and its veil to the empty sky instead.
 
 ## Usage
 
+Host the preview and the render in ONE shell, and pick your own port: the render
+reloads the page for the end card, and a preview left running from another shell
+(or another checkout on the shared :4173) either dies under an agent harness that
+reaps detached jobs — killing the render mid-scene — or quietly serves a different
+`dist` than the one you just built.
+
 ```bash
-npx vite build && npx vite preview &   # serve the production build on :4173
-npm run trailer                        # both languages -> tools/trailer/out/
+npx vite build
+( npx vite preview --port 4191 --strictPort & PV=$!; trap "kill $PV" EXIT
+  until curl -sf http://localhost:4191/ >/dev/null; do sleep 0.5; done
+  BASE_URL=http://localhost:4191/ npm run trailer )   # both langs -> tools/trailer/out/
+
+# variations (same BASE_URL, and CHROME_PATH where the browser isn't found)
 node tools/trailer/render-teaser.mjs --lang=de          # one language
 node tools/trailer/render-teaser.mjs --storyboard       # 3 stills/scene, no video
 node tools/trailer/render-teaser.mjs --only=dig,drown   # stage a subset while iterating
-BASE_URL=http://localhost:5173/ node tools/trailer/render-teaser.mjs
 ```
 
 Encoding prefers a full ffmpeg (`npm i --no-save @ffmpeg-installer/ffmpeg`) for
