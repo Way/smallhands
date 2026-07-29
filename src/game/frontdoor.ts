@@ -321,7 +321,7 @@ export class FrontDoor {
               <div><h3>${this.tr('worldConvoyTitle')}</h3><p>${this.tr('worldConvoyBody')}</p></div>
             </article>
             <article class="mech">
-              <div class="mech-ic">${this.icon('tile_platform')}</div>
+              <div class="mech-ic">${this.icon('ration')}</div>
               <div><h3>${this.tr('worldBudgetTitle')}</h3><p>${this.tr('worldBudgetBody')}</p></div>
             </article>
           </div>
