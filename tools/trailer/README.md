@@ -1,6 +1,6 @@
 # Teaser trailer renderer
 
-Renders a ~35 s teaser video (1280×720 @ 30 fps, H.264 MP4 with a synthesized
+Renders a ~45 s teaser video (1280×720 @ 30 fps, H.264 MP4 with a synthesized
 chiptune soundtrack) straight out of the real game — no screen recording, no
 external footage.
 
@@ -26,22 +26,40 @@ external footage.
 
 1. **Hook** — level 1 in full swing (indirect control, hauling, sawmill)
 2. **Build** — the Cliff Shrine: cargo lift + a ladder run appearing tile by tile
-3. **Hoist** — Campaign 3's counterweight hoist cycling at a cliff edge
-4. **Storm** — The High Forge under a storm: darkened sky, slanted rain, gusts that seize the lifts
-5. **Rising tide** — The Rising Tide: a downpour lifts the water and floods the basin
-6. **Day-night** — The Waning Light: noon turns to dusk and the lantern chain holds the light
-7. **Biomes** — three quick cuts through generated worlds (autumn/redrock/slate)
-8. **Deliver** — a goal delivery landing at the caravan
-9. **End card** — the front door hero: logo, pitch, Play button
+3. **Dig** — The Buried Seam: a shaft sunk from the meadow and a drift driven east through rock, the sealed caravan waiting at the end of it
+4. **Hoist** — Campaign 3's counterweight hoist cycling at a cliff edge
+5. **Convoy** — Ballast Ridge: the loaded wagon rolls off its dock when the window shuts, and the dock stays behind
+6. **Storm** — The High Forge under a storm: darkened sky, slanted rain, gusts that seize the lifts
+7. **Rising tide** — The Rising Tide: a downpour lifts the water and floods the basin
+8. **Drowned deep** — The Seeping Floor: a drift dug below the water table goes under on camera when the rain arrives
+9. **Day-night** — The Waning Light: noon turns to dusk and the lantern chain holds the light
+10. **Biomes** — three quick cuts through generated worlds (autumn/redrock/slate)
+11. **Deliver** — a plank landing at the trade wagon, crates stacked in its bed
+12. **End card** — the front door hero: logo, pitch, Play button
+
+Scenes 3, 5 and 8 stage the mechanics the shipped video predates (digging,
+the convoy window, flood × dig). Two of them put their subject in the map's
+bottom rows, where no camera move can lift it — those set `textTop`, which
+flips the caption and its veil to the empty sky instead.
 
 ## Usage
 
+Host the preview and the render in ONE shell, and pick your own port: the render
+reloads the page for the end card, and a preview left running from another shell
+(or another checkout on the shared :4173) either dies under an agent harness that
+reaps detached jobs — killing the render mid-scene — or quietly serves a different
+`dist` than the one you just built.
+
 ```bash
-npx vite build && npx vite preview &   # serve the production build on :4173
-npm run trailer                        # both languages -> tools/trailer/out/
+npx vite build
+( npx vite preview --port 4191 --strictPort & PV=$!; trap "kill $PV" EXIT
+  until curl -sf http://localhost:4191/ >/dev/null; do sleep 0.5; done
+  BASE_URL=http://localhost:4191/ npm run trailer )   # both langs -> tools/trailer/out/
+
+# variations (same BASE_URL, and CHROME_PATH where the browser isn't found)
 node tools/trailer/render-teaser.mjs --lang=de          # one language
 node tools/trailer/render-teaser.mjs --storyboard       # 3 stills/scene, no video
-BASE_URL=http://localhost:5173/ node tools/trailer/render-teaser.mjs
+node tools/trailer/render-teaser.mjs --only=dig,drown   # stage a subset while iterating
 ```
 
 Encoding prefers a full ffmpeg (`npm i --no-save @ffmpeg-installer/ffmpeg`) for
@@ -57,13 +75,20 @@ WebM (VP9/Opus) source first and an MP4 (H.264/AAC) fallback for Safari.
 After re-rendering the trailer, refresh those assets:
 
 ```bash
-FF=node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+# the installer build only exists on linux-x64; a system ffmpeg with libx264,
+# libvpx-vp9 and libopus does the same job (macOS: brew install ffmpeg)
+FF=$([ -x node_modules/@ffmpeg-installer/linux-x64/ffmpeg ] \
+      && echo node_modules/@ffmpeg-installer/linux-x64/ffmpeg || command -v ffmpeg)
 for l in de en; do
   $FF -i tools/trailer/out/smallhands-teaser-$l.mp4 -c:v libx264 -preset slow -crf 23 \
       -pix_fmt yuv420p -movflags +faststart -c:a copy -y public/media/teaser-$l.mp4
   $FF -i tools/trailer/out/smallhands-teaser-$l.mp4 -c:v libvpx-vp9 -crf 33 -b:v 0 \
       -row-mt 1 -c:a libopus -b:a 112k -y public/media/teaser-$l.webm
-  $FF -ss 2.6 -i tools/trailer/out/smallhands-teaser-$l.mp4 -frames:v 1 -q:v 3 \
+  # the poster is the still that has to sell the click, so it comes from the
+  # delivery beat (~40.8 s): the wagon with crates in its bed, the sawmill, and a
+  # hauler carrying planks between them — the whole loop in one frame. Re-check the
+  # timestamp after any retiming; a caption caught mid-fade reads as a broken image.
+  $FF -ss 40.8 -i tools/trailer/out/smallhands-teaser-$l.mp4 -frames:v 1 -q:v 3 \
       -y public/media/teaser-poster-$l.jpg
 done
 ```

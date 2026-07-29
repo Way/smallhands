@@ -1,4 +1,4 @@
-// Teaser-trailer renderer: captures ~32 s of real Smallhands gameplay as a
+// Teaser-trailer renderer: captures ~45 s of real Smallhands gameplay as a
 // deterministic frame-by-frame video (1280×720 @ 30 fps) and encodes it to MP4.
 //
 // Instead of screen-recording in real time (stutter, JPEG screencast quality),
@@ -14,6 +14,7 @@
 //   node tools/trailer/render-teaser.mjs                 # both languages, MP4
 //   node tools/trailer/render-teaser.mjs --lang=de       # one language
 //   node tools/trailer/render-teaser.mjs --storyboard    # 3 stills per scene, no video
+//   node tools/trailer/render-teaser.mjs --only=dig,drown # stage a subset (iteration)
 //   BASE_URL=http://localhost:5173/ ... to point elsewhere
 //
 // Encoding uses @ffmpeg-installer/ffmpeg when available (H.264 + AAC music),
@@ -38,6 +39,14 @@ const opt = (name, dflt) => {
   return a ? a.split('=')[1] : dflt;
 };
 const STORYBOARD = args.includes('--storyboard');
+// Iteration helper: `--only=dig,drown` stages just those scene ids. Every scene
+// boots its own level in its setup, so any subset is a valid run — this exists so
+// one new scene can be judged without paying for the whole deck (and it makes a
+// deliberately partial video, so never ship a `--only` render).
+const ONLY = opt('only', '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const LANGS = opt('lang', 'all') === 'all' ? ['de', 'en'] : [opt('lang', 'de')];
 const OUT_DIR = resolve(opt('out', join(__dir, 'out')));
 mkdirSync(OUT_DIR, { recursive: true });
@@ -81,22 +90,28 @@ const COPY = {
   de: {
     hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallies benutzen sie' },
     build: { h: 'Nur leere Hände können klettern.', sub: 'Fracht braucht einen anderen Weg nach oben' },
+    dig: { h: 'Fels ist keine Wand.', sub: 'Du markierst den Schacht — ein Gräber teuft ihn' },
     hoist: { h: 'Schwerkraft als Spielelement.', sub: 'Ballast runter, Fracht rauf' },
+    convoy: { h: 'Die Karawane hält nach Plan.', sub: 'Belade den Wagen, eh er weiterzieht' },
     storm: { h: 'Stürme ziehen nach Plan auf.', sub: 'Regen bremst die Äxte; Böen blockieren die Aufzüge' },
     tide: { h: 'Jeder Guss hebt die Flut.', sub: 'Rette die Waren, eh das Wasser sie holt' },
+    drown: { h: 'Im Fels steht das Wasser.', sub: 'Grab unter den Spiegel, und der Regen holt den Stollen' },
     daynight: { h: 'Der Tag selbst wendet sich.', sub: 'Wettlauf mit der Nacht — Laternen halten das Licht' },
-    biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '5 Biome · Täglicher Auftrag · Level-Editor' },
+    biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '6 Biome · Täglicher Auftrag · Level-Editor' },
     deliver: { h: 'Geschwindigkeit und Geschick sind entscheidend.', sub: 'Prestige und Highscores warten auf dich' },
     end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
   },
   en: {
     hook: { h: 'No direct control.', sub: 'You build the world — the smallies use it' },
     build: { h: 'Only empty hands can climb.', sub: 'Cargo needs another way up' },
+    dig: { h: 'Rock is not a wall.', sub: 'You mark the shaft — a Digger cuts it' },
     hoist: { h: 'Gravity as a game mechanic.', sub: 'Ballast down, cargo up' },
+    convoy: { h: 'The caravan docks on a schedule.', sub: 'Load the wagon before it rolls on' },
     storm: { h: 'Storms roll in on the forecast.', sub: 'Rain slows the axes; gusts lock the lifts' },
     tide: { h: 'Every downpour lifts the tide.', sub: 'Rescue the goods before the water takes them' },
+    drown: { h: 'The rock has a waterline.', sub: 'Dig below it and the next rain takes the gallery' },
     daynight: { h: 'The day itself turns.', sub: 'Race the dark — lanterns hold the light' },
-    biomes: { h: 'Every seed generates a unique world.', sub: '5 biomes · Daily challenge · Level editor' },
+    biomes: { h: 'Every seed generates a unique world.', sub: '6 biomes · Daily challenge · Level editor' },
     deliver: { h: 'Speed and skill decide.', sub: 'Prestige and highscores await' },
     end: { h: '', sub: '' },
   },
@@ -170,6 +185,11 @@ const pageLib = () => {
     #tov .veil { position: absolute; inset: 0; opacity: 0;
       background: linear-gradient(180deg, rgba(10,13,20,0) 52%, rgba(10,13,20,0.72) 100%); }
     #tov .txt { position: absolute; left: 6%; right: 6%; bottom: 8.5%; text-align: center; opacity: 0; }
+    /* Underground scenes put their subject in the bottom rows — the map's own floor
+       is the clamp, so no camera move can lift it. Those scenes flip the caption
+       (and its veil) to the top, where the sky is empty between the two HUD panels. */
+    #tov .txt.top { top: 15%; bottom: auto; }
+    #tov .veil.top { background: linear-gradient(0deg, rgba(10,13,20,0) 58%, rgba(10,13,20,0.72) 100%); }
     /* display type matches the redesigned front door: bundled Pixelify Sans */
     #tov .h { font-family: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif; font-size: 48px;
       font-weight: 700; color: #e8eef7; letter-spacing: 0.5px; line-height: 1.14;
@@ -199,9 +219,13 @@ const pageLib = () => {
     if (h.textContent !== (s.h ?? '')) h.textContent = s.h ?? '';
     if (sub.textContent !== (s.sub ?? '')) sub.textContent = s.sub ?? '';
     const o = s.textO ?? 0;
+    const veil = tov.querySelector('.veil');
+    txt.classList.toggle('top', !!s.textTop);
+    veil.classList.toggle('top', !!s.textTop);
     txt.style.opacity = String(o);
-    txt.style.transform = `translateY(${((1 - o) * 14).toFixed(2)}px)`;
-    tov.querySelector('.veil').style.opacity = String(o * 0.95);
+    // rises into place from below, or settles down from above when it sits on top
+    txt.style.transform = `translateY(${((1 - o) * (s.textTop ? -14 : 14)).toFixed(2)}px)`;
+    veil.style.opacity = String(o * 0.95);
     tov.querySelector('.fade').style.opacity = String(s.fadeO ?? 0);
     const ui = document.getElementById('ui-root');
     if (ui) ui.style.opacity = s.hud === false ? '0' : '1';
@@ -280,7 +304,7 @@ function buildScenes(copy) {
   return [
     {
       id: 'hook',
-      frames: 150,
+      frames: 140,
       text: copy.hook,
       textEnv: [14, 20],
       fade: { in: 10, out: 0 },
@@ -298,7 +322,7 @@ function buildScenes(copy) {
     },
     {
       id: 'build',
-      frames: 135,
+      frames: 130,
       text: copy.build,
       textEnv: [12, 16],
       fade: { in: 0, out: 0 },
@@ -327,8 +351,44 @@ function buildScenes(copy) {
       },
     },
     {
+      id: 'dig',
+      frames: 120,
+      text: copy.dig,
+      textEnv: [12, 16],
+      textTop: true, // the shaft and the drift sit in the bottom rows
+      fade: { in: 6, out: 0 },
+      // closer than the surface scenes on purpose: a shaft is a small subject, and
+      // at zoom 3 a 22-row map spends half the frame on empty sky
+      cam: { from: [22, 15.5, 3.5], to: [29, 15.5, 3.5] },
+      setup: () => {
+        const SH = window.__smallhands;
+        SH.startLevel(12); // The Buried Seam — iron and the caravan sealed under the meadow
+        window.__H.markAll();
+        // A shovel first: the workshop turns a plank and an iron into one, and a
+        // Digger claims it only once a reachable order is standing.
+        window.__H.runSteps([{ do: (g) => g.placeBuilding('workshop', 20, 14) }], 20);
+        window.__H.ffUntil((g) => g.stock.shovel >= 1, 150);
+        // sink the shaft off camera, so the scene opens on a mine mouth that is
+        // already there rather than on a smallie walking towards nothing
+        window.__H.runSteps([{ do: (g) => g.paintDigRun(24, 16, 24, 19) > 0 }], 10);
+        // Throw rather than shoot dead footage: if the shaft never lands, the drift
+        // orders below paint into solid rock and the scene quietly becomes a smallie
+        // standing in a hole. A render that reds is cheap; one that lies is not.
+        if (!window.__H.ffUntil((g) => g.world.get(24, 19) === 0, 240))
+          throw new Error('dig scene: the shaft never reached the gallery row');
+        // then drive the drift east toward the buried seam and land the capture a
+        // beat before a tile gives way, so rock visibly falls on camera (rock is
+        // DIG_TIME 2.8 s, so a 4 s scene otherwise shows a smallie standing still)
+        window.__H.runSteps([{ do: (g) => g.paintDigRun(25, 19, 33, 19) > 0 }], 10);
+        window.__H.ffUntil(
+          (g) => g.workers.some((w) => w.task && w.task.kind === 'dig' && w.workT > 2.2),
+          240
+        );
+      },
+    },
+    {
       id: 'hoist',
-      frames: 135,
+      frames: 130,
       text: copy.hoist,
       textEnv: [12, 16],
       fade: { in: 6, out: 0 },
@@ -358,6 +418,48 @@ function buildScenes(copy) {
       },
     },
     {
+      id: 'convoy',
+      frames: 105,
+      text: copy.convoy,
+      textEnv: [12, 16],
+      fade: { in: 6, out: 0 },
+      // the wagon rolls EAST off its dock (caravanRoll's shift is positive), so
+      // the pan travels with it and leaves the dock in frame behind it
+      cam: { from: [38, 12.5, 2.6], to: [43, 12.5, 2.6] },
+      setup: () => {
+        const SH = window.__smallhands;
+        SH.startLevel(10); // Ballast Ridge — the caravan docks 40 s, then is away 20 s
+        window.__H.markAll();
+        window.__H.countEvents();
+        // The ridge's own boulders need no machine, so stone reaches the bed without
+        // staging the wheel: the load IS the order sheet (caravan-look.ts). Wait for
+        // the deposits to PLATEAU rather than for a count — an order amount pinned
+        // here is a tuning knob this file does not own (docs/architecture.md), and
+        // six happens to be exactly level 11's stone objective, so the day that is
+        // retuned down the predicate can never trip and the wagon rolls off empty.
+        // A shut dock stalls dispatch without meaning "done", so it resets the wait.
+        let seen = -1;
+        let still = 0;
+        window.__H.ffUntil((g) => {
+          const n = window.__evc.goalDeposit || 0;
+          if (n !== seen) {
+            seen = n;
+            still = 0;
+            return false;
+          }
+          if (!g.convoyOpen) {
+            still = 0;
+            return false;
+          }
+          return n > 0 && ++still >= 30; // ffUntil polls every 10 ticks — ~5 s quiet
+        }, 300);
+        // land ~1.3 s before the window shuts, so the scene opens on a parked, loaded
+        // wagon (the crates read only while it is opaque), then rolls it out over
+        // CARAVAN_ROLL_TIME and leaves the dock standing
+        window.__H.ffUntil((g) => g.convoyOpen && g.convoyRemaining < 1.4, 120);
+      },
+    },
+    {
       id: 'storm',
       frames: 105,
       text: copy.storm,
@@ -381,7 +483,7 @@ function buildScenes(copy) {
     },
     {
       id: 'tide',
-      frames: 110,
+      frames: 105,
       text: copy.tide,
       textEnv: [12, 16],
       fade: { in: 6, out: 0 },
@@ -401,8 +503,51 @@ function buildScenes(copy) {
       },
     },
     {
-      id: 'daynight',
+      id: 'drown',
       frames: 115,
+      text: copy.drown,
+      textEnv: [12, 16],
+      textTop: true, // the drowning drift is row 23 of 26 — the caption cannot sit on it
+      fade: { in: 6, out: 0 },
+      // wide enough to hold the rain and the drowned drift in one frame — the
+      // whole point of the shot is that they are the same event
+      // The pan stops at 42.5: past ~42.7 a zoom-3 frame hits the east clamp on a
+      // 56-tile map and the travel would silently stall. y sits at the bottom clamp,
+      // because the subject is row 23 of 26 and no camera move can lift the floor.
+      cam: { from: [38, 18.5, 3], to: [42.5, 18.5, 3] },
+      setup: () => {
+        const SH = window.__smallhands;
+        SH.startLevel(17); // The Seeping Floor — redrock, and a rich drift below the water table
+        window.__H.markAll();
+        // Sink a shaft to the deep drift (row 23) and ladder it down to row 22, so
+        // miners can reach the ore at all: nobody drops six rows for free (MAX_FALL
+        // is 1). The rungs stop one row short of the drift on purpose — a rung IN the
+        // flooding row is swept (sweepTile), and losing it mid-shot reads as a glitch
+        // rather than as the rule it is.
+        window.__H.runSteps([{ do: (g) => g.paintDigRun(39, 18, 39, 23) > 0 }], 10);
+        if (!window.__H.ffUntil((g) => g.world.get(39, 23) === 0, 300))
+          throw new Error('drown scene: the shaft never reached the drift floor');
+        // (every run placer returns a COUNT, and runSteps only retries on a literal
+        // false — so a step that placed nothing must report it as false itself)
+        window.__H.runSteps([{ do: (g) => g.placeLadderRun(39, 19, 39, 22) > 0 }], 20);
+        // Then drive the drift east through all three veins — and it has to be open
+        // BEFORE the first rain, not merely eventually: past that point `openCell`
+        // fills every cell cut at row >= 23 with water instead of air, so the orders
+        // silently stop producing gallery and the scene would open on a static lake.
+        window.__H.runSteps([{ do: (g) => g.paintDigRun(40, 23, 47, 23) > 0 }], 10);
+        const dug = window.__H.ffUntil((g) => g.world.get(44, 23) === 0, 400);
+        if (!dug || window.__smallhands.game.waterRow !== null)
+          throw new Error('drown scene: the drift was not open and dry before the first rain');
+        // Stop a beat BEFORE the downpour. The rise fires on the phase boundary into
+        // rain (tickWeather) and floods instantly, so landing after it would open on
+        // a lake that was always there; opening on dry rock makes the water ARRIVE on
+        // camera, taking the drift and the ore standing in it.
+        window.__H.ffUntil((g) => g.weather === 'clear' && g.weatherRemaining < 1.2, 200);
+      },
+    },
+    {
+      id: 'daynight',
+      frames: 110,
       text: copy.daynight,
       textEnv: [12, 16],
       fade: { in: 6, out: 0 },
@@ -461,11 +606,15 @@ function buildScenes(copy) {
     })),
     {
       id: 'deliver',
-      frames: 100, // the longest caption of the deck — give it time to read
+      frames: 95, // the longest caption of the deck — give it time to read
       text: copy.deliver,
       textEnv: [10, 12],
       fade: { in: 0, out: 8 },
-      cam: { from: [36, 16.5, 3], to: [40, 16, 3] },
+      // Ends on the wagon (level 1's caravan stands at x46) with the crate stack
+      // readable — that pile IS the order sheet. The pan stops at 42.5 on purpose:
+      // at zoom 3 a centre past ~42.7 hits cam.clamp on a 56-tile map and the last
+      // second of travel would silently freeze.
+      cam: { from: [38, 15, 3], to: [42.5, 15, 3] },
       setup: () => {
         const SH = window.__smallhands;
         SH.startLevel(0);
@@ -475,8 +624,10 @@ function buildScenes(copy) {
           [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 33, 17) }],
           90
         );
-        // ride the moment a plank lands at the caravan (burst + counter tick)
-        window.__H.ffUntil(() => (window.__evc.goalDeposit || 0) >= 1, 240);
+        // Ride the moment a plank lands at the caravan (burst + counter tick) — the
+        // third one, so the bed carries a stack rather than a single crate. Not the
+        // sixth: that fills the sheet and the win ceremony takes the screen.
+        window.__H.ffUntil(() => (window.__evc.goalDeposit || 0) >= 3, 240);
       },
     },
     {
@@ -533,7 +684,13 @@ async function prepareBiomeLevels(page) {
 
 async function renderLang(lang, browser, ffmpeg) {
   const copy = COPY[lang];
-  const scenes = buildScenes(copy);
+  const all = buildScenes(copy);
+  const scenes = ONLY.length ? all.filter((s) => ONLY.includes(s.id)) : all;
+  if (ONLY.length) {
+    const missing = ONLY.filter((id) => !all.some((s) => s.id === id));
+    if (missing.length) throw new Error(`--only names no such scene: ${missing.join(', ')}`);
+    console.log(`[${lang}] --only: ${scenes.map((s) => s.id).join(', ')} (partial render)`);
+  }
   const total = scenes.reduce((a, s) => a + s.frames, 0);
   console.log(`[${lang}] ${scenes.length} scenes, ${total} frames (${(total / FPS).toFixed(1)} s)`);
 
@@ -549,7 +706,10 @@ async function renderLang(lang, browser, ffmpeg) {
   let ff = null;
   let outFile = null;
   if (!STORYBOARD) {
-    const musicWav = join(OUT_DIR, 'teaser-music.wav');
+    // Keyed by length: the soundtrack's closing chord and fadeout are derived from
+    // the video's duration, so a cache hit on a deck of a different length would
+    // mux music that ends in the wrong place — silently, and only audibly.
+    const musicWav = join(OUT_DIR, `teaser-music-${total}f.wav`);
     if (!existsSync(musicWav)) {
       console.log('composing soundtrack...');
       // exactly video length: the WAV's internal fadeout then lands on the last frame
@@ -630,6 +790,7 @@ async function renderLang(lang, browser, ffmpeg) {
         h: scene.text?.h ?? '',
         sub: scene.text?.sub ?? '',
         textO,
+        textTop: !!scene.textTop,
         fadeO,
         hud: scene.hud !== false,
         cam: scene.cam ? lerpCam(camA, camB, f / (scene.frames - 1)) : undefined,

@@ -154,7 +154,11 @@ export class FrontDoor {
               <img loading="lazy" decoding="async" width="1280" height="720"
                 src="media/teaser-poster-${lang}.jpg" alt="${this.tr('teaserPlayAria')}">
               <span class="teaser-playbtn" aria-hidden="true">▶</span>
-              <span class="teaser-dur" aria-hidden="true">0:35</span>
+              <!-- The badge cannot be measured without loading the video, which is
+                   the one thing the lazy poster exists to avoid — so it is written by
+                   hand and guarded instead: tests/teaser-embed.mjs compares it with
+                   the duration the browser reports for the shipped file. -->
+              <span class="teaser-dur" aria-hidden="true">0:46</span>
             </button>
           </div>
           <p class="chain-cap">${this.tr('teaserCap')}</p>
