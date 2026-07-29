@@ -367,7 +367,10 @@ export class FrontDoor {
     </main>
 
     <footer class="foot">
-      <div class="wrap">${this.tr('footer')}</div>
+      <div class="wrap">
+        ${this.tr('footer')}
+        <p class="fd-version">${this.trf('version', { v: __VERSION__ })}</p>
+      </div>
     </footer>
     `;
   }

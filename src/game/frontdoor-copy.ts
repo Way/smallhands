@@ -185,6 +185,11 @@ export const S: Record<string, Str> = {
     'A loving homage to the genre. All code, pixel art and audio were made from scratch for this project.',
     'Eine liebevolle Hommage ans Genre. Code, Pixel-Art und Audio sind alle eigens für dieses Spiel entstanden.',
   ],
+  // {v} is filled by frontdoor.ts from __VERSION__. The value stays out of the
+  // table for the reason every other count does (cards #67/#25) and for one more:
+  // this module must stay import-free and build-global-free so plain Node can load
+  // it, and a bare __VERSION__ here would be undefined there.
+  version: ['Version {v}', 'Version {v}'],
   brandOptions: ['Options', 'Optionen'],
 };
 
