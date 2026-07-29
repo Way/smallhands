@@ -16,6 +16,8 @@
 - **Format is exactly `YYYY.MM.DD`** (dots, zero-padded), from `git log -1 --format=%cd --date=format:%Y.%m.%d`.
 - **Fallbacks:** `__VERSION__` → `'dev'`, `__BUILD__` → `'dev+nogit'` when git is unavailable. These are failures if they reach production; Task 1's test catches that.
 - **`src/game/frontdoor-copy.ts` must stay import-free and free of build-time globals.** Two suites (`tests/frontdoor-data.mjs`, `tests/terminology.mjs`) `import { S }` from it under plain Node, where `__VERSION__` is `undefined`. Labels go in the table; the number is injected by `frontdoor.ts`.
+- **Values reach front-door copy through `trf()`, not concatenation.** Cards #67/#25 established that the copy table quotes `{placeholder}`s and never values — `frontdoor.ts:96` `trf(key, vars)` fills them. The version line follows that idiom: copy holds `'Version {v}'`, the renderer supplies `v`. Do not build the string with `+` or a template gap.
+- **`version` stays out of `frontdoor-data.mjs`'s `INTERPOLATED` map** (that map guards counts derived from `LEVELS`, and its digit corollary applies only to keys listed in it). `tests/version.mjs` already fails if the interpolation is removed, because the footer would render the literal `{v}` and miss the date regex. One suite per rule.
 - **Every copy key needs an `[en, de]` pair.** `Version` is identical in both languages — that is fine and has precedent (`opt.lang.en: ['English', 'English']`).
 - **Tests never recompute the date.** Duplicating the derivation makes a test that drifts and then passes while the screen is wrong. Assert agreement and shape only.
 - **Browser tests need the production build served:** `npm run build && npm run preview` (→ `http://localhost:4173/`). `define` substitution does not happen in dev.
@@ -44,9 +46,9 @@ The smallest change that carries its own test: derive the stamp **and** render i
 **Files:**
 - Modify: `vite.config.ts` (whole file)
 - Modify: `src/vite-env.d.ts` (whole file)
-- Modify: `src/game/frontdoor-copy.ts:132` (before `brandOptions`)
-- Modify: `src/game/frontdoor.ts:267-269` (the `<footer class="foot">` block)
-- Modify: `src/frontdoor.css:550-556` (after the `#frontdoor .foot` block)
+- Modify: `src/game/frontdoor-copy.ts:188` (before `brandOptions`)
+- Modify: `src/game/frontdoor.ts:369-371` (the `<footer class="foot">` block)
+- Modify: `src/frontdoor.css:647-653` (after the `#frontdoor .foot` block)
 - Create: `tests/version.mjs`
 - Modify: `package.json` (scripts)
 
@@ -239,18 +241,19 @@ declare const __BUILD__: string;
 
 - [ ] **Step 6: Add the footer label to the copy table**
 
-In `src/game/frontdoor-copy.ts`, insert immediately before the `brandOptions:` line (currently line 132):
+In `src/game/frontdoor-copy.ts`, insert immediately before the `brandOptions:` line (currently line 188):
 
 ```ts
-  // Label only. The number is injected by frontdoor.ts from __VERSION__: this
-  // module must stay import-free and build-global-free so plain Node can load it
-  // (see the header), and a bare __VERSION__ here would be undefined there.
-  version: ['Version', 'Version'],
+  // {v} is filled by frontdoor.ts from __VERSION__. The value stays out of the
+  // table for the reason every other count does (cards #67/#25) and for one more:
+  // this module must stay import-free and build-global-free so plain Node can load
+  // it, and a bare __VERSION__ here would be undefined there.
+  version: ['Version {v}', 'Version {v}'],
 ```
 
 - [ ] **Step 7: Render it in the footer**
 
-In `src/game/frontdoor.ts`, replace the footer block (currently lines 267-269):
+In `src/game/frontdoor.ts`, replace the footer block (currently lines 369-371):
 
 ```ts
     <footer class="foot">
@@ -264,14 +267,19 @@ with:
     <footer class="foot">
       <div class="wrap">
         ${this.tr('footer')}
-        <p class="fd-version">${this.tr('version')} ${__VERSION__}</p>
+        <p class="fd-version">${this.trf('version', { v: __VERSION__ })}</p>
       </div>
     </footer>
 ```
 
+`trf` (line 96) is the existing `{placeholder}`-filling variant of `tr` — the same
+call shape `feat1`, `campIntro`, `featTools` and `feat4` already use.
+
 - [ ] **Step 8: Style it**
 
-In `src/frontdoor.css`, append immediately after the `#frontdoor .foot { … }` block that ends around line 556:
+In `src/frontdoor.css`, append immediately after the `#frontdoor .foot { … }` block that
+ends at line 653 (the one setting `background-color: #0b0e15`, **not** the earlier
+`.foot` rule at line 332 or its `::before`/`::after` ridgeline rules):
 
 ```css
 /* The build stamp: present for anyone who looks, never competing with the
@@ -304,7 +312,22 @@ npm run test:frontdoor-data
 npm run test:terminology
 ```
 
-Expected: all pass. The two copy suites load `frontdoor-copy.ts` under plain Node — if either reds with `__VERSION__ is not defined`, the label leaked into the data module (Step 6 went into the wrong file).
+Expected: all pass. The two copy suites load `frontdoor-copy.ts` under plain Node — if either reds with `__VERSION__ is not defined`, the value leaked into the data module (Step 6 went into the wrong file, or used `__VERSION__` instead of `{v}`).
+
+Then the front-door layout suites, because the footer gained a line:
+
+```bash
+npm run build && npm run preview &
+sleep 3
+npm run test:landing
+npm run test:landing-shot
+npm run test:frontdoor-mobile
+kill %1
+```
+
+Expected: all pass. `landing-shot` and `frontdoor-mobile` assert no horizontal overflow at
+several widths in both languages (card #77) — a short centred line should not affect them, but
+the footer is what changed, so they are the suites that would notice if it did.
 
 - [ ] **Step 11: Commit**
 
@@ -318,9 +341,9 @@ git commit -m "#74 Derive the version from the commit date and show it in the fo
 ### Task 2: The options-menu row
 
 **Files:**
-- Modify: `src/engine/i18n.ts:1020` (before `'opt.back'`)
-- Modify: `src/main.ts:609` (after the export/import block, before `rowBtns`)
-- Modify: `src/style.css:931` (after `.opt-label`)
+- Modify: `src/engine/i18n.ts:1031` (before `'opt.back'`)
+- Modify: `src/main.ts:609-611` (after the export/import block, before `rowBtns`)
+- Modify: `src/style.css:930` (after `.opt-label`)
 - Modify: `tests/version.mjs` (append check 2)
 
 **Interfaces:**
@@ -359,7 +382,7 @@ Expected: FAIL — Playwright times out on `.opt-value`, which does not exist ye
 
 - [ ] **Step 3: Add the label**
 
-In `src/engine/i18n.ts`, insert immediately before the `'opt.back'` line (currently line 1020):
+In `src/engine/i18n.ts`, insert immediately before the `'opt.back'` line (currently line 1031):
 
 ```ts
   'opt.version': ['Version', 'Version'],
@@ -367,7 +390,7 @@ In `src/engine/i18n.ts`, insert immediately before the `'opt.back'` line (curren
 
 - [ ] **Step 4: Add the row**
 
-In `src/main.ts`, in `showOptions`, insert between the closing `}` of the export/import block (currently line 609) and `const rowBtns = document.createElement('div');`:
+In `src/main.ts`, in `showOptions`, insert between the closing `}` of the export/import block (currently line 609, whose last statement sets `n.textContent = t('opt.transferDesc')`) and `const rowBtns = document.createElement('div');` (currently line 611):
 
 ```ts
   // Which build the player is on. A readout, not a control — so it is built inline
@@ -390,7 +413,7 @@ In `src/main.ts`, in `showOptions`, insert between the closing `}` of the export
 
 - [ ] **Step 5: Style the value**
 
-In `src/style.css`, insert immediately after the `.opt-label` line (currently line 930):
+In `src/style.css`, insert immediately after the `.opt-label` line (currently line 930, above `.opt-note`):
 
 ```css
 .opt-value { font-size: 14px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -543,4 +566,20 @@ No gaps.
 
 **Type consistency:** `__VERSION__` and `__BUILD__` are `string` in `vite-env.d.ts` (Task 1 Step 5) and used as strings everywhere. `S.version` is `Str = [string, string]`, matching the table's type. `.fd-version` (Task 1) and `.opt-value` (Task 2) are the selectors the tests read, spelled identically in both places. `shown` is defined in Task 1 Step 1 and consumed unchanged by Tasks 2 and 3.
 
-**One inconsistency found and fixed inline:** the footer test strips the label with `replace(/^\s*\S+\s+/, '')`, which only works because the label is a single word in both languages. This is now stated in the test's own comment and holds for `['Version', 'Version']`; a multi-word label would need the assertion rewritten to match the date out of the line instead.
+**One inconsistency found and fixed inline:** the footer test strips the label with `replace(/^\s*\S+\s+/, '')`, which only works because the label is a single word in both languages. This is now stated in the test's own comment and holds for `'Version {v}'`; a multi-word label would need the assertion rewritten to match the date out of the line instead.
+
+## Rebase note (2026-07-29)
+
+This plan was written against `0c20955` and rebased onto `dfd1bf2`, which landed cards #67,
+#25 and #77 on the front door. Every line number above was re-derived after the rebase, and
+one design point changed rather than merely moving:
+
+- The footer line now goes through **`trf('version', { v: __VERSION__ })`** instead of
+  concatenating label and value. Cards #67/#25 made "the copy table holds placeholders, the
+  renderer fills them" the module's rule; a concatenated version line would have been the one
+  string on the page ignoring it.
+- `frontdoor-data.mjs` gained an `INTERPOLATED` map with a no-hardcoded-digits corollary. It is
+  **scoped to the keys listed in it**, so a plain `version` key is unaffected — verified by
+  reading the loop, not assumed.
+- The front door gained `test:landing-shot` and `test:frontdoor-mobile` (overflow guards at
+  several widths, both languages). Task 1 Step 10 runs both, because the footer is what changed.
