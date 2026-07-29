@@ -38,6 +38,7 @@
     "test:drag-tooltip": "node tests/drag-tooltip.mjs",
     "test:hover-tooltip": "node tests/hover-tooltip.mjs",
     "test:landing": "node tests/landing.mjs",
+    "test:landing-shot": "node tests/landing-shot.mjs",
     "test:teaser-caption": "node tests/teaser-caption.mjs",
     "test:teaser-embed": "node tests/teaser-embed.mjs",
     "test:tool-labels": "node tests/tool-labels.mjs",
