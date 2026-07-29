@@ -451,22 +451,30 @@ cue has nothing to pick a material from and quietly falls back to neutral.
 
 ## The landing page counts, it doesn't claim (cards #67, #25)
 
-The front door is marketing copy about a game that keeps growing, so its every content
-claim has gone stale at least once: card #67 found "2 hand-crafted campaigns · 9 levels"
-long after there were four and seventeen, and card #25 found the next round — campaign 5
-had shipped with no landing hook, no unlock banner, and two of its five pressures
-undescribed. Three rules exist so the next campaign updates the page by arriving.
+The front door is marketing copy about a game that keeps growing. Card #67 found `feat1`
+reading "2 hand-crafted campaigns · 9 levels" long after there were four and seventeen and
+fixed it by hand; it stayed right afterwards only because campaign 5's own commit remembered
+to edit the string. What card #25 found is the failure that remembering doesn't cover:
+campaign 5 shipped with no landing hook, no unlock banner, and two of the game's five level
+pressures described nowhere. Three rules exist so the next campaign updates the page by
+arriving.
 
 - **Numbers in `frontdoor-copy.ts` are `{c}` / `{n}` placeholders, never digits.**
-  `frontdoor.ts` fills them from `LEVELS` and `TOOL_DEFS` (`trf()`), so the drift is
+  `frontdoor.ts` fills them from `LEVELS`, `TOOL_DEFS` and `BIOMES` (`trf()`), so the drift is
   *impossible* rather than merely guarded. The copy table stays a pure, import-free data
   module — the renderer is what reads the level table, which is free because `main.ts`
   already imports it for the world map. `tests/frontdoor-data.mjs` therefore checks for the
   **placeholder**, plus that no digit was typed in beside it: the only remaining failure is
   someone "simplifying" the interpolation away, after which the count is stale the next time
-  a level lands. The one count that cannot be interpolated is `index.html`'s
+  a level lands. It also reads `TOOL_COUNT` / `BIOME_COUNT` **out of `frontdoor.ts`** rather
+  than re-deriving them, because a test that re-implements the filter agrees with itself
+  while the page prints a different number — which is what made `bundle.mjs` learn to stub
+  CSS imports. The one count that cannot be interpolated is `index.html`'s
   `<meta name="description">` — a static file the table can't reach — so that one is
   compared against `LEVELS` for real, and must land inside the ~155-char search snippet.
+  Watch which list a count comes from: **landscapes are `BIOMES`, not `GENERATED_BIOMES`**
+  (the generator draws from a deliberately shorter list), and both are asserted so swapping
+  them has to be deliberate.
 - **A campaign is keyed by its number on three surfaces, and each is a place it can arrive
   without its words:** `camp<n>Body` (the landing roll-call hook), `map.terr<n>` (its name —
   read by *both* the world map and the landing page, so a rename can't make them disagree)

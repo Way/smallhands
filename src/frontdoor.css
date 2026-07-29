@@ -532,6 +532,10 @@
   transition: border-color 0.18s ease;
 }
 #frontdoor .feats li:hover { border-color: var(--fd-border-light); }
+/* An odd number of claims would leave the last one alone in a two-up row with a
+   hole beside it. Let it take the whole row instead, so the count can change
+   without anyone re-checking the parity. */
+#frontdoor .feats li:last-child:nth-child(odd) { grid-column: span 2; }
 #frontdoor .feats li canvas { width: 26px; height: 26px; flex: 0 0 auto; }
 #frontdoor .tech-note {
   max-width: 68ch;
@@ -642,11 +646,15 @@
 
 @media (max-width: 720px) {
   #frontdoor .two-col, #frontdoor .mech-grid, #frontdoor .feats { grid-template-columns: 1fr; }
-  /* the pressure grid collapses with the rest — but its spans have to go too, or
-     they spill into implicit tracks and the row of three ends up narrower than
-     the row of two (tests/landing-shot.mjs reds on the mismatch) */
+  /* EVERY grid-column span above has to be undone here, not just the columns.
+     A `span 2` left on a one-column grid spills into an implicit second track:
+     the pressure cards come back with the row of three narrower than the row of
+     two, and the odd last feat pushes the page 2px sideways in German (caught by
+     tests/landing-shot.mjs both times — neither is visible at a glance). Any new
+     span rule needs a line here. */
   #frontdoor .world-grid > *,
-  #frontdoor .world-grid > :nth-child(n + 4) { grid-column: auto; }
+  #frontdoor .world-grid > :nth-child(n + 4),
+  #frontdoor .feats li:last-child:nth-child(odd) { grid-column: auto; }
   #frontdoor .chain canvas { width: 34px; height: 34px; }
   #frontdoor .chain .arrow { font-size: 18px; }
   #frontdoor .hero-hook { font-size: 14px; }

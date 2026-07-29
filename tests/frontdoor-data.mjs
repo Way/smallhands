@@ -4,13 +4,15 @@
 //
 // This suite owns ONE property: **the copy knows how big the game is.** Nothing
 // else checks it — the front-door smoke test and the i18n suite never read a
-// number — and it has now gone stale twice, so the checks are shaped to catch
-// each way it can happen (cards #67, #25):
+// number. It went stale once (card #67: "2 campaigns · 9 levels" against four
+// and seventeen) and stayed right afterwards only because each content commit
+// remembered the copy table; card #25 replaced the remembering with arithmetic,
+// so the checks are shaped around the ways THAT can fail:
 //
 //   1. A hardcoded digit. Every count the copy quotes is a {c}/{n} placeholder
-//      that frontdoor.ts fills from LEVELS, so the drift is impossible rather
-//      than merely guarded — but only while the placeholder is still there.
-//      Typing "5 campaigns" back into the table reds here.
+//      that frontdoor.ts fills from LEVELS, TOOL_DEFS and BIOMES, so the drift
+//      is impossible rather than merely guarded — but only while the placeholder
+//      is still there. Typing "5 campaigns" back into the table reds here.
 //   2. The <meta name="description"> in index.html. A static file the copy table
 //      cannot reach, so this is the one count that IS written by hand, and the
 //      one that genuinely needs comparing against LEVELS.
@@ -38,9 +40,14 @@ for (const k of FRONTDOOR_COPY_KEYS) {
 // ------------------------------------------------------------- the size claim
 // levels.ts pulls in the T tile enum, so it needs bundling rather than node's
 // type stripping (same trick as tests/unit.mjs).
-const { LEVELS, TOOL_DEFS } = await bundleExports(
+// TOOL_COUNT / BIOME_COUNT come from frontdoor.ts itself — the module that puts
+// them on the page — not re-derived here. A test that re-implements the filter
+// agrees with itself while the page prints something else.
+const { LEVELS, TOOL_DEFS, BIOMES, GENERATED_BIOMES, TOOL_COUNT, BIOME_COUNT } = await bundleExports(
   `export { LEVELS } from './src/game/levels.ts';
-   export { TOOL_DEFS } from './src/game/types.ts';`,
+   export { TOOL_DEFS } from './src/game/types.ts';
+   export { BIOMES, GENERATED_BIOMES } from './src/engine/biomes.ts';
+   export { TOOL_COUNT, BIOME_COUNT } from './src/game/frontdoor.ts';`,
 );
 const levels = LEVELS.length;
 const campaignIds = [...new Set(LEVELS.map((l) => l.campaign ?? 1))].sort((a, b) => a - b);
@@ -60,6 +67,7 @@ const INTERPOLATED = {
   campIntro: ['{c}', '{n}'], // "{n} levels in {c} campaigns…"
   campLevels: ['{n}'], // the per-campaign count pill
   featTools: ['{n}'], // the toolkit size
+  feat4: ['{n}'], // the landscape count
 };
 for (const [key, holders] of Object.entries(INTERPOLATED)) {
   for (const [lang, i] of [['EN', 0], ['DE', 1]]) {
@@ -72,14 +80,23 @@ for (const [key, holders] of Object.entries(INTERPOLATED)) {
   }
 }
 
-// The toolkit count the page prints is TOOL_DEFS minus the cursor and the
-// eraser, mirroring frontdoor.ts. Pinned so the two cannot drift apart: if the
-// filter there changes, this number moves and the mismatch is visible.
-const toolCount = TOOL_DEFS.filter((d) => d.id !== 'select' && d.id !== 'demolish').length;
+// The two counts the page derives from something other than LEVELS. Read from
+// frontdoor.ts and compared against the source lists here, so widening either
+// list without meaning to change the claim shows up as a number that moved.
+const NON_TOOLS = ['select', 'demolish']; // the cursor and the eraser
 check(
-  'the toolkit count is the placeable/orderable tools',
-  toolCount === TOOL_DEFS.length - 2 && toolCount > 0,
-  `${toolCount} of ${TOOL_DEFS.length} TOOL_DEFS`,
+  'the toolkit count is every placeable/orderable tool',
+  TOOL_COUNT === TOOL_DEFS.filter((d) => !NON_TOOLS.includes(d.id)).length && TOOL_COUNT > 0,
+  `${TOOL_COUNT} of ${TOOL_DEFS.length} TOOL_DEFS`,
+);
+// BIOMES, not GENERATED_BIOMES — "landscapes" is what the game has, and the
+// generator deliberately draws from a shorter list. Both are asserted so a
+// future edit that swaps one for the other has to do it on purpose.
+check('the landscape count is BIOMES', BIOME_COUNT === BIOMES.length, `${BIOME_COUNT}`);
+check(
+  'the landscape count is not the generator subset',
+  GENERATED_BIOMES.length <= BIOMES.length,
+  `${GENERATED_BIOMES.length} generated of ${BIOMES.length}`,
 );
 
 // ---- 2. every campaign carries its own copy, on both surfaces ---------------
@@ -123,7 +140,7 @@ if (failures) {
   process.exit(1);
 }
 console.log(
-  `\nFRONTDOOR DATA PASS (${campaigns} campaigns · ${levels} levels · ${toolCount} tools)\n` +
+  `\nFRONTDOOR DATA PASS (${campaigns} campaigns · ${levels} levels · ${TOOL_COUNT} tools · ${BIOME_COUNT} landscapes)\n` +
     campaignIds
       .map((id) => `  campaign ${id}: ${LEVELS.filter((l) => (l.campaign ?? 1) === id).length} levels`)
       .join('\n'),

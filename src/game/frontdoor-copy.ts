@@ -12,13 +12,14 @@
 //
 // Content claims (campaign/level counts, mechanics on show) must match what
 // ships in src/game/levels.ts. Every number this table quotes is a `{c}` / `{n}`
-// placeholder that frontdoor.ts fills from LEVELS and TOOL_DEFS, so a new
-// campaign, level or tool cannot leave a stale digit behind — which it did
-// twice (card #67 caught "2 campaigns · 9 levels"; campaign 5 shipped and this
-// card caught the next round). The one count that CANNOT be interpolated is the
-// <meta name="description"> in index.html — a static file the table cannot
-// reach — so tests/frontdoor-data.mjs owns that one, and also reds if a hand-
-// written digit reappears here or a new campaign ships without its own hook.
+// placeholder that frontdoor.ts fills from LEVELS, TOOL_DEFS and BIOMES, so a
+// new campaign, level, tool or landscape cannot leave a stale digit behind. It
+// did once — card #67 caught "2 campaigns · 9 levels" long after there were four
+// and seventeen — and every correct number since has depended on whoever added
+// content also remembering this file (card #25). The one count that CANNOT be
+// interpolated is the <meta name="description"> in index.html, a static file the
+// table cannot reach; tests/frontdoor-data.mjs owns that one, and also reds if a
+// hand-written digit reappears here or a campaign ships without its own hook.
 type Str = [string, string];
 
 export const S: Record<string, Str> = {
@@ -118,7 +119,7 @@ export const S: Record<string, Str> = {
   worldBudgetTitle: ['Rationed tools', 'Knappes Werkzeug'],
   worldBudgetBody: [
     'Some levels hand you a handful of bridges or a single hoist. The cap is on what may stand at once, not on what you ever spend — tear one down and the slot comes back, so a span in the wrong place is a mistake, never a dead end.',
-    'Manche Level geben dir nur ein paar Brücken oder einen einzigen Aufzug. Begrenzt ist, was gleichzeitig steht, nicht was du insgesamt verbaust: Reiß eines ab, und der Platz ist wieder frei. Ein Steg an der falschen Stelle ist ein Fehler, nie eine Sackgasse.',
+    'Manche Level geben dir nur ein paar Brücken oder einen einzigen Aufzug. Begrenzt ist, was gleichzeitig steht, nicht, was du insgesamt verbaust: Was du abreißt, gibt seinen Platz wieder frei. Ein Steg an der falschen Stelle ist ein Fehler, nie eine Sackgasse.',
   ],
   campHead: ['Where the road goes', 'Wohin die Reise geht'],
   campIntro: [
@@ -143,7 +144,7 @@ export const S: Record<string, Str> = {
   ],
   camp4Body: [
     'Craft shovels in the Workshop, put Diggers on them, and sink shafts after an iron seam that runs well below daylight.',
-    'Fertige Spaten in der Werkstatt, setz Gräber daran und teufe Schächte einer Eisenader nach, die weit unter dem Tageslicht verläuft.',
+    'Stelle in der Werkstatt Spaten her, setze Gräber daran und teufe Schächte einer Eisenader nach, die weit unter dem Tageslicht verläuft.',
   ],
   camp5Body: [
     'Red rock, and a seam that shares its clock with the water table. Cut too deep and the next downpour takes the gallery you just opened.',
@@ -157,10 +158,12 @@ export const S: Record<string, Str> = {
   ],
   feat2: ['Meadows, cliffs, rising floods & mine shafts', 'Wiesen, Klippen, steigende Fluten & Stollen'],
   feat3: ['Living day-night cycle, rain, storms & lanterns', 'Lebendiger Tag-Nacht-Zyklus, Regen, Stürme & Laternen'],
-  feat4: ['Level editor + generator, 6 landscapes', 'Level-Editor + Generator, 6 Landschaften'],
+  // {n} is BIOMES, not GENERATED_BIOMES: the claim is how many landscapes the
+  // game has (all of them reachable in the editor), and the generator draws from
+  // a deliberately shorter list — see the comment on GENERATED_BIOMES.
+  feat4: ['Level editor + generator, {n} landscapes', 'Level-Editor + Generator, {n} Landschaften'],
   feat5: ['Daily challenge & shareable seed codes', 'Tages-Challenge & teilbare Seed-Codes'],
   feat6: ['Medals, best times & feats', 'Medaillen, Bestzeiten & Auszeichnungen'],
-  featReach: ['English & German · mouse or touch', 'Deutsch & Englisch · Maus oder Touch'],
   techNote: [
     'Hand-built for the web: TypeScript + Canvas, zero runtime dependencies, procedurally generated pixel art. No installs, no accounts — runs anywhere a browser does.',
     'Von Hand fürs Web gebaut: TypeScript und Canvas, keine Laufzeit-Abhängigkeiten, Pixel-Art, die im Code entsteht. Keine Installation, kein Konto, läuft überall, wo ein Browser läuft.',

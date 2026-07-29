@@ -14,6 +14,7 @@ import type { Lang } from '../engine/i18n';
 import { S } from './frontdoor-copy'; // used locally in tr()
 import { LEVELS } from './levels';
 import { TOOL_DEFS } from './types';
+import { BIOMES } from '../engine/biomes';
 
 // Re-exported so frontdoor.ts's public interface is unchanged (the copy table
 // now lives in the pure, importable-under-Node data module frontdoor-copy.ts).
@@ -23,10 +24,11 @@ export { S, FRONTDOOR_COPY_KEYS } from './frontdoor-copy';
 
 // ---------------------------------------------------------- the content claims
 // Everything the page says about how much game there is is COUNTED here, not
-// written down: a hand-kept number went stale twice (card #67 found "2 campaigns
-// · 9 levels"; campaign 5 shipped and card #25 found the next round). levels.ts
-// is already in this bundle — main.ts imports it for the world map — so reading
-// it costs nothing.
+// written down. Card #67 found `feat1` reading "2 hand-crafted campaigns · 9
+// levels" against a game that had four and seventeen, and fixed it by hand; it
+// stayed correct afterwards only because campaign 5's own commit remembered to
+// edit the string. Card #25 removed the remembering: levels.ts is already in
+// this bundle — main.ts imports it for the world map — so reading it is free.
 
 // Campaign id → how many levels it holds, in play order. Derived rather than
 // listed so a sixth campaign appears on the landing page the day it appears in
@@ -43,7 +45,15 @@ function campaignRollCall(): { id: number; levels: number }[] {
 // "Tools" as the player counts them. `select` is the cursor and `demolish` is
 // the eraser — neither is a thing you build with, so neither belongs in a count
 // that reads as "look how much toolkit you get".
-const TOOL_COUNT = TOOL_DEFS.filter((d) => d.id !== 'select' && d.id !== 'demolish').length;
+// Exported so tests/frontdoor-data.mjs asserts against THIS value rather than
+// re-deriving it: a test that re-implements the filter passes happily while the
+// page advertises a different number.
+export const TOOL_COUNT = TOOL_DEFS.filter((d) => d.id !== 'select' && d.id !== 'demolish').length;
+
+// Landscapes, i.e. BIOMES — every palette the game has, all of them reachable in
+// the editor. Deliberately NOT GENERATED_BIOMES, which is shorter on purpose
+// (the generator's seed pick is stable against that list's length).
+export const BIOME_COUNT = BIOMES.length;
 
 // One icon per campaign — the mechanic that campaign is *about*, so the row
 // reads as a promise rather than decoration. Keyed by id with a fallback,
@@ -333,10 +343,9 @@ export class FrontDoor {
             <li>${this.icon('tile_ladder')}<span>${this.trf('featTools', { n: TOOL_COUNT })}</span></li>
             <li>${this.icon('boulder')}<span>${this.tr('feat2')}</span></li>
             <li>${this.icon('lantern')}<span>${this.tr('feat3')}</span></li>
-            <li>${this.icon('icon_harvest')}<span>${this.tr('feat4')}</span></li>
+            <li>${this.icon('icon_harvest')}<span>${this.trf('feat4', { n: BIOME_COUNT })}</span></li>
             <li>${this.icon('crate')}<span>${this.tr('feat5')}</span></li>
             <li>${this.icon('medal_gold')}<span>${this.tr('feat6')}</span></li>
-            <li>${this.icon('icon_select')}<span>${this.tr('featReach')}</span></li>
           </ul>
           <p class="tech-note">${this.tr('techNote')}</p>
         </div>
