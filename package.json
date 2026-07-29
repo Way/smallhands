@@ -39,6 +39,7 @@
     "test:hover-tooltip": "node tests/hover-tooltip.mjs",
     "test:landing": "node tests/landing.mjs",
     "test:teaser-embed": "node tests/teaser-embed.mjs",
+    "test:tool-labels": "node tests/tool-labels.mjs",
     "test:weather": "node tests/weather.mjs",
     "test:weather-visual": "node tests/weather-visual.mjs",
     "test:biome-light": "node tests/biome-light.mjs",

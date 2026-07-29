@@ -122,6 +122,15 @@ export const D: Record<string, [string, string]> = {
     'Sägt Stämme zu Brettern. Ein Baumeister muss es errichten.',
   ],
   'tool.lift.label': ['Cargo Lift', 'Lastenaufzug'],
+  // German only: "Lastenaufzug" filled 48px of the chip's 48px content box, so it
+  // broke INSIDE the word ("Lastenaufz / ug") and shipped that way in the teaser
+  // trailer. "Warenlift" is the idiomatic short form for a goods lift and borrows the
+  // word the German copy already uses for cargo ("Rette die Waren"), so it reads as
+  // this machine rather than as the neighbouring "Aufzug" chip. It also clears the
+  // chip by 11px, which matters: the phone breakpoint grows the label to 10px, and
+  // "Lastaufzug" fit there by 1px — a margin that font hinting can eat.
+  // EN "Cargo Lift" fits as it is; the tooltip keeps the full name in both languages.
+  'tool.lift.short': ['Cargo Lift', 'Warenlift'],
   'tool.lift.desc': [
     'Carries a worker and their cargo UP a cliff face. Place at the base of a cliff. Up only!',
     'Befördert einen Arbeiter samt Fracht eine Klippe HINAUF. An den Fuß der Klippe bauen. Nur aufwärts!',

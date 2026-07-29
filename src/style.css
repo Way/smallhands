@@ -429,7 +429,16 @@ body.in-game #frontdoor { display: none; }
   line-height: 1;
   max-width: 100%;
   text-align: center;
-  overflow-wrap: anywhere; /* keep a long single word from blowing out the 52px chip */
+  /* Break at spaces, never inside a word. This said `anywhere`, which did keep a long
+     single word inside the 52px chip — by cutting it in half: German's "Lastenaufzug"
+     rendered as "Lastenaufz / ug" and reached the teaser trailer that way, because a
+     chip only appears on levels that allow its tool and nothing measured it. A word
+     that needs an in-word break is simply too long for the chip and wants a
+     `tool.<id>.short`; tests/tool-labels.mjs reds while it is still 4px from the edge,
+     and until someone fixes it the word overflows visibly rather than reading as a
+     typo. (No `overflow: hidden` here: at line-height 1 it clips the descenders of
+     Sägewerk and Abreißen.) */
+  overflow-wrap: normal;
 }
 /* remaining budget for a limited tool (LevelDef.toolLimit, card #70). Sits in the
    opposite corner from the keyboard hint so the two never collide, and turns red
