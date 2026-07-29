@@ -15,9 +15,9 @@ external footage.
   reusing the proven scripted solutions from `tests/e2e.mjs`,
   `tests/campaign2.mjs` and `tests/campaign3.mjs`: the sim is fast-forwarded
   into a lively state (direct `game.tick` calls), then captured at 1×.
-- Captions and scene fades are a `position: fixed` overlay whose opacity the
-  director sets per frame (CSS animations are frozen — they run on the real
-  compositor clock and would race ahead of virtual time).
+- Captions and scene fades are a `position: fixed` overlay (`page-lib.mjs`) whose
+  opacity the director sets per frame (CSS animations are frozen — they run on the
+  real compositor clock and would race ahead of virtual time).
 - The soundtrack (`music.mjs`) is a deterministic, dependency-free chiptune —
   C–Am–F–G arpeggios with bass, hats and a ping-pong delay — rendered to WAV
   and muxed in, in the same hand-synthesized spirit as `src/engine/audio.ts`.
@@ -41,6 +41,42 @@ Scenes 3, 5 and 8 stage the mechanics the shipped video predates (digging,
 the convoy window, flood × dig). Two of them put their subject in the map's
 bottom rows, where no camera move can lift it — those set `textTop`, which
 flips the caption and its veil to the empty sky instead.
+
+## Where the caption sits
+
+**The lower third is measured off the in-game tool dock, never tuned.** A new scene
+inherits this and needs to do nothing; what it must not do is hard-code a `bottom`.
+
+`__fitCaption()` in `page-lib.mjs` runs once per scene and sets a single
+`--tov-bottom` — the dock's height plus 14 px of air — which positions the text
+block *and* ends the veil's gradient ramp. Four things about it are load-bearing:
+
+- **It measures the dock's ink, not its box.** A chip is a fixed 52 px with its
+  content centred, so a two-line label (`Rope Anchor`, `Seilanker`) overflows it top
+  and bottom; the box's edge reads 78 px where the ink reads 80. Descendant rects
+  are the honest edge.
+- **One number moves the text and its contrast together.** The veil is the only
+  thing that makes a caption legible over bright ground, and it is bottom-anchored —
+  so its ramp *ends* at the caption's last line and holds from there to the bottom
+  edge. Lifting the text without lifting the gradient strands it above its own
+  darkening, in exactly the scenes (tide, hook) where that is fatal.
+- **The dock is measured even when `hud: false` hides it**, so the band is one
+  height for all fourteen scenes. A lower third that shifts between cuts reads as a
+  mistake; a strip of unused veil under a hidden HUD does not. The renderer logs the
+  band once and flags it if a captioned scene ever moves it.
+- **The block grows upward**, because it is anchored by its bottom. That is why
+  German — wider than English, and the `deliver` headline wraps to two lines — can
+  never push a caption back down into the chips.
+
+The veil holding through the dock is deliberate as well: it dims the chip row while
+a caption is up (the veil rides the caption's own envelope), so the chrome that means
+nothing in a video reads as a vignette rather than as buttons — without ever popping
+in and out between cuts the way a per-scene HUD fade would.
+
+`npm run test:teaser-caption` is the guard — every level × every line of the deck ×
+both languages, asserting the air over the dock, the single band, and the veil
+tracking the text. It cannot tell you whether the lower third *reads* well; that is
+what `--storyboard` is for.
 
 ## Usage
 
@@ -88,6 +124,8 @@ for l in de en; do
   # delivery beat (~40.8 s): the wagon with crates in its bed, the sawmill, and a
   # hauler carrying planks between them — the whole loop in one frame. Re-check the
   # timestamp after any retiming; a caption caught mid-fade reads as a broken image.
+  # And LOOK at the result — this frame is the one place a caption bug ships as a
+  # still image, which is how the sub-line printed across the chip row for weeks.
   $FF -ss 40.8 -i tools/trailer/out/smallhands-teaser-$l.mp4 -frames:v 1 -q:v 3 \
       -y public/media/teaser-poster-$l.jpg
 done

@@ -10,6 +10,11 @@
 // window.__smallhands debug hook with the proven scripted solutions from
 // tests/e2e.mjs, tests/campaign2.mjs and tests/campaign3.mjs.
 //
+// This file is the director: the scene deck, the camera paths and the encode. The
+// in-page half — caption overlay, per-frame state applier, sim helpers — is
+// page-lib.mjs, and the caption strings are copy.mjs; both are separate so
+// tests/teaser-caption.mjs can measure the real overlay against the real copy.
+//
 // Usage (production build served on :4173 — `npx vite build && npx vite preview`):
 //   node tools/trailer/render-teaser.mjs                 # both languages, MP4
 //   node tools/trailer/render-teaser.mjs --lang=de       # one language
@@ -25,6 +30,8 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMusicWav } from './music.mjs';
+import { pageLib } from './page-lib.mjs';
+import { COPY } from './copy.mjs';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
@@ -83,43 +90,9 @@ function findFfmpeg() {
   return candidates[0] ?? null;
 }
 
-// ---- copy deck -----------------------------------------------------------------
+// ---- fake clock ------------------------------------------------------------------
 
-// One line per mechanic, headline states the rule, sub lands the consequence.
-const COPY = {
-  de: {
-    hook: { h: 'Keine direkte Steuerung.', sub: 'Du baust die Welt — die Smallies benutzen sie' },
-    build: { h: 'Nur leere Hände können klettern.', sub: 'Fracht braucht einen anderen Weg nach oben' },
-    dig: { h: 'Fels ist keine Wand.', sub: 'Du markierst den Schacht — ein Gräber teuft ihn' },
-    hoist: { h: 'Schwerkraft als Spielelement.', sub: 'Ballast runter, Fracht rauf' },
-    convoy: { h: 'Die Karawane hält nach Plan.', sub: 'Belade den Wagen, eh er weiterzieht' },
-    storm: { h: 'Stürme ziehen nach Plan auf.', sub: 'Regen bremst die Äxte; Böen blockieren die Aufzüge' },
-    tide: { h: 'Jeder Guss hebt die Flut.', sub: 'Rette die Waren, eh das Wasser sie holt' },
-    drown: { h: 'Im Fels steht das Wasser.', sub: 'Grab unter den Spiegel, und der Regen holt den Stollen' },
-    daynight: { h: 'Der Tag selbst wendet sich.', sub: 'Wettlauf mit der Nacht — Laternen halten das Licht' },
-    biomes: { h: 'Jede Seed generiert eine einzigartige Welt.', sub: '6 Biome · Täglicher Auftrag · Level-Editor' },
-    deliver: { h: 'Geschwindigkeit und Geschick sind entscheidend.', sub: 'Prestige und Highscores warten auf dich' },
-    end: { h: '', sub: '' }, // the front-door hero carries its own tagline + CTA
-  },
-  en: {
-    hook: { h: 'No direct control.', sub: 'You build the world — the smallies use it' },
-    build: { h: 'Only empty hands can climb.', sub: 'Cargo needs another way up' },
-    dig: { h: 'Rock is not a wall.', sub: 'You mark the shaft — a Digger cuts it' },
-    hoist: { h: 'Gravity as a game mechanic.', sub: 'Ballast down, cargo up' },
-    convoy: { h: 'The caravan docks on a schedule.', sub: 'Load the wagon before it rolls on' },
-    storm: { h: 'Storms roll in on the forecast.', sub: 'Rain slows the axes; gusts lock the lifts' },
-    tide: { h: 'Every downpour lifts the tide.', sub: 'Rescue the goods before the water takes them' },
-    drown: { h: 'The rock has a waterline.', sub: 'Dig below it and the next rain takes the gallery' },
-    daynight: { h: 'The day itself turns.', sub: 'Race the dark — lanterns hold the light' },
-    biomes: { h: 'Every seed generates a unique world.', sub: '6 biomes · Daily challenge · Level editor' },
-    deliver: { h: 'Speed and skill decide.', sub: 'Prestige and highscores await' },
-    end: { h: '', sub: '' },
-  },
-};
-
-// ---- in-page bootstrap -----------------------------------------------------------
-
-// Fake clock: rAF + performance.now under script control, so one captured frame
+// rAF + performance.now under script control, so one captured frame
 // == exactly 1/30 s of game time no matter how long the screenshot takes.
 const initScript = ({ lang }) => {
   const t0 = 1750000000000;
@@ -159,130 +132,6 @@ const initScript = ({ lang }) => {
   } catch {
     /* storage unavailable — the game copes */
   }
-};
-
-// Injected once per page load: overlay DOM + per-frame state applier + sim helpers.
-const pageLib = () => {
-  // CSS animations/transitions run on the real compositor clock, not our fake
-  // one — freeze them all so screenshots don't sample them at random phases.
-  const freeze = document.createElement('style');
-  freeze.id = 'tov-freeze';
-  freeze.textContent = `
-    *, *::before, *::after { animation-play-state: paused !important; transition: none !important; }
-    html { scrollbar-width: none; }
-    ::-webkit-scrollbar { display: none; }
-  `;
-  document.head.appendChild(freeze);
-
-  // Trailer overlay: headline + sub in the game's front-door style, a bottom
-  // veil for readability, and a full-screen fader for scene transitions.
-  const tov = document.createElement('div');
-  tov.id = 'tov';
-  tov.innerHTML = '<div class="veil"></div><div class="txt"><div class="h"></div><div class="sub"></div></div><div class="fade"></div>';
-  const style = document.createElement('style');
-  style.textContent = `
-    #tov { position: fixed; inset: 0; pointer-events: none; z-index: 99999; }
-    #tov .veil { position: absolute; inset: 0; opacity: 0;
-      background: linear-gradient(180deg, rgba(10,13,20,0) 52%, rgba(10,13,20,0.72) 100%); }
-    #tov .txt { position: absolute; left: 6%; right: 6%; bottom: 8.5%; text-align: center; opacity: 0; }
-    /* Underground scenes put their subject in the bottom rows — the map's own floor
-       is the clamp, so no camera move can lift it. Those scenes flip the caption
-       (and its veil) to the top, where the sky is empty between the two HUD panels. */
-    #tov .txt.top { top: 15%; bottom: auto; }
-    #tov .veil.top { background: linear-gradient(0deg, rgba(10,13,20,0) 58%, rgba(10,13,20,0.72) 100%); }
-    /* display type matches the redesigned front door: bundled Pixelify Sans */
-    #tov .h { font-family: 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif; font-size: 48px;
-      font-weight: 700; color: #e8eef7; letter-spacing: 0.5px; line-height: 1.14;
-      text-shadow: 0 3px 0 rgba(0,0,0,0.55), 0 2px 14px rgba(0,0,0,0.9); }
-    #tov .sub { margin-top: 10px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 21px;
-      font-weight: 600; color: #ffc94d; letter-spacing: 1.2px;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.95); }
-    #tov .fade { position: absolute; inset: 0; background: #0b0e15; opacity: 1; }
-  `;
-  document.head.appendChild(style);
-  document.body.appendChild(tov);
-
-  // Per-frame state, set by the director right before advancing virtual time.
-  window.__applyState = (s) => {
-    const SH = window.__smallhands;
-    if (s.cam && SH && SH.game) {
-      const c = SH.cam;
-      const cv = document.querySelector('canvas');
-      c.zoom = s.cam.zoom;
-      c.x = Math.round(s.cam.x);
-      c.y = Math.round(s.cam.y);
-      c.clamp(SH.game, cv.width, cv.height);
-    }
-    const h = tov.querySelector('.h');
-    const sub = tov.querySelector('.sub');
-    const txt = tov.querySelector('.txt');
-    if (h.textContent !== (s.h ?? '')) h.textContent = s.h ?? '';
-    if (sub.textContent !== (s.sub ?? '')) sub.textContent = s.sub ?? '';
-    const o = s.textO ?? 0;
-    const veil = tov.querySelector('.veil');
-    txt.classList.toggle('top', !!s.textTop);
-    veil.classList.toggle('top', !!s.textTop);
-    txt.style.opacity = String(o);
-    // rises into place from below, or settles down from above when it sits on top
-    txt.style.transform = `translateY(${((1 - o) * (s.textTop ? -14 : 14)).toFixed(2)}px)`;
-    veil.style.opacity = String(o * 0.95);
-    tov.querySelector('.fade').style.opacity = String(s.fadeO ?? 0);
-    const ui = document.getElementById('ui-root');
-    if (ui) ui.style.opacity = s.hud === false ? '0' : '1';
-  };
-
-  // Sim helpers: direct fixed ticks are far faster than pumping the rAF loop.
-  const game = () => window.__smallhands.game;
-  window.__H = {
-    ff(seconds) {
-      const g = game();
-      const n = Math.round(seconds * 60);
-      for (let i = 0; i < n; i++) g.tick(1 / 60);
-    },
-    // Ordered scripted steps, campaign-test style, but retried until each
-    // placement succeeds (stock arrives over time). Runs at most maxSec.
-    runSteps(steps, maxSec) {
-      const g = game();
-      let i = 0;
-      const max = Math.round(maxSec * 60);
-      for (let t = 0; t < max && i < steps.length; t++) {
-        g.tick(1 / 60);
-        if (t % 30 === 0) {
-          const s = steps[i];
-          try {
-            if ((!s.when || s.when(g)) && s.do(g) !== false) i++;
-          } catch {
-            /* placement not possible yet — retry */
-          }
-        }
-      }
-      return i;
-    },
-    ffUntil(pred, maxSec) {
-      const g = game();
-      const max = Math.round(maxSec * 60);
-      for (let t = 0; t < max; t++) {
-        g.tick(1 / 60);
-        if (t % 10 === 0 && pred(g)) return true;
-      }
-      return false;
-    },
-    markAll() {
-      for (const n of game().nodes) n.marked = true;
-    },
-    // Count game events (goal deposits, hoist cycles, …) without detaching the
-    // real handler.
-    countEvents() {
-      const g = game();
-      const prev = g.onEvent;
-      window.__evc = {};
-      g.onEvent = (e) => {
-        window.__evc[e.type] = (window.__evc[e.type] || 0) + 1;
-        if (e.type === 'deposit' && e.sink === 'goal') window.__evc.goalDeposit = (window.__evc.goalDeposit || 0) + 1;
-        prev(e);
-      };
-    },
-  };
 };
 
 // ---- director ---------------------------------------------------------------------
@@ -729,6 +578,7 @@ async function renderLang(lang, browser, ffmpeg) {
   }
 
   let globalFrame = 0;
+  let capBand = null; // last measured caption band, so a change gets reported
   for (const scene of scenes) {
     const t0 = Date.now();
     if (scene.endCard) {
@@ -754,6 +604,22 @@ async function renderLang(lang, browser, ffmpeg) {
     } else if (scene.setup) {
       if (scene.setupArgs) await page.evaluate(scene.setup, scene.setupArgs);
       else await page.evaluate(scene.setup);
+    }
+
+    // Lift the lower third clear of the tool dock, measured in the page rather
+    // than tuned here (card #79). Per scene, because the level decides how many
+    // chips stand and whether one of their labels wraps to a second line — and
+    // logged, because a caption band that MOVES between cuts is a bug that no
+    // still can show you.
+    const cap = await page.evaluate(() => window.__fitCaption());
+    if (cap.bottom !== capBand) {
+      const how = cap.dock ? `dock ${cap.dock}px + ${cap.guard}px` : 'no dock — cinematic lower third';
+      // Only a scene that actually prints a caption can move the band visibly, so
+      // only that one is worth flagging: the end card is the front door, which has
+      // no dock and no caption, and it would otherwise cry wolf on every run.
+      const moved = capBand !== null && (scene.text?.h || scene.text?.sub) ? ` — MOVED at scene ${scene.id}` : '';
+      console.log(`[${lang}] caption band: ${cap.bottom}px (${how})${moved}`);
+      capBand = cap.bottom;
     }
 
     let camA = scene.cam ? camAt(...scene.cam.from) : null;
