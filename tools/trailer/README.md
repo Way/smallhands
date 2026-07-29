@@ -51,19 +51,25 @@ inherits this and needs to do nothing; what it must not do is hard-code a `botto
 `--tov-bottom` — the dock's height plus 14 px of air — which positions the text
 block *and* ends the veil's gradient ramp. Four things about it are load-bearing:
 
-- **It measures the dock's ink, not its box.** A chip is a fixed 52 px with its
-  content centred, so a two-line label (`Rope Anchor`, `Seilanker`) overflows it top
-  and bottom; the box's edge reads 78 px where the ink reads 80. Descendant rects
-  are the honest edge.
+- **It takes the dock's ink — the bar's own top edge or anything inside it,
+  whichever is higher.** Today those agree at 80 px (12 px offset + a 1 px panel
+  border + 7 px padding + a 52 px chip + 7 px + 1 px), because a chip's content is
+  46 px and fits. They stop agreeing if a label ever needs a third line:
+  `.tool-label` has no `overflow: hidden` by design (an over-long word must show
+  rather than read as a typo), so the content column can break out of the chip.
 - **One number moves the text and its contrast together.** The veil is the only
   thing that makes a caption legible over bright ground, and it is bottom-anchored —
   so its ramp *ends* at the caption's last line and holds from there to the bottom
   edge. Lifting the text without lifting the gradient strands it above its own
-  darkening, in exactly the scenes (tide, hook) where that is fatal.
+  darkening, in exactly the scenes (tide, hook) where that is fatal. There is no CSS
+  fallback for `--tov-bottom` on purpose: a fallback would be the tuned percentage
+  that caused this, so a lost `__fitCaption()` call would silently ship the original
+  bug. Unset, the caption jumps to the top of the frame and the veil vanishes.
 - **The dock is measured even when `hud: false` hides it**, so the band is one
-  height for all fourteen scenes. A lower third that shifts between cuts reads as a
-  mistake; a strip of unused veil under a hidden HUD does not. The renderer logs the
-  band once and flags it if a captioned scene ever moves it.
+  height for all thirteen captioned scenes (the end card is the front door — no
+  dock, no caption, so it falls back to the cinematic 8.5 %). A lower third that
+  shifts between cuts reads as a mistake; a strip of unused veil under a hidden HUD
+  does not. The renderer logs the band once and flags a captioned scene that moves it.
 - **The block grows upward**, because it is anchored by its bottom. That is why
   German — wider than English, and the `deliver` headline wraps to two lines — can
   never push a caption back down into the chips.

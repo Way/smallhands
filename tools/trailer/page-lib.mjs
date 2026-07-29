@@ -38,11 +38,18 @@ export const pageLib = () => {
        there to the bottom edge, so lifting the text lifts its contrast with it
        (and dims the dock the text was lifted off — the chrome that means
        nothing in a video reads as a vignette instead of as buttons). Both read
-       --tov-bottom: one number, set by measurement, moves the pair. */
+       --tov-bottom: one number, set by measurement, moves the pair.
+
+       Deliberately NO fallback value. --tov-bottom is set by __fitCaption below,
+       which the director calls once per scene; a fallback here would be the
+       hand-tuned percentage that printed the caption across the chip row in the
+       first place, so a lost call would quietly ship the original bug. Unset, the
+       var invalidates both declarations instead — text jumps to the top of the
+       frame and the veil disappears, which the first storyboard still shows. */
     #tov .veil { position: absolute; inset: 0; opacity: 0;
       background: linear-gradient(180deg, rgba(10,13,20,0) 52%,
-        rgba(10,13,20,0.72) calc(100% - var(--tov-bottom, 8.5%)), rgba(10,13,20,0.72) 100%); }
-    #tov .txt { position: absolute; left: 6%; right: 6%; bottom: var(--tov-bottom, 8.5%);
+        rgba(10,13,20,0.72) calc(100% - var(--tov-bottom)), rgba(10,13,20,0.72) 100%); }
+    #tov .txt { position: absolute; left: 6%; right: 6%; bottom: var(--tov-bottom);
       text-align: center; opacity: 0; }
     /* Underground scenes put their subject in the bottom rows — the map's own floor
        is the clamp, so no camera move can lift it. Those scenes flip the caption
@@ -66,13 +73,19 @@ export const pageLib = () => {
   // `allowedTools` decides how many chips stand and therefore whether one of
   // their labels wraps.
   //
-  // Two things this deliberately does NOT do. It does not hand-tune a
-  // percentage: 8.5% was one, and it put the yellow sub-line across the chip
-  // row in eight of fourteen scenes and in the poster the front door shows
-  // before anyone presses play (card #79). And it does not measure the dock's
-  // *box*: a chip is a fixed 52px with its content centred, so a two-line label
-  // ("Rope Anchor", and every German equivalent) overflows it top and bottom,
-  // and the box's edge is a few px optimistic. Descendant rects are the ink.
+  // What it deliberately does NOT do is hand-tune a percentage: 8.5% was one,
+  // and it put the yellow sub-line across the chip row in eight of fourteen
+  // scenes and in the poster the front door shows before anyone presses play
+  // (card #79).
+  //
+  // It takes the dock's ink — the topmost edge of the bar OR anything inside it —
+  // rather than the bar's box alone. Today those are the same 80px (12px offset +
+  // 1px panel border + 7px padding + a 52px chip + 7px + 1px), because a chip's
+  // content is 46px and fits. They stop being the same if a label ever needs a
+  // third line: `.tool-label` has no `overflow: hidden` on purpose (style.css —
+  // an over-long word must show rather than read as a typo), so the content
+  // column can break out of the chip, and past 8px it clears the bar's own edge
+  // too. Cheap insurance in exactly the place where the tuned number went wrong.
   window.__fitCaption = () => {
     const vh = window.innerHeight;
     const base = vh * 0.085; // the cinematic lower third, when nothing is in the way

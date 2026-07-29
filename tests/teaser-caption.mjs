@@ -21,6 +21,7 @@
 //
 // Usage: BASE_URL=http://localhost:4173/ CHROME_PATH=… node tests/teaser-caption.mjs
 import { chromium } from 'playwright-core';
+import { readFileSync } from 'node:fs';
 import { pageLib } from '../tools/trailer/page-lib.mjs';
 import { COPY } from '../tools/trailer/copy.mjs';
 
@@ -32,6 +33,11 @@ const H = 720;
 // The gap the caption must keep. Below this a reader sees text that only just
 // missed the buttons rather than a lower third that was placed.
 const MIN_GAP = 10;
+// A few generated worlds, because the biome cuts run on `generateVerifiedLevel`
+// output and nobody authors its tool set. Not the renderer's own three seeds — the
+// property under test is that NO generated dock moves the band, which is broader
+// than those cuts and does not rot when the biome selection changes.
+const SEEDS = ['teaser-0', 'teaser-3', 'teaser-7'];
 
 let fails = 0;
 const check = (label, ok, detail) => {
@@ -42,20 +48,33 @@ const check = (label, ok, detail) => {
 // Runs entirely in the page: for every level, fit the caption to that level's dock,
 // then print each line of the deck into it and measure the block against the dock's
 // ink. Returns one row per (level, caption) so node can report the worst case.
-const probe = (deck) => {
+const probe = ({ deck, seeds }) => {
   const out = [];
   const keys = Object.keys(deck).filter((k) => deck[k].h || deck[k].sub);
-  // `startLevel` takes the LEVELS index and the debug hook replaces the whole
-  // __smallhands object on every start, so re-read it after each call. Walk until
-  // the index runs off the end (startGame throws on an undefined level).
-  for (let i = 0; i < 60; i++) {
+  // Every level the deck can stage. The campaign, walked until the index runs off
+  // the end (startGame throws on an undefined level) — plus GENERATED levels, because
+  // the three biome cuts run on `generateVerifiedLevel` output, whose tool set nobody
+  // authored. Those cuts hide the HUD but still carry a caption spanning all three,
+  // so a generated dock of a different height would move the band under live text.
+  const boots = [
+    ...Array.from({ length: 60 }, (_, i) => ({ generated: false, run: () => window.__smallhands.startLevel(i) })),
+    ...seeds.map((seed) => ({
+      generated: true,
+      run: () => {
+        const SH = window.__smallhands;
+        SH.startCustomLevel(SH.generateVerifiedLevel({ seed, difficulty: 2 }), {});
+      },
+    })),
+  ];
+  for (const boot of boots) {
     try {
-      window.__smallhands.startLevel(i);
+      boot.run();
     } catch {
-      break;
+      continue; // an index past the campaign — the generated cases still follow
     }
+    // the debug hook replaces the whole __smallhands object on every start
     const SH = window.__smallhands;
-    if (!SH.game) break;
+    if (!SH.game) continue;
     const fit = window.__fitCaption();
     const bar = document.querySelector('.toolbar');
     // the dock's ink, not its box — the same rule __fitCaption measures by
@@ -82,8 +101,8 @@ const probe = (deck) => {
       window.__applyState({ h: deck[key].h, sub: deck[key].sub, textO: 1 });
       const txt = document.querySelector('#tov .txt').getBoundingClientRect();
       out.push({
-        level: SH.game.level.id,
-        index: i,
+        level: `${boot.generated ? 'seed' : 'level'} ${SH.game.level.id}`,
+        generated: boot.generated,
         key,
         chips,
         band: fit.bottom,
@@ -130,15 +149,20 @@ try {
     // whether a chip wraps — so wait for the real ones before measuring anything
     await page.evaluate(() => document.fonts.ready);
 
-    const rows = await page.evaluate(probe, COPY[lang]);
-    const levels = new Set(rows.map((r) => r.index)).size;
-    check('walked the whole campaign', levels >= 20, `${levels} levels × ${rows.length / Math.max(1, levels)} captions`);
+    const rows = await page.evaluate(probe, { deck: COPY[lang], seeds: SEEDS });
+    const authored = new Set(rows.filter((r) => !r.generated).map((r) => r.level));
+    const generated = new Set(rows.filter((r) => r.generated).map((r) => r.level));
+    check(
+      'walked every level the deck can stage',
+      authored.size >= 20 && generated.size === SEEDS.length,
+      `${authored.size} authored + ${generated.size} generated × ${rows.length / (authored.size + generated.size)} captions`
+    );
 
     const worst = rows.reduce((a, b) => (b.gap < a.gap ? b : a));
     check(
       'every caption clears the tool dock',
       worst.gap >= MIN_GAP,
-      `tightest: level ${worst.level} "${worst.key}" (${worst.chips} chips) — ${worst.gap}px of air`
+      `tightest: ${worst.level} "${worst.key}" (${worst.chips} chips) — ${worst.gap}px of air`
     );
 
     // The band is derived from the dock, so it must actually track it rather than
@@ -182,11 +206,50 @@ try {
     check(
       'the block stays clear of the top HUD',
       highest.top > 260,
-      `highest: level ${highest.level} "${highest.key}" at y=${highest.top}`
+      `highest: ${highest.level} "${highest.key}" at y=${highest.top}`
+    );
+
+    // The overlay carries no CSS fallback for --tov-bottom, so that a lost fit call
+    // cannot quietly restore the tuned percentage this card exists to delete. That is
+    // a claim about failure, so check the failure: unset the var and the caption must
+    // LEAVE the lower third and lose its veil outright, which the first storyboard
+    // still would show. (Restore it afterwards — the next language reloads anyway.)
+    const broken = await page.evaluate(() => {
+      const tov = document.getElementById('tov');
+      tov.style.removeProperty('--tov-bottom');
+      const txt = document.querySelector('#tov .txt');
+      const r = txt.getBoundingClientRect();
+      const out = {
+        bottom: getComputedStyle(txt).bottom,
+        veil: getComputedStyle(document.querySelector('#tov .veil')).backgroundImage,
+        inLowerThird: r.top > window.innerHeight * 0.6,
+      };
+      window.__fitCaption();
+      return out;
+    });
+    check(
+      'an unfitted caption fails loudly, not back onto the chips',
+      !broken.inLowerThird && broken.veil === 'none',
+      `bottom: ${broken.bottom}, veil: ${broken.veil}`
     );
 
     await context.close();
   }
+
+  // Everything above measures the overlay. None of it can see the DIRECTOR, and the
+  // overlay is inert until something calls the fit — so a lost call would leave this
+  // whole suite green while the render went back to printing captions on the chips.
+  // (The CSS has no fallback for exactly that reason, but the belt is worth the
+  // braces: a red line naming the call beats a caption mysteriously at the top.)
+  const director = readFileSync(new URL('../tools/trailer/render-teaser.mjs', import.meta.url), 'utf8');
+  const sceneLoop = director.indexOf('for (const scene of scenes)');
+  const fit = director.indexOf('__fitCaption()');
+  const frameLoop = director.indexOf('for (let f = 0; f < scene.frames', sceneLoop);
+  check(
+    'the renderer fits the caption once per scene, before the frames',
+    sceneLoop > 0 && frameLoop > 0 && fit > sceneLoop && fit < frameLoop,
+    `scene loop @${sceneLoop} → __fitCaption @${fit} → frame loop @${frameLoop}`
+  );
 } finally {
   await browser.close();
 }
