@@ -76,6 +76,32 @@ check(
   `options="${inOptions}" footer="${shown}"`,
 );
 
+// -------------------------------------------------------------- 3. the bug report
+// The report is in-level only (it carries a snapshot of the live map), so this walks
+// the same path tests/report-e2e.mjs does. __BUILD__ is the shown version plus the
+// short sha: same-day pushes share a version, and this is where they separate.
+await page.click('.options-box .big-btn'); // Back → front door
+await page.waitForTimeout(250);
+await page.click('.fd-play');
+await page.waitForTimeout(300);
+await page.click('.map-node:not(:disabled)');
+await page.click('.map-popover .pop-play');
+await page.waitForTimeout(600);
+
+await page.click('.island .menu-trigger');
+await page.waitForTimeout(150);
+await page.click('.menu-pop .report-open');
+await page.waitForTimeout(400);
+
+const md = await page.textContent('.report-preview');
+const buildLine = md.split('\n').find((l) => l.startsWith('- **Build:**')) ?? '';
+check('the report has a Build line', buildLine !== '', md.slice(0, 200));
+check(
+  'the reported build starts with the version on screen',
+  buildLine.startsWith(`- **Build:** ${shown}+`),
+  buildLine,
+);
+
 await browser.close();
 if (failures) {
   console.log(`\nVERSION FAIL: ${failures} check(s) failed`);
