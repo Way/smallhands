@@ -112,7 +112,10 @@ export class FrontDoor {
     return `
     <header class="fd-topbar">
       <div class="wrap fd-topbar-in">
-        <a class="fd-brand" href="#top">
+        <!-- Named here rather than by its text: below 380px the wordmark is
+             hidden (the bar has no room for it next to the language toggle) and
+             the icon is aria-hidden, which would leave the link nameless. -->
+        <a class="fd-brand" href="#top" aria-label="Smallhands">
           ${this.icon('ling_work', 'fd-brand-mark')}
           <span>Smallhands</span>
         </a>

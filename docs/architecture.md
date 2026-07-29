@@ -469,3 +469,53 @@ they are kept from overlapping by delay alone (raise ends at 0.72s, float starts
 baseline does not drift, and reduced motion lands on the finished wordmark opaque at full
 height rather than on a frozen squash — and writes the stops to `tests/.logo-out/` for the part
 that isn't: whether whole-glyph squash actually reads as growth.
+
+## Phone widths: the front door's rows shrink, they never wrap (card #77)
+
+The front door's two icon rows — the hero production chain and the closing village skyline —
+are **sequences whose order is the content**, and a phone is where that gets tested. Both now
+obey one rule: **the row keeps its shape and the icons give way.**
+
+- **The chain never wraps.** `flex-wrap: nowrap` plus `flex: 0 1 auto; min-width: 0` on the
+  canvases (the `min-width` is what actually permits it — a replaced element's automatic
+  minimum size is its specified width, so without it the row overflows instead of squeezing),
+  and `height: auto` + `aspect-ratio: 1` so a shrinking width doesn't flatten the sprite. The
+  arrows are `flex: 0 0 auto`: six 23px icons still read as a chain, a 6px arrow does not.
+  The row it replaced broke wherever the width ran out — at 390px it left an arrow dangling at
+  the end of the first line pointing at nothing, which is the exact opposite of what a row
+  captioned "your crew runs the line" is for.
+- **`min-width: 0` on `.hero-in` is part of that fix, not a tidy-up.** It is the flex item of
+  `.hero`, so its automatic minimum is its min-content width — which an un-wrapping chain now
+  owns. Left at `auto`, the hero cannot get narrower than 385px and a 320–375px phone scrolls
+  the *whole page* sideways while the chain sits at full size: the shrink never engages,
+  because nothing is ever short of room. Any future nowrap row inside a flex item needs the
+  same release valve.
+- **The skyline is sized from one `--s` per figure** so the same shrink applies without a
+  second `height` winning over `height: auto` and squashing the village flat. Shrink is
+  distributed in proportion to each figure's width, so the town hall stays the tallest thing
+  on the ridge. It is full-bleed (not inside `.wrap`), so it carries its own gutter.
+
+Two neighbours were the same defect in text and chrome, and both put horizontal scroll on the
+page — which is worth stating plainly, because *any* one of these makes the whole document
+scroll sideways and the symptom names none of them:
+
+- The wordmark's `clamp(56px, 12vw, 116px)` **floor** is 321px of Pixelify, and a 320px screen
+  offers 276px. A single unbreakable word cannot wrap out of that, so the H1 alone overflowed;
+  `min(clamp(…), 14vw)` lets the floor give way below ~400px and leaves the ramp above it be.
+- `.fd-topbar-in` is also a `.wrap`, and its `padding: 11px 0` shorthand **zeroed that class's
+  horizontal gutter** — so on every screen under 1060px the brand and the language toggle sat
+  flush against the edges while the hero kept its 22px margin, and `.wrap`'s
+  `env(safe-area-inset-*)` (the thing that keeps controls out from under a notch) went with it.
+  Vertical padding only, here and in `(pointer: coarse)`.
+
+**Source order carries the narrow-width rules.** A phone is coarse *and* narrow, media queries
+add no specificity, so `(pointer: coarse)` sits *above* the `max-width` blocks in the file: it
+owns the thumb-sized vertical padding, and the width blocks own the horizontal. A `padding`
+shorthand in the coarse block re-widens the EN/DE toggle that used to fall off a 320px screen —
+on touch devices only, which is the one place nobody is looking with a mouse.
+
+`npm run test:frontdoor-mobile` is the guard: 12 widths × both languages × pointer coarse and
+fine, asserting **slack** rather than the absence of a symptom (a fit by one pixel — which is
+what the English top bar had at 390px — is not a fit; see `tests/tool-labels.mjs` for the same
+lesson learned the hard way). It prints each width's measurements on its ok line, because those
+numbers are what a retune has to be judged against.

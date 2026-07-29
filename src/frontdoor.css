@@ -68,7 +68,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 0;
+  /* Vertical only. This element is also a `.wrap`, and a `padding: 11px 0`
+     shorthand here zeroed that class's horizontal gutter — so below the 1060px
+     max-width (i.e. on every phone) the brand and the language toggle sat flush
+     against the screen edges while the hero below them kept its 22px margin, and
+     the `env(safe-area-inset-*)` in `.wrap` — the whole point of which is not to
+     put controls under a notch or a rounded corner — was thrown away with it. */
+  padding-top: 11px;
+  padding-bottom: 11px;
 }
 #frontdoor .fd-brand {
   display: inline-flex;
@@ -127,7 +134,14 @@
     linear-gradient(to bottom, transparent 55%, rgba(8, 11, 17, 0.6)),
     radial-gradient(120% 90% at 50% 40%, rgba(8, 11, 17, 0.72), rgba(8, 11, 17, 0.32) 55%, transparent 78%);
 }
-#frontdoor .hero-in { text-align: center; margin: 0 auto; }
+/* `min-width: 0` is load-bearing: .hero-in is the flex item of .hero, so its
+   automatic minimum size is its min-content width — which the un-wrapping chain
+   below now owns (six icons and five arrows in a row that refuses to break). At
+   `auto` the hero therefore cannot get narrower than 385px, and a 320–375px
+   phone scrolls the WHOLE PAGE sideways instead of the chain squeezing: the
+   shrink built into the icons never engages, because nothing is ever short of
+   room. This one declaration is what hands the constraint back to the row. */
+#frontdoor .hero-in { text-align: center; margin: 0 auto; min-width: 0; }
 /* sans, not pixel: Pixelify's uppercase Z reads as a 2 ("PU22LE") */
 #frontdoor .eyebrow {
   font-size: 11px;
@@ -138,7 +152,12 @@
 }
 #frontdoor .logo {
   font-family: var(--fd-pixel);
-  font-size: clamp(56px, 12vw, 116px);
+  /* The clamp's 56px floor does not fit a small phone: "Smallhands" is 321px of
+     Pixelify at 56px and a 320px screen offers 276px between the gutters, so the
+     H1 by itself put 45px of horizontal scroll on the page — a single unbreakable
+     word cannot wrap its way out of that. The second arm only wins below ~400px,
+     where the floor stops fitting, and leaves the ramp above it untouched. */
+  font-size: min(clamp(56px, 12vw, 116px), 14vw);
   font-weight: 700;
   letter-spacing: 1px;
   color: var(--fd-gold);
@@ -152,6 +171,11 @@
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 26px;
+  /* Two halves joined by a middot, so when it wraps it must wrap AT the middot:
+     the greedy break put "KLEINE HÄNDE · GROSSE" over "PLÄNE" on a 320px screen,
+     which reads as a dangling separator and a stray word. Balanced lines land on
+     the dot in both languages. */
+  text-wrap: balance;
 }
 #frontdoor .lede {
   max-width: 36ch;
@@ -208,13 +232,26 @@
 #frontdoor .big-btn:focus-visible { outline: 3px solid var(--fd-gold); outline-offset: 3px; }
 #frontdoor .cta-note { font-size: 12.5px; color: var(--fd-dim); letter-spacing: 0.4px; }
 
+/* The production chain is ONE line at every width — it shrinks, it never wraps.
+   A wrap breaks the thing the row exists to say: the six steps are a line the
+   crew runs end to end, and flex puts the break wherever the width happens to
+   run out, which left an arrow dangling at the end of the first line pointing
+   at nothing (390px: `tree → log → sawmill → plank →` / `smallie → goal`) and
+   an orphan or two on the second. So `nowrap` plus icons that give way: they
+   carry `flex: 0 1 auto; min-width: 0`, which is what actually lets a canvas
+   shrink — a replaced element's automatic minimum size is its specified width,
+   so without `min-width: 0` the row overflows instead of squeezing. `height:
+   auto` + `aspect-ratio` keeps the pixel art square while it does (a fixed
+   height with a shrinking width is a squashed sprite). Only the icons flex;
+   the arrows stay put, because a chain of six 23px icons (the floor, at 320px)
+   still reads as a chain and an arrow shrunk to 6px does not. */
 #frontdoor .chain {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 16px 18px;
   border: 1px solid var(--fd-border);
   border-radius: 4px;
@@ -236,8 +273,15 @@
   background-size: 7px 7px;
   background-repeat: no-repeat;
 }
-#frontdoor .chain canvas { width: 42px; height: 42px; }
+#frontdoor .chain canvas {
+  width: 42px;
+  height: auto;
+  aspect-ratio: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+}
 #frontdoor .chain .arrow {
+  flex: 0 0 auto;
   color: var(--fd-gold);
   font-size: 22px;
   font-weight: 700;
@@ -536,14 +580,30 @@
   gap: 28px;
   margin-top: 48px;
 }
-#frontdoor .fd-skyline canvas { width: 44px; height: 44px; }
+/* The village silhouette is sized from one custom property per figure so the
+   whole row can squeeze: the seven figures plus their gaps are 390px wide at
+   the mobile gap, which overflowed a 320–360px viewport and put a horizontal
+   scrollbar on the whole page — the two outer trees hung off both edges at
+   once. Same mechanism as the chain (`flex: 0 1 auto; min-width: 0` + a square
+   aspect ratio), and shrink is distributed in proportion to each figure's own
+   width, so the town hall stays the tallest thing on the ridge. Declaring the
+   size once, as `--s`, is what keeps that true: a `height` alongside each
+   `width` would win over `height: auto` and squash the sprites flat. */
+#frontdoor .fd-skyline canvas {
+  --s: 44px;
+  width: var(--s);
+  height: auto;
+  aspect-ratio: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+}
 #frontdoor .fd-skyline canvas:nth-child(1),
-#frontdoor .fd-skyline canvas:nth-child(7) { width: 34px; height: 34px; }
+#frontdoor .fd-skyline canvas:nth-child(7) { --s: 34px; }
 #frontdoor .fd-skyline canvas:nth-child(2),
-#frontdoor .fd-skyline canvas:nth-child(6) { width: 54px; height: 54px; }
+#frontdoor .fd-skyline canvas:nth-child(6) { --s: 54px; }
 #frontdoor .fd-skyline canvas:nth-child(3),
-#frontdoor .fd-skyline canvas:nth-child(5) { width: 30px; height: 30px; }
-#frontdoor .fd-skyline canvas:nth-child(4) { width: 70px; height: 70px; }
+#frontdoor .fd-skyline canvas:nth-child(5) { --s: 30px; }
+#frontdoor .fd-skyline canvas:nth-child(4) { --s: 70px; }
 #frontdoor .fd-skyline canvas:nth-child(3) { animation: fd-bob 2.4s ease-in-out infinite alternate; }
 #frontdoor .fd-skyline canvas:nth-child(5) { animation: fd-bob 2.4s ease-in-out 0.7s infinite alternate; }
 
@@ -611,17 +671,54 @@
 
 @media (max-width: 720px) {
   #frontdoor .two-col, #frontdoor .mech-grid, #frontdoor .feats { grid-template-columns: 1fr; }
-  #frontdoor .chain canvas { width: 34px; height: 34px; }
+  #frontdoor .chain canvas { width: 34px; }
   #frontdoor .chain .arrow { font-size: 18px; }
   #frontdoor .hero-hook { font-size: 14px; }
   #frontdoor .fd-skyline { gap: 14px; }
   #frontdoor .band { padding: 56px 0 48px; }
 }
-/* thumb-sized top-bar controls; the Play button already clears 48px */
+/* Thumb-sized top-bar controls; the Play button already clears 48px. This block
+   sits ABOVE the narrow-width ones on purpose: a phone is coarse *and* narrow,
+   media queries carry no specificity, so source order is the only thing that
+   decides which padding wins. Set the vertical size here (that is the thumb
+   question) and leave the horizontal to the width rules below — a `padding`
+   shorthand at this point re-widens the very EN/DE toggle that used to fall off
+   a 320px screen, and it does it only on touch devices. */
 @media (pointer: coarse) {
   #frontdoor .fd-options { padding: 12px 10px; }
   #frontdoor .seg-btn { padding: 12px 16px; }
   #frontdoor button { touch-action: manipulation; }
+}
+/* Phone widths: the fixed parts of both icon rows have to give way, or the
+   icons pay for all of it. The gap and the arrows are what the six chain steps
+   are competing with for room — at a 10px gap and an 18px arrow they eat 160px
+   of a 390px screen, which is why the row used to wrap there. Tightened, the
+   icons hold 34px down to ~385px wide and bottom out at 23px on a 320px one. */
+@media (max-width: 560px) {
+  #frontdoor .chain { gap: 5px; padding: 14px 10px; }
+  #frontdoor .chain .arrow { font-size: 14px; }
+  /* the skyline is not inside .wrap, so it needs its own gutter */
+  #frontdoor .fd-skyline { gap: 10px; padding: 0 14px; }
+}
+/* The top bar is a row of fixed-width content, so it must be measured rather
+   than assumed: brand + Options + EN/DE wanted 345px (353px in German) and had
+   276px at 320px — the language toggle ran off the right edge and the page
+   scrolled sideways. Even at 390px English fitted by a single pixel, which is
+   not a fit; the next font-hinting change takes it. */
+@media (max-width: 430px) {
+  #frontdoor .fd-topbar-in { gap: 8px; }
+  #frontdoor .fd-brand { font-size: 17px; gap: 7px; }
+  #frontdoor .fd-brand-mark { width: 22px; height: 22px; }
+  #frontdoor .fd-topbar-actions { gap: 6px; }
+  #frontdoor .fd-options { padding-left: 4px; padding-right: 4px; }
+  #frontdoor .seg-btn { padding-left: 11px; padding-right: 11px; }
+}
+/* Below that the wordmark comes out of the bar and the mark carries the link
+   home (which is why the anchor names itself with aria-label): the hero prints
+   "Smallhands" at 56px immediately underneath, so nothing is actually lost —
+   whereas a cut-off EN/DE toggle costs a reader their language. */
+@media (max-width: 380px) {
+  #frontdoor .fd-brand span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   #frontdoor *,
