@@ -12,7 +12,8 @@
 //   1. A hardcoded digit. Every count the copy quotes is a {c}/{n} placeholder
 //      that frontdoor.ts fills from LEVELS, TOOL_DEFS and BIOMES, so the drift
 //      is impossible rather than merely guarded — but only while the placeholder
-//      is still there. Typing "5 campaigns" back into the table reds here.
+//      is still there. Typing "5 campaigns" back into the table reds here, and
+//      the count is stale again the next time a level lands.
 //   2. The <meta name="description"> in index.html. A static file the copy table
 //      cannot reach, so this is the one count that IS written by hand, and the
 //      one that genuinely needs comparing against LEVELS.
@@ -60,8 +61,8 @@ const says = (str, n) => new RegExp(`(?<!\\d)${n}(?!\\d)`).test(str);
 // Checking for the placeholder rather than for the right digit is the point: a
 // number that frontdoor.ts fills in cannot be wrong, and a number typed in by
 // hand cannot be trusted. So the failure this catches is someone "simplifying"
-// a placeholder away — after which the count is stale the next time a level
-// lands, silently, exactly as it was twice before.
+// a placeholder away — after which the count is silently stale the next time a
+// level lands, which is where card #67 found it.
 const INTERPOLATED = {
   feat1: ['{c}', '{n}'], // "{c} hand-crafted campaigns · {n} levels"
   campIntro: ['{c}', '{n}'], // "{n} levels in {c} campaigns…"

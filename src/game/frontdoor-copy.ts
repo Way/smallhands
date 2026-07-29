@@ -94,7 +94,7 @@ export const S: Record<string, Str> = {
   worldHead: ['A world that fights back', 'Eine Welt, die sich wehrt'],
   worldIntro: [
     'The ground is only half the puzzle. Clock, weather and water keep moving while your crew works, the caravan keeps hours of its own, and some levels ration your tools. Every one of them runs on a schedule you can read — none of them rolls dice.',
-    'Der Boden ist nur die Hälfte des Rätsels. Uhr, Wetter und Wasser laufen weiter, während dein Trupp schuftet, die Karawane hat ihre eigenen Zeiten, und manche Level rationieren dein Werkzeug. Alles davon folgt einem Plan, den du lesen kannst — gewürfelt wird nie.',
+    'Der Boden ist nur die Hälfte des Rätsels. Uhr, Wetter und Wasser laufen weiter, während dein Trupp schuftet. Die Karawane hat ihre eigenen Zeiten, und manche Level rationieren dein Werkzeug. All das folgt einem Plan, den du lesen kannst — gewürfelt wird nie.',
   ],
   worldDayTitle: ['The turning day', 'Der Lauf des Tages'],
   worldDayBody: [
@@ -112,9 +112,15 @@ export const S: Record<string, Str> = {
     'Wo die Flut steigt, hebt jeder Regenguss das Wasser um eine Stufe, und es sinkt nie wieder. Es schluckt tiefen Grund, versenkt liegengelassene Waren und spült watende Smallies nach Hause. Sei schneller als das Wasser.',
   ],
   worldConvoyTitle: ["The caravan's timetable", 'Der Fahrplan der Karawane'],
+  // The second clause is the sim's actual rule and it is easy to get wrong in a
+  // nice-sounding way: a closed window stops *dispatch*, and the delivery lands
+  // when the HAULER arrives, not when the wagon comes back (sim.ts never
+  // re-checks convoyOpen on the deposit). Promising that the load waits for the
+  // wagon would teach the opposite of the good play, which is to keep haulers
+  // walking into a closing window because their cargo still counts.
   worldConvoyBody: [
-    'On some routes the wagon only stands at the dock for a spell, then rolls on. Nothing new is sent out while it is gone — but a hauler already on the road delivers the moment it pulls back in.',
-    'Auf manchen Routen steht der Wagen nur eine Weile am Verladeplatz, dann zieht er weiter. Solange er fort ist, geht nichts Neues hinaus — wer schon unterwegs ist, liefert genau dann ab, wenn der Wagen wieder einrollt.',
+    'On some routes the wagon only stands at the dock for a spell, then rolls on. Nothing new is sent out while it is gone and the crew fills the stockpile instead — but a hauler already on the road finishes its run, and that load still counts.',
+    'Auf manchen Routen steht der Wagen nur eine Weile am Verladeplatz, dann zieht er weiter. Solange er fort ist, geht nichts Neues hinaus und der Trupp füllt stattdessen das Lager — wer aber schon unterwegs ist, liefert seine Last noch ab, und sie zählt.',
   ],
   worldBudgetTitle: ['Rationed tools', 'Knappes Werkzeug'],
   worldBudgetBody: [

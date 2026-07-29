@@ -23,6 +23,7 @@
 import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { bundleExports } from './bundle.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
 const OUT = process.env.OUT_DIR || 'tests/.landing-out';
@@ -43,6 +44,13 @@ const check = (name, cond, extra = '') => {
   console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`);
   if (!cond) failures++;
 };
+
+// The expected row count comes from the level table, not from a floor written
+// here: `>= 4` with five campaigns shipping would stay green through a rendering
+// regression that dropped the last row — the same hardcoded-count failure this
+// whole change exists to remove, in the one suite that can see the DOM.
+const { LEVELS } = await bundleExports(`export { LEVELS } from './src/game/levels.ts';`);
+const CAMPAIGNS = new Set(LEVELS.map((l) => l.campaign ?? 1)).size;
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -92,7 +100,11 @@ for (const view of VIEWS) {
 
     const at = `${view.tag}/${lang}`;
     check(`${at}: no horizontal overflow`, m.overflow <= 0, `${m.overflow}px`);
-    check(`${at}: campaigns rendered`, m.camps.length >= 4, `${m.camps.length} rows`);
+    check(
+      `${at}: every campaign in LEVELS has a row`,
+      m.camps.length === CAMPAIGNS,
+      `${m.camps.length} rows, ${CAMPAIGNS} campaigns`,
+    );
     // A placeholder that never got filled, or an i18n key echoed instead of a
     // name, both land in the DOM looking like copy. Catch them by shape.
     for (const [i, c] of m.camps.entries()) {
