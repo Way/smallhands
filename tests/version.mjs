@@ -87,6 +87,9 @@ await page.waitForTimeout(300);
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
 await page.waitForTimeout(600);
+// No report-e2e.mjs-style 1500ms "play a little" pause here, deliberately: the
+// Build line is stamped at collection time regardless of run depth, so an
+// empty-map snapshot exercises it exactly as well as a played-in one.
 
 await page.click('.island .menu-trigger');
 await page.waitForTimeout(150);
@@ -95,7 +98,10 @@ await page.waitForTimeout(400);
 
 const md = await page.textContent('.report-preview');
 const buildLine = md.split('\n').find((l) => l.startsWith('- **Build:**')) ?? '';
-check('the report has a Build line', buildLine !== '', md.slice(0, 200));
+// Collapsed and short: this extra prints on every run (this file's convention),
+// so a raw 200-char multi-line slice of the report would spam a passing run —
+// only a failure needs the diagnostic, but it still has to stay a one-liner.
+check('the report has a Build line', buildLine !== '', md.slice(0, 80).replace(/\n/g, ' '));
 check(
   'the reported build starts with the version on screen',
   buildLine.startsWith(`- **Build:** ${shown}+`),
