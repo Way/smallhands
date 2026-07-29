@@ -608,6 +608,23 @@ function showOptions(returnTo: () => void): void {
     box.appendChild(n);
   }
 
+  // Which build the player is on. A readout, not a control — so it is built inline
+  // rather than through segRow, which exists for segmented choices. Kept last
+  // because it is the only row that answers a question instead of setting anything.
+  {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    const lab = document.createElement('span');
+    lab.className = 'opt-label';
+    lab.textContent = t('opt.version');
+    row.appendChild(lab);
+    const val = document.createElement('span');
+    val.className = 'opt-value';
+    val.textContent = __VERSION__;
+    row.appendChild(val);
+    box.appendChild(row);
+  }
+
   const rowBtns = document.createElement('div');
   rowBtns.className = 'btn-row';
   const back = document.createElement('button');

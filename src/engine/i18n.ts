@@ -1028,6 +1028,7 @@ export const D: Record<string, [string, string]> = {
     'This file is not a valid Smallhands save.',
     'Diese Datei ist kein gültiger Smallhands-Spielstand.',
   ],
+  'opt.version': ['Version', 'Version'],
   'opt.back': ['← Back', '← Zurück'],
 
   // ---- editor --------------------------------------------------------------------

@@ -63,6 +63,19 @@ check(
   `footer reads "${footerLine}"`,
 );
 
+// ------------------------------------------------------------- 2. the options menu
+// Reached from the front door rather than from a level: it is the same showOptions()
+// either way, and style.css keeps that overlay visible in front-door mode on purpose.
+// .opt-value is unique to the version row, and carries the number with no label.
+await page.click('.fd-options');
+await page.waitForTimeout(250);
+const inOptions = (await page.textContent('.opt-value'))?.trim() ?? '';
+check(
+  'options row shows the same version as the footer',
+  inOptions === shown && shown !== '',
+  `options="${inOptions}" footer="${shown}"`,
+);
+
 await browser.close();
 if (failures) {
   console.log(`\nVERSION FAIL: ${failures} check(s) failed`);
