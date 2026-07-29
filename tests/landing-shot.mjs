@@ -14,8 +14,10 @@
 //
 //   Not asserted — whether the campaign roll-call reads as a table of contents
 //   and whether each icon is legible at 34px. The stills in tests/.landing-out/
-//   are for that; the shovel lost Shaft & Seam its slot to `vein` on exactly this
-//   evidence, and nothing measurable would have said so.
+//   are for that, and `pressure-icons.png` is the one that decides an icon: each
+//   glyph at true size beside a 4× blow-up. Two icons have been replaced on that
+//   evidence alone (the shovel for `vein`, `tile_platform` for `ration`) and
+//   nothing measurable would have said so in either case.
 //
 // Needs the production build served and a Chromium, same as every browser suite:
 //   npm run build && npx vite preview --port 4211 --strictPort
@@ -129,6 +131,45 @@ for (const view of VIEWS) {
     // Every count on the page arrives from LEVELS/TOOL_DEFS through a {c}/{n}
     // placeholder, so a raw brace in the rendered text means one went unfilled.
     check(`${at}: no unfilled placeholder`, !m.feats.concat(m.camps.map((c) => c.count)).some((s) => /[{}]/.test(s)));
+
+    // The pressure icons, each at its true 34px and blown up 4× beside it. This
+    // is the view that decides an icon: the band stills show it in place, but a
+    // 34px glyph inside a 1280px page is too small to judge, and every icon this
+    // page has lost was lost at this magnification (`tile_platform` reading as a
+    // grating rather than a limit, the shovel as a thin dark shape). Drawn from
+    // the canvases the page already painted, so it is the shipped rendering and
+    // not a re-implementation of it.
+    if (view.tag === 'desktop' && lang === 'en') {
+      await page.evaluate(() => {
+        const host = document.createElement('div');
+        host.id = 'icon-strip';
+        host.style.cssText =
+          'position:fixed;inset:0;z-index:99999;background:#141a26;display:flex;gap:34px;' +
+          'align-items:center;justify-content:center;font:11px system-ui;color:#9fb0c8';
+        for (const card of document.querySelectorAll('.world-grid > .mech')) {
+          const src = card.querySelector('canvas');
+          const col = document.createElement('div');
+          col.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px';
+          for (const px of [34, 168]) {
+            const big = document.createElement('canvas');
+            big.width = big.height = px;
+            const g = big.getContext('2d');
+            g.imageSmoothingEnabled = false; // nearest-neighbour: show the pixels
+            g.drawImage(src, 0, 0, px, px);
+            big.style.cssText = `width:${px}px;height:${px}px;background:rgba(0,0,0,.25);border:1px solid #2a3444`;
+            col.appendChild(big);
+          }
+          const label = document.createElement('div');
+          label.textContent = src.dataset.sprite;
+          col.appendChild(label);
+          host.appendChild(col);
+        }
+        document.body.appendChild(host);
+      });
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${OUT}/pressure-icons.png` });
+      await page.evaluate(() => document.getElementById('icon-strip')?.remove());
+    }
 
     for (const [name, sel] of [
       ['world', '.world-grid'],

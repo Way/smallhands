@@ -1334,6 +1334,48 @@ export function buildAtlas(): void {
     '..r.yy....r...',
     '.r........r...',
   ]);
+  // ration: the tool budget — three slots on a rail, two filled and one left as
+  // an empty outline. The card it sits on is titled "Rationed tools", so the noun
+  // is already said and what the glyph has to carry is the *limit*. It replaced
+  // `tile_platform`, a fine picture of a bridge that says nothing about running
+  // out of them (card #25); three reviewers named that independently and no
+  // measurement would have.
+  //
+  // Four other shapes were drawn and rejected by looking at them at 34px, which
+  // is the only size that matters here — the lesson being that at this scale a
+  // silhouette survives and an interior does not:
+  //   · tall vertical bars + a hollow one — the empty slot read as a doorway
+  //   · a dashed "ghost" slot above stacked planks (twice, two layouts) — the
+  //     dashes read as a decorative dotted border, never as something absent
+  //   · a side-on rack with a post — read as a bookshelf
+  // Squares won because filled-vs-outlined is legible at any size, while
+  // wood tones on a wooden rail keep it material rather than a UI widget.
+  //
+  // TWO THINGS HERE ARE LOAD-BEARING and both were broken by "tidying" the
+  // winning draft, which is why they are written down:
+  //   · the slots are 4×4 — actual squares. Stretched to 5 rows they stop being
+  //     tokens and start being bars, and the outline reads as a window again.
+  //   · the blank row 7 keeps the slots OFF the rail. Seated directly on it the
+  //     three silhouettes merge with the rail into one wall, and the whole glyph
+  //     reads as masonry with a hole in it. The gap is what makes them objects
+  //     standing above a shelf.
+  // Full-bleed by construction: 3 slots × 4px + 2 gaps = exactly 14.
+  makeSprite('ration', { P: '#e8c084', p: '#d3a45c', k: '#96703a', K: '#6b5228', d: '#59657a' }, [
+    '..............',
+    '..............',
+    '..............',
+    'PPPP.PPPP.dddd',
+    'pppp.pppp.d..d',
+    'pppp.pppp.d..d',
+    'kkkk.kkkk.dddd',
+    '..............',
+    'kkkkkkkkkkkkkk',
+    'KKKKKKKKKKKKKK',
+    '..............',
+    '..............',
+    '..............',
+    '..............',
+  ]);
   // wave: the rising tide — stacked bands of water topped with foam crests.
   makeSprite('wave', { f: '#e8f4ff', w: '#7fb2ec', W: '#3f7fc8' }, [
     '..............',
