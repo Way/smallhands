@@ -140,8 +140,10 @@ the shape is a date:
 3. **The bug report's build field starts with that string + `+`.** Ties the
    displayed version to the reported one, so a report can always be traced back to
    what the player was looking at. Concretely: open `.report-box` from the pause
-   menu the way `tests/report-e2e.mjs` does, read the markdown textarea, and match
-   the `- **Build:**` line (`report.ts:377`) against `<footer version>+`.
+   menu the way `tests/report-e2e.mjs` does, read the generated markdown out of the
+   `.report-preview` `<pre>` (`report-ui.ts:119` — *not* `.report-text`, which is the
+   player's own free-text box and starts empty), and match the `- **Build:**` line
+   (`report.ts:377`) against `<footer version>+`.
 
 Implementation note: `window.__smallhands` is assigned inside `startLevel`, so it
 does not exist on the front door. Step 1 reads rendered text rather than the hook.

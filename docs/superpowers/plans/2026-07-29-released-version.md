@@ -481,7 +481,9 @@ await page.waitForTimeout(150);
 await page.click('.menu-pop .report-open');
 await page.waitForTimeout(400);
 
-const md = await page.inputValue('.report-text');
+// .report-preview is the <pre> holding the generated markdown (report-ui.ts:119).
+// NOT .report-text — that is the player's own free-text box, which starts empty.
+const md = await page.textContent('.report-preview');
 const buildLine = md.split('\n').find((l) => l.startsWith('- **Build:**')) ?? '';
 check('the report has a Build line', buildLine !== '', md.slice(0, 200));
 check(
