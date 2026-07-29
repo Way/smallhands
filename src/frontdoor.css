@@ -498,9 +498,19 @@
 #frontdoor .card h3 { font-family: var(--fd-pixel); font-weight: 600; font-size: 20px; margin-bottom: 8px; color: var(--fd-gold); }
 #frontdoor .card p { color: var(--fd-dim); font-size: 15px; }
 #frontdoor .mech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-/* the living-world trio (day-night · weather · flood) sits three across */
-#frontdoor .world-grid { grid-template-columns: repeat(3, 1fr); }
-#frontdoor .mech {
+/* Five pressures, two kinds. The natural three (day-night · weather · flood) sit
+   across the top; the two the level *author* sets — the caravan's window and the
+   tool ration — pair up beneath. Six columns are what let both rows share the
+   same gutters: 2+2+2, then 3+3. The spans have to be undone at the mobile
+   breakpoint: left on a single-column grid they spill into implicit tracks, and
+   the first three cards come back narrower than the last two (330 vs 346 at
+   390px) — a quiet mis-sizing rather than a visible break, which is why it
+   needs a test rather than an eyeball. */
+#frontdoor .world-grid { grid-template-columns: repeat(6, 1fr); }
+#frontdoor .world-grid > * { grid-column: span 2; }
+#frontdoor .world-grid > :nth-child(n + 4) { grid-column: span 3; }
+#frontdoor .mech,
+#frontdoor .camp {
   display: flex;
   gap: 15px;
   align-items: flex-start;
@@ -510,7 +520,8 @@
   background: var(--fd-panel-soft);
   transition: border-color 0.18s ease;
 }
-#frontdoor .mech:hover { border-color: var(--fd-border-light); }
+#frontdoor .mech:hover,
+#frontdoor .camp:hover { border-color: var(--fd-border-light); }
 #frontdoor .mech-ic {
   flex: 0 0 auto;
   width: 52px;
@@ -523,10 +534,30 @@
   background: rgba(0, 0, 0, 0.25);
   transition: border-color 0.18s ease, background-color 0.18s ease;
 }
-#frontdoor .mech:hover .mech-ic { border-color: rgba(255, 201, 77, 0.55); background: rgba(255, 201, 77, 0.07); }
+#frontdoor .mech:hover .mech-ic,
+#frontdoor .camp:hover .mech-ic { border-color: rgba(255, 201, 77, 0.55); background: rgba(255, 201, 77, 0.07); }
 #frontdoor .mech-ic canvas { width: 34px; height: 34px; }
-#frontdoor .mech h3 { font-family: var(--fd-pixel); font-weight: 600; font-size: 17px; margin-bottom: 3px; }
-#frontdoor .mech p { color: var(--fd-dim); font-size: 14px; }
+#frontdoor .mech h3,
+#frontdoor .camp h3 { font-family: var(--fd-pixel); font-weight: 600; font-size: 17px; margin-bottom: 3px; }
+#frontdoor .mech p,
+#frontdoor .camp p { color: var(--fd-dim); font-size: 14px; }
+/* The campaign roll-call is a table of contents, so it is a single column of
+   full-width rows rather than a grid: a sixth campaign lengthens the list
+   instead of leaving a hole in a column count nobody remembers to retune. */
+#frontdoor .camps { list-style: none; display: grid; gap: 12px; max-width: 880px; margin: 30px auto 0; }
+#frontdoor .camp h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+#frontdoor .camp-count {
+  font-family: var(--fd-font);
+  font-weight: 400;
+  font-size: 12.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--fd-gold);
+  padding: 2px 8px;
+  border: 1px solid var(--fd-border);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
 #frontdoor .feats {
   list-style: none;
   display: grid;
@@ -547,6 +578,10 @@
   transition: border-color 0.18s ease;
 }
 #frontdoor .feats li:hover { border-color: var(--fd-border-light); }
+/* An odd number of claims would leave the last one alone in a two-up row with a
+   hole beside it. Let it take the whole row instead, so the count can change
+   without anyone re-checking the parity. */
+#frontdoor .feats li:last-child:nth-child(odd) { grid-column: span 2; }
 #frontdoor .feats li canvas { width: 26px; height: 26px; flex: 0 0 auto; }
 #frontdoor .tech-note {
   max-width: 68ch;
@@ -673,6 +708,17 @@
 
 @media (max-width: 720px) {
   #frontdoor .two-col, #frontdoor .mech-grid, #frontdoor .feats { grid-template-columns: 1fr; }
+  /* EVERY grid-column span above has to be undone here, not just the columns.
+     A `span 2` left on a one-column grid spills into an implicit second track:
+     the pressure cards come back with the row of three narrower than the row of
+     two, and the odd last feat pushes the page 2px sideways in German (caught by
+     tests/landing-shot.mjs both times — neither is visible at a glance). Any new
+     span rule needs a line here. */
+  #frontdoor .world-grid > *,
+  #frontdoor .world-grid > :nth-child(n + 4),
+  #frontdoor .feats li:last-child:nth-child(odd) { grid-column: auto; }
+  /* width only: the height comes from `aspect-ratio` so the icon stays square
+     while it shrinks (see the .chain block above) */
   #frontdoor .chain canvas { width: 34px; }
   #frontdoor .chain .arrow { font-size: 18px; }
   #frontdoor .hero-hook { font-size: 14px; }
@@ -727,7 +773,8 @@
      whole PAGE scroll sideways, not just its own card — the mech grid was 271px
      wide inside 252px. Hyphenate where the browser has the dictionary, break as
      a last resort; at 320px and up the word fits and neither applies. */
-  #frontdoor .mech h3 { hyphens: auto; overflow-wrap: break-word; }
+  #frontdoor .mech h3,
+  #frontdoor .camp h3 { hyphens: auto; overflow-wrap: break-word; }
 }
 /* The top bar is a row of fixed-width content, so it must be measured rather
    than assumed: brand + Options + EN/DE wanted 345px (353px in German) and had
