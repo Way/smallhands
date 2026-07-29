@@ -861,6 +861,17 @@ export const D: Record<string, [string, string]> = {
     '<b>⛏ Campaign 4 unlocked — Shaft &amp; Seam!</b><br/>Craft shovels in the Workshop, assign Diggers, and carve tunnels and shafts to buried iron and sealed caravans.',
     '<b>⛏ Kampagne 4 freigeschaltet — Schacht &amp; Ader!</b><br/>Fertige Spaten in der Werkstatt, weise Gräber zu und schlage Tunnel und Schächte zu vergrabenem Eisen und versiegelten Karawanen.',
   ],
+  'win.campaign5': [
+    '<b>🌊 Campaign 5 unlocked — Deep &amp; Drowning!</b><br/>Red rock, deep seams, and a water table that climbs with every storm. Get the iron out before the tide comes for the gallery.',
+    '<b>🌊 Kampagne 5 freigeschaltet — Tief &amp; Trübe!</b><br/>Roter Fels, tiefe Adern und ein Wasserspiegel, der mit jedem Sturm steigt. Hol das Eisen heraus, bevor die Flut den Stollen holt.',
+  ],
+  // Fallback for a campaign that ships before its own banner. main.ts derives the
+  // key from the campaign number, and t() would otherwise print the raw key on
+  // screen; tests/frontdoor-data.mjs reds so this line stays theoretical.
+  'win.campaignNext': [
+    '<b>A new campaign is open — {name}!</b>',
+    '<b>Eine neue Kampagne ist offen — {name}!</b>',
+  ],
   'win.allDone': [
     '<b>You have finished every campaign!</b><br/>The workshop awaits: daily challenges, generated mountains and your own creations.',
     '<b>Du hast alle Kampagnen abgeschlossen!</b><br/>Die Werkstatt wartet: Tages-Challenges, generierte Berge und eigene Kreationen.',
