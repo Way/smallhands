@@ -171,10 +171,12 @@
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 26px;
-  /* Two halves joined by a middot, so when it wraps it must wrap AT the middot:
-     the greedy break put "KLEINE HÄNDE · GROSSE" over "PLÄNE" on a 320px screen,
-     which reads as a dangling separator and a stray word. Balanced lines land on
-     the dot in both languages. */
+  /* Two halves joined by a middot, so when it wraps it has to split into those
+     halves: the greedy break put "KLEINE HÄNDE · GROSSE" over "PLÄNE" on a 320px
+     screen, which reads as one stray word. Balancing gives "Kleine Hände ·" over
+     "Große Pläne" — the separator still ends the first line, which is what a
+     middot does at a break; `balance` equalises line lengths, it cannot bind the
+     dot to the half before it (that would need a nbsp in the copy table). */
   text-wrap: balance;
 }
 #frontdoor .lede {
@@ -687,6 +689,11 @@
 @media (pointer: coarse) {
   #frontdoor .fd-options { padding: 12px 10px; }
   #frontdoor .seg-btn { padding: 12px 16px; }
+  /* The brand is the third control in this row and the only one this pass makes
+     SMALLER: below 380px it is the 22px mark alone, which is a 22px tap target.
+     The box grows, the mark does not — the anchor is already an inline-flex with
+     centred items, so the extra room becomes hit area. */
+  #frontdoor .fd-brand { min-width: 44px; min-height: 44px; }
   #frontdoor button { touch-action: manipulation; }
 }
 /* Phone widths: the fixed parts of both icon rows have to give way, or the
@@ -697,8 +704,30 @@
 @media (max-width: 560px) {
   #frontdoor .chain { gap: 5px; padding: 14px 10px; }
   #frontdoor .chain .arrow { font-size: 14px; }
-  /* the skyline is not inside .wrap, so it needs its own gutter */
-  #frontdoor .fd-skyline { gap: 10px; padding: 0 14px; }
+  /* the skyline is not inside .wrap, so it needs its own gutter — and its own
+     safe-area insets with it, since it is the row nearest the bottom edge */
+  #frontdoor .fd-skyline {
+    gap: 10px;
+    padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
+  }
+}
+/* The smallest screens still in use (a 320px SE, a 280px folded cover screen)
+   give the gutter back to the content: at a 22px page margin the chain's icons
+   are down to 23px at 320px and 20px at 280px, which is where a step stops
+   being a picture of a sawmill. Eight pixels of margin buy six pixels of icon. */
+@media (max-width: 360px) {
+  #frontdoor .wrap {
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
+  #frontdoor .chain { gap: 4px; padding: 12px 6px; }
+  #frontdoor .chain .arrow { font-size: 12px; }
+  /* German compounds are longer than a 280px card's text column ("Produktions-
+     ketten" is 168px of the 149px on offer) and an unbreakable word makes the
+     whole PAGE scroll sideways, not just its own card — the mech grid was 271px
+     wide inside 252px. Hyphenate where the browser has the dictionary, break as
+     a last resort; at 320px and up the word fits and neither applies. */
+  #frontdoor .mech h3 { hyphens: auto; overflow-wrap: break-word; }
 }
 /* The top bar is a row of fixed-width content, so it must be measured rather
    than assumed: brand + Options + EN/DE wanted 345px (353px in German) and had

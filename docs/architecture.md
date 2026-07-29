@@ -514,8 +514,19 @@ owns the thumb-sized vertical padding, and the width blocks own the horizontal. 
 shorthand in the coarse block re-widens the EN/DE toggle that used to fall off a 320px screen —
 on touch devices only, which is the one place nobody is looking with a mouse.
 
-`npm run test:frontdoor-mobile` is the guard: 12 widths × both languages × pointer coarse and
-fine, asserting **slack** rather than the absence of a symptom (a fit by one pixel — which is
-what the English top bar had at 390px — is not a fit; see `tests/tool-labels.mjs` for the same
-lesson learned the hard way). It prints each width's measurements on its ok line, because those
-numbers are what a retune has to be judged against.
+Below 360px the page gives its own gutter back (22px → 14px, safe-area insets kept), because
+eight pixels of margin buy six pixels of icon where the icons are smallest, and German compounds
+get `hyphens: auto` there — "Produktionsketten" is wider than a 280px card's text column, and an
+unbreakable word makes the *whole page* scroll, not just its own card.
+
+`npm run test:frontdoor-mobile` is the guard: 13 widths from 280px (a folded cover screen) up ×
+both languages × pointer coarse and fine, asserting **slack** rather than the absence of a
+symptom (a fit by one pixel — which is what the English top bar had at 390px — is not a fit; see
+`tests/tool-labels.mjs` for the same lesson learned the hard way). It prints each width's
+measurements on its ok line, because those numbers are what a retune has to be judged against.
+Three of its own assertions are worth knowing before editing it: **room is the content box**
+(`clientWidth` includes `.wrap`'s gutter, and measuring against that called an overhanging row a
+139px fit), **equal-width means within a pixel** (flex hands the shrink deficit out in fractions),
+and **each language pass asserts it is really in that language** — the German copy is the wider
+of the two, so a toggle that quietly stopped working would leave the sweep passing on English
+twice.

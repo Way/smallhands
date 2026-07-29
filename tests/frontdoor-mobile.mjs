@@ -33,7 +33,9 @@ import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
-const WIDTHS = [320, 360, 375, 390, 412, 430, 480, 540, 600, 720, 900, 1280];
+// 280px is a folded cover screen, 320px an SE — the two narrowest widths anyone
+// actually holds, and the ones the fixed parts of a row are measured against.
+const WIDTHS = [280, 320, 360, 375, 390, 412, 430, 480, 540, 600, 720, 900, 1280];
 const LANGS = ['en', 'de'];
 
 const CHAIN_MIN_ICON = 22; // px: the floor a shrinking chain icon must still clear
@@ -100,8 +102,16 @@ const measure = () => {
   const sky = document.querySelector('.fd-skyline');
   const bar = document.querySelector('.fd-topbar-in');
   const brand = document.querySelector('.fd-brand');
-  const parts = ['.fd-brand', '.fd-options', '.seg'].map((s) => document.querySelector(s).getBoundingClientRect());
-  const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
+  // The bar's two flex items, not its three controls: the gap between Options and
+  // EN/DE is internal to the actions group and already inside its width. And the
+  // room is the CONTENT box — clientWidth includes the .wrap gutter, so measuring
+  // against it reported 139px of slack at 320px where there are 88px, and would
+  // have called a row that overhangs the safe-area inset by 30px a comfortable fit.
+  const parts = ['.fd-brand', '.fd-topbar-actions'].map((s) => document.querySelector(s).getBoundingClientRect());
+  const seg = document.querySelector('.seg').getBoundingClientRect();
+  const barCs = getComputedStyle(bar);
+  const gap = parseFloat(barCs.columnGap) || 0;
+  const room = bar.clientWidth - parseFloat(barCs.paddingLeft) - parseFloat(barCs.paddingRight);
   const chainBox = chain.getBoundingClientRect();
   const chainPad = parseFloat(getComputedStyle(chain).paddingRight);
   const skyKids = [...sky.children].map((k) => k.getBoundingClientRect());
@@ -116,10 +126,12 @@ const measure = () => {
     ) / 10,
     sky: rowsOf(sky, 'bottom').map((r) => r.items),
     skyEdges: [Math.round(Math.min(...skyKids.map((b) => b.left))), Math.round(Math.max(...skyKids.map((b) => b.right)))],
+    lang: document.documentElement.lang,
+    lede: document.querySelector('.lede').textContent.trim(),
     bar: {
-      room: bar.clientWidth,
-      used: Math.round(parts.reduce((a, p) => a + p.width, 0) + gap * 2),
-      segRight: Math.round(parts[2].right),
+      room: Math.round(room),
+      used: Math.round(parts.reduce((a, p) => a + p.width, 0) + gap),
+      segRight: Math.round(seg.right),
       // the mark-only bar below 380px would otherwise leave a nameless link:
       // the wordmark is display:none and the icon is aria-hidden
       brandName: (brand.getAttribute('aria-label') || brand.textContent).trim(),
@@ -153,6 +165,7 @@ for (const touch of [true, false]) {
   await page.waitForTimeout(300);
 
   console.log(`\n${touch ? 'touch' : 'mouse'} (pointer: ${touch ? 'coarse' : 'fine'})`);
+  const copySeen = new Set();
   for (const lang of LANGS) {
     await page.evaluate((l) => {
       const btn = document.querySelector(`.seg-btn[data-lang="${l}"]`);
@@ -166,6 +179,13 @@ for (const touch of [true, false]) {
       const m = await page.evaluate(measure);
       const at = `${lang} @${w}`;
 
+      // 0. this pass really is in the language it claims. The German copy is the
+      // wider of the two — it is 8px more top bar and it is what a slack figure
+      // has to survive — so a toggle click that silently stopped working would
+      // turn half of this sweep into a second English run and still print "de".
+      check(`${at}: the page is really in ${lang}`, m.lang === lang, `<html lang="${m.lang}">`);
+      copySeen.add(m.lede);
+
       // 1. nothing anywhere on the page may scroll it sideways
       check(`${at}: page does not scroll sideways`, m.scroll <= m.inner, `scrollWidth ${m.scroll} vs ${m.inner}`);
 
@@ -173,6 +193,11 @@ for (const touch of [true, false]) {
       const chainRows = m.chain;
       check(`${at}: chain stays on one line`, chainRows.length === 1,
         chainRows.map((r) => r.map((i) => i.name).join(' ')).join('  /  '));
+      // A corollary of the line count while the row is a plain flex row (the DOM
+      // starts and ends with an icon), kept because it is the card's actual
+      // complaint and so belongs in the failure message by name — and because a
+      // future deliberate break (a spacer, a grid) could satisfy one and not the
+      // other.
       const orphan = chainRows.some((r) => r[0].kind === 'arrow' || r[r.length - 1].kind === 'arrow');
       check(`${at}: no line starts or ends with an arrow`, !orphan,
         orphan ? chainRows.map((r) => r.map((i) => i.name).join(' ')).join('  /  ') : 'every arrow sits between two steps');
@@ -180,8 +205,12 @@ for (const touch of [true, false]) {
       check(`${at}: chain shows all six steps`, icons.length === 6, `${icons.length} icons`);
       const smallest = Math.min(...icons.map((i) => i.w));
       check(`${at}: chain icons clear ${CHAIN_MIN_ICON}px`, smallest >= CHAIN_MIN_ICON, `smallest ${smallest}px`);
-      check(`${at}: chain icons shrink together`, new Set(icons.map((i) => i.w)).size === 1,
-        icons.map((i) => i.w).join(','));
+      // Equal to within a pixel, not identical: flex hands the deficit out in
+      // fractions and the row lands on 23.6, 23.5, 23.6… — a spread of one device
+      // pixel is layout rounding, and "identical" fails on it about as often as
+      // not (the same trap tests/mobile.mjs rounds away for its tap targets).
+      const spread = Math.max(...icons.map((i) => i.w)) - Math.min(...icons.map((i) => i.w));
+      check(`${at}: chain icons shrink together`, spread <= 1, `${spread.toFixed(1)}px apart: ${icons.map((i) => i.w).join(',')}`);
       check(`${at}: chain stays inside its panel`, m.chainSpill <= 0.5, `${m.chainSpill}px past the padding`);
 
       // 3. the skyline is one row, square, inside the screen, town hall tallest
@@ -207,10 +236,15 @@ for (const touch of [true, false]) {
       flush(
         at,
         `chain ${chainRows.length} row, icons ${smallest}px · sky ${m.skyEdges[0]}..${m.skyEdges[1]} · ` +
-          `bar ${m.bar.room - m.bar.used}px slack${m.bar.brandTextShown ? '' : ', mark only'}`,
+          `bar ${m.bar.used}/${m.bar.room}px${m.bar.brandTextShown ? '' : ', mark only'}`,
       );
     }
   }
+  // Both languages were swept, so both ledes must have been seen: identical copy
+  // across the two passes means the toggle moved nothing.
+  check('the two language passes rendered different copy', copySeen.size === LANGS.length,
+    `${copySeen.size} distinct lede(s) across ${LANGS.length} languages`);
+  flush(`${touch ? 'touch' : 'mouse'}: languages`, `${copySeen.size} distinct ledes`);
   await ctx.close();
 }
 
