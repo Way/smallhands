@@ -9,9 +9,11 @@
 // that the shape is a date — which is also what catches the 'dev' fallback reaching
 // a production build, a failure the build itself reports as success.
 //
-// Requires the production build served at http://localhost:4173/ (npm run preview):
-// `define` substitution only happens in a real build, so a dev server would assert
-// against the literal token.
+// Requires the production build served at http://localhost:4173/ (npm run preview),
+// which is the house convention for every browser suite here: the artefact the player
+// gets is the one worth asserting against. Vite substitutes `define` on the dev server
+// too, so a dev run would not read the literal token — it would simply be measuring a
+// bundle nobody is served.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
@@ -52,10 +54,13 @@ await page.goto(BASE_URL);
 await page.waitForTimeout(500);
 
 // ---------------------------------------------------------- 1. the front door
-// The label and the number share one line ("Version 2026.07.29"); strip the
-// leading label word so the assertion is about the number itself.
+// The label and the number share one line ("Version 2026.07.29"), so the date is
+// matched out of the line rather than sliced off the front of it: stripping a leading
+// word works only while the label stays one word in both languages, and a translation
+// that gained a second word would then assert against half a label. The match still
+// fails correctly on "Version dev" — there is no date in it to find.
 const footerLine = (await page.textContent('.fd-version'))?.trim() ?? '';
-const shown = footerLine.replace(/^\s*\S+\s+/, '').trim();
+const shown = footerLine.match(/\d{4}\.\d{2}\.\d{2}/)?.[0] ?? '';
 const DATE = /^\d{4}\.\d{2}\.\d{2}$/;
 check(
   'footer shows a calendar version, not the dev fallback',
@@ -74,6 +79,18 @@ check(
   'options row shows the same version as the footer',
   inOptions === shown && shown !== '',
   `options="${inOptions}" footer="${shown}"`,
+);
+// The label is asserted separately because it fails separately, and silently: t()
+// prints an unknown key straight to screen (engine/i18n.ts), so a missing or misspelled
+// 'opt.version' renders a row reading literally "opt.version" beside a perfectly correct
+// date — and tests/i18n.mjs is a smoke test that passes over a missing key. Reading only
+// .opt-value would ship that. `.opt-value` is unique to this row, so :has() names the row
+// without pinning its position in the overlay.
+const optLabel = (await page.textContent('.opt-row:has(.opt-value) .opt-label'))?.trim() ?? '';
+check(
+  'the options row label is translated, not a raw key',
+  optLabel !== '' && optLabel !== 'opt.version',
+  `label="${optLabel}"`,
 );
 
 // -------------------------------------------------------------- 3. the bug report
@@ -98,10 +115,15 @@ await page.waitForTimeout(400);
 
 const md = await page.textContent('.report-preview');
 const buildLine = md.split('\n').find((l) => l.startsWith('- **Build:**')) ?? '';
-// Collapsed and short: this extra prints on every run (this file's convention),
-// so a raw 200-char multi-line slice of the report would spam a passing run —
-// only a failure needs the diagnostic, but it still has to stay a one-liner.
-check('the report has a Build line', buildLine !== '', md.slice(0, 80).replace(/\n/g, ' '));
+// The extra prints on every run (this file's convention), so it says nothing on a pass:
+// a fixed slice off the head of the report reaches the level name and never the Build
+// line, which is noise dressed up as evidence. Only the failure needs a diagnostic, and
+// what it needs is the top of the markdown — where a missing Build line is explained.
+check(
+  'the report has a Build line',
+  buildLine !== '',
+  buildLine ? '' : md.slice(0, 160).replace(/\n/g, ' '),
+);
 check(
   'the reported build starts with the version on screen',
   buildLine.startsWith(`- **Build:** ${shown}+`),

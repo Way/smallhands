@@ -48,10 +48,21 @@ Three properties this keeps, each of which the alternatives lose:
 ### Fallback
 
 `commit()` already returns `'nogit'` when git is unavailable (tarball checkout).
-The version mirrors it with `'dev'`, so `__BUILD__` reads `dev+nogit`.
+The version mirrors it with `'dev'`. The two do **not** reliably pair into
+`dev+nogit`: `commit()` has a `GITHUB_SHA` escape hatch and `version()` has none, so
+a git-less CI would stamp `dev+<a real sha>`.
 
-This fallback is a *failure* if it ever reaches production, and it is silent —
-the build succeeds and the site looks fine. §Testing below makes it loud.
+This fallback is a *failure* if it ever reaches production, and it is silent — the
+build succeeds and the site looks fine. So the guard has to sit where the failure
+happens, in `vite.config.ts`: **`VERSION === 'dev' && process.env.CI` throws.** A
+test cannot cover this. `.github/workflows/deploy.yml` is checkout → `npm ci` →
+`npm run build` → deploy and runs no `test:*` script, so `tests/version.mjs` only
+ever runs locally — in a checkout that by definition has git, the one environment
+where the fallback cannot fire. GitHub Actions sets `CI=true`; a local git-less build
+still produces a runnable bundle, because there the string is honest.
+
+§Testing below is the second line, not the first: it catches a `dev` build that was
+made and is about to be looked at.
 
 ### Same-day pushes collide, deliberately
 
@@ -92,16 +103,21 @@ rely on that: `tests/frontdoor-data.mjs` and `tests/terminology.mjs` both
 `readFileSync` rather than importing it — so composing the line there is safe.
 Nothing loads `frontdoor.ts` under Node.)
 
-So the copy table gets only the **label** and `frontdoor.ts` composes the line,
-the way it already composes every other string through `tr()`:
+So the copy table gets only the **label**, as a `{v}` placeholder line, and
+`frontdoor.ts` fills it the way it already fills every other interpolated string —
+through `trf()`, the rule cards #67/#25 established for this module. A concatenated
+`label + value` would have been the one string on the page ignoring it:
 
-- `frontdoor-copy.ts`: `version: ['Version', 'Version']` (identical in both
+- `frontdoor-copy.ts`: `version: ['Version {v}', 'Version {v}']` (identical in both
   languages, as `opt.lang.en` already is — `tests/frontdoor-data.mjs` requires
-  both halves truthy, not distinct).
+  both halves truthy, not distinct). `version` stays out of that suite's
+  `INTERPOLATED` map, which guards counts derived from `LEVELS`.
 - `frontdoor.ts`: the `.foot` block renders the footer line, then a
-  `<p class="fd-version">` with `${this.tr('version')} ${__VERSION__}`.
+  `<p class="fd-version">` with `${this.trf('version', { v: __VERSION__ })}`.
 - `frontdoor.css`: one `.fd-version` rule under the existing `#frontdoor .foot`
-  block — dimmer than the footer text, tabular numerals.
+  block — dimmer than the footer text, tabular numerals. "Dimmer" has a floor: at
+  11.5px WCAG AA wants 4.5:1, so the `opacity` is 0.8 (~5.9:1), not the 0.6
+  (~3.8:1) that reads as tastefully quiet and measures as unreadable.
 
 ### Options overlay
 
@@ -122,21 +138,29 @@ other `opt.*` keys.
 
 ## Testing
 
-New suite `tests/version.mjs`, plus a `test:version` script. It drives a real
-browser against the production build, because that is the only place `__VERSION__`
-is actually substituted — a Node-level test would assert against the literal
-token.
+New suite `tests/version.mjs`, plus a `test:version` script. It drives a real browser
+against the **production build** (`npm run build && npm run preview`), which is the
+house convention for every browser suite here: the artefact the player is served is the
+one worth asserting against. (Vite substitutes `define` on the dev server too, so this
+is not about reading a literal token — it is about not measuring a bundle nobody gets.)
 
 The suite **never recomputes the date**. Re-deriving it would duplicate the
 arithmetic in `vite.config.ts`, and a duplicated derivation drifts and then goes on
 passing while the screen is wrong. It only asserts that the surfaces agree and that
 the shape is a date:
 
-1. **Footer version matches `/^\d{4}\.\d{2}\.\d{2}$/`.** This is the check that
-   earns the suite: it catches `dev` or `nogit` reaching production, which no other
-   guard sees and which the build reports as success.
-2. **The options row shows the same string as the footer.** Two readouts, one
-   source — they cannot drift apart.
+1. **Footer version matches `/^\d{4}\.\d{2}\.\d{2}$/`.** This is the check that earns
+   the suite: it catches a `dev` build being looked at on a developer's machine, which
+   the build reports as success. (The *deploy* is covered upstream by §Fallback's throw;
+   this is the local half of the same rule.) The date is **matched out of** the line
+   rather than sliced off the front of it — stripping a leading word holds only while
+   the label is one word in every language.
+2. **The options row shows the same string as the footer, and its label is
+   translated.** Two readouts, one source — they cannot drift apart. The label needs its
+   own assertion because it fails on its own and silently: `t()` prints an unknown key
+   straight to screen, so a missing `opt.version` renders a row reading literally
+   `opt.version` beside a perfectly correct date, and reading only `.opt-value` would
+   ship it.
 3. **The bug report's build field starts with that string + `+`.** Ties the
    displayed version to the reported one, so a report can always be traced back to
    what the player was looking at. Concretely: open `.report-box` from the pause
@@ -151,13 +175,14 @@ does not exist on the front door. Step 1 reads rendered text rather than the hoo
 Covered for free: `tests/frontdoor-data.mjs` already walks `FRONTDOOR_COPY_KEYS`
 and requires an `[en, de]` pair per key, so the new `version` key is checked by
 existing machinery. `tests/i18n.mjs` is a smoke test and will *not* catch a missing
-`opt.version` — hence the explicit check in step 2.
+`opt.version` — hence the explicit **label** assertion in step 2, which is the half of
+that check doing the work `i18n.mjs` cannot.
 
 ## Files touched
 
 | File | Change |
 |---|---|
-| `vite.config.ts` | add `__VERSION__`; derive commit date; drop the `package.json` read |
+| `vite.config.ts` | add `__VERSION__`; derive commit date; drop the `package.json` read; throw on `dev` under CI |
 | `src/vite-env.d.ts` | `declare const __VERSION__: string` |
 | `src/game/frontdoor-copy.ts` | `version` label key |
 | `src/game/frontdoor.ts` | render the version line in `.foot` |

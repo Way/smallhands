@@ -654,10 +654,16 @@
 
 /* The build stamp: present for anyone who looks, never competing with the
    footer line above it. Tabular figures so the date does not shimmer between
-   builds as digit widths change. */
+   builds as digit widths change.
+
+   0.8, not the 0.6 this shipped with: at 11.5px WCAG AA wants 4.5:1, and 0.6 of
+   --fd-dim over #0b0e15 composites to about 3.8:1 — a version string a player
+   with ordinary eyes has to lean in to read is not "secondary", it is broken.
+   0.8 measures about 5.9:1 and still sits clearly under the footer line's 8.7:1,
+   which is the whole job this rule has. */
 #frontdoor .fd-version {
   margin-top: 10px;
-  opacity: 0.6;
+  opacity: 0.8;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }

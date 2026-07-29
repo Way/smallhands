@@ -39,6 +39,17 @@ function version(): string {
 // Computed once: `define` needs it twice and it shells out to git.
 const VERSION = version();
 
+// A silent "Version dev" on the live site is the one failure this whole file exists to
+// avoid, and nothing downstream sees it: `vite build` exits 0, the page renders, and the
+// suite that would catch it (tests/version.mjs) is run by hand, never by
+// .github/workflows/deploy.yml — which is checkout → npm ci → npm run build → deploy. Even
+// if it were wired in there, a checkout has git by definition, so the fallback cannot fire
+// in the one environment the suite would run in. So the build refuses instead of shipping.
+// GitHub Actions sets CI=true; a local git-less build still produces a runnable bundle.
+if (VERSION === 'dev' && process.env.CI) {
+  throw new Error('vite.config: no git in a CI build — refusing to ship "Version dev"');
+}
+
 export default defineConfig({
   define: {
     __VERSION__: JSON.stringify(VERSION),

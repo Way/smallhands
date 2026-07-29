@@ -14,13 +14,13 @@
 
 - **The displayed version is NOT semver.** `package.json`'s `0.1.0` has never been bumped, there are no tags, and every push to `main` deploys. Never print `pkg.version`.
 - **Format is exactly `YYYY.MM.DD`** (dots, zero-padded), from `git log -1 --format=%cd --date=format:%Y.%m.%d`.
-- **Fallbacks:** `__VERSION__` → `'dev'`, `__BUILD__` → `'dev+nogit'` when git is unavailable. These are failures if they reach production; Task 1's test catches that.
+- **Fallbacks:** `__VERSION__` → `'dev'`, the sha → `'nogit'` when git is unavailable. These are failures, not modes, if they reach production. A **CI build that reaches `'dev'` throws** in `vite.config.ts` (see the Review note at the end); Task 1's test is the local second line, not the deploy guard.
 - **`src/game/frontdoor-copy.ts` must stay import-free and free of build-time globals.** Two suites (`tests/frontdoor-data.mjs`, `tests/terminology.mjs`) `import { S }` from it under plain Node, where `__VERSION__` is `undefined`. Labels go in the table; the number is injected by `frontdoor.ts`.
 - **Values reach front-door copy through `trf()`, not concatenation.** Cards #67/#25 established that the copy table quotes `{placeholder}`s and never values — `frontdoor.ts:96` `trf(key, vars)` fills them. The version line follows that idiom: copy holds `'Version {v}'`, the renderer supplies `v`. Do not build the string with `+` or a template gap.
 - **`version` stays out of `frontdoor-data.mjs`'s `INTERPOLATED` map** (that map guards counts derived from `LEVELS`, and its digit corollary applies only to keys listed in it). `tests/version.mjs` already fails if the interpolation is removed, because the footer would render the literal `{v}` and miss the date regex. One suite per rule.
 - **Every copy key needs an `[en, de]` pair.** `Version` is identical in both languages — that is fine and has precedent (`opt.lang.en: ['English', 'English']`).
 - **Tests never recompute the date.** Duplicating the derivation makes a test that drifts and then passes while the screen is wrong. Assert agreement and shape only.
-- **Browser tests need the production build served:** `npm run build && npm run preview` (→ `http://localhost:4173/`). `define` substitution does not happen in dev.
+- **Browser tests run against the production build served:** `npm run build && npm run preview` (→ `http://localhost:4173/`). This is the house convention for every browser suite here — assert against the artefact the player is served. (Vite substitutes `define` on the dev server too, so this is not about a literal token surviving; it is about not measuring a bundle nobody gets.)
 
 ## File Structure
 
@@ -72,9 +72,11 @@ Create `tests/version.mjs`:
 // that the shape is a date — which is also what catches the 'dev' fallback reaching
 // a production build, a failure the build itself reports as success.
 //
-// Requires the production build served at http://localhost:4173/ (npm run preview):
-// `define` substitution only happens in a real build, so a dev server would assert
-// against the literal token.
+// Requires the production build served at http://localhost:4173/ (npm run preview),
+// which is the house convention for every browser suite here: the artefact the player
+// gets is the one worth asserting against. Vite substitutes `define` on the dev server
+// too, so a dev run would not read the literal token — it would simply be measuring a
+// bundle nobody is served.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 
@@ -568,7 +570,7 @@ No gaps.
 
 **Type consistency:** `__VERSION__` and `__BUILD__` are `string` in `vite-env.d.ts` (Task 1 Step 5) and used as strings everywhere. `S.version` is `Str = [string, string]`, matching the table's type. `.fd-version` (Task 1) and `.opt-value` (Task 2) are the selectors the tests read, spelled identically in both places. `shown` is defined in Task 1 Step 1 and consumed unchanged by Tasks 2 and 3.
 
-**One inconsistency found and fixed inline:** the footer test strips the label with `replace(/^\s*\S+\s+/, '')`, which only works because the label is a single word in both languages. This is now stated in the test's own comment and holds for `'Version {v}'`; a multi-word label would need the assertion rewritten to match the date out of the line instead.
+**One inconsistency found and fixed inline:** the footer test strips the label with `replace(/^\s*\S+\s+/, '')`, which only works because the label is a single word in both languages. (Superseded by the review pass below: the test now matches the date *out of* the line, which does not care how many words the label has.)
 
 ## Rebase note (2026-07-29)
 
@@ -585,3 +587,25 @@ one design point changed rather than merely moving:
   reading the loop, not assumed.
 - The front door gained `test:landing-shot` and `test:frontdoor-mobile` (overflow guards at
   several widths, both languages). Task 1 Step 10 runs both, because the footer is what changed.
+
+## Review note (2026-07-29)
+
+The whole-branch review before the PR changed five things the code steps above still show in
+their pre-review shape. Where the two disagree, the code wins; this list is why:
+
+- **The `'dev'` fallback is now caught by the build, not only by the test.** Task 1 Step 4's
+  `vite.config.ts` gains `if (VERSION === 'dev' && process.env.CI) throw`. The plan's Global
+  Constraints said "Task 1's test catches that", which was wrong in the way that matters:
+  `deploy.yml` runs no `test:*` script, so the suite only ever runs in a checkout that has git —
+  the one place the fallback cannot fire. See the spec's §Fallback.
+- **Check 2 asserts the label as well as the value.** `t()` prints an unknown key to screen, so a
+  missing `opt.version` renders a row reading literally `opt.version` next to a correct date, and
+  reading only `.opt-value` shipped it. The suite now also reads
+  `.opt-row:has(.opt-value) .opt-label`.
+- **The footer check matches the date out of the line** (`/\d{4}\.\d{2}\.\d{2}/`) instead of
+  stripping a leading word.
+- **`.fd-version` is `opacity: 0.8`, not `0.6`.** 0.6 of `--fd-dim` over `#0b0e15` is ~3.8:1 at
+  11.5px, below WCAG AA's 4.5:1 for text under 18.66px; 0.8 is ~5.9:1.
+- **The "define only substitutes in a real build" reason was false.** Vite substitutes in dev too.
+  Testing the preview build is still right — it is what ships, and it is the house convention —
+  so the reason was corrected everywhere it appeared, not the test.
