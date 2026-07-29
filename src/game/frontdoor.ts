@@ -9,15 +9,57 @@
 
 import '../frontdoor.css';
 import { drawIconTo } from '../engine/sprites';
-import { getLang } from '../engine/i18n';
+import { getLang, t } from '../engine/i18n';
 import type { Lang } from '../engine/i18n';
 import { S } from './frontdoor-copy'; // used locally in tr()
+import { LEVELS } from './levels';
+import { TOOL_DEFS } from './types';
 
 // Re-exported so frontdoor.ts's public interface is unchanged (the copy table
 // now lives in the pure, importable-under-Node data module frontdoor-copy.ts).
 // FRONTDOOR_COPY_KEYS is only surfaced here, not read locally, so it is a
 // re-export rather than an unused import (would trip noUnusedLocals otherwise).
 export { S, FRONTDOOR_COPY_KEYS } from './frontdoor-copy';
+
+// ---------------------------------------------------------- the content claims
+// Everything the page says about how much game there is is COUNTED here, not
+// written down: a hand-kept number went stale twice (card #67 found "2 campaigns
+// · 9 levels"; campaign 5 shipped and card #25 found the next round). levels.ts
+// is already in this bundle — main.ts imports it for the world map — so reading
+// it costs nothing.
+
+// Campaign id → how many levels it holds, in play order. Derived rather than
+// listed so a sixth campaign appears on the landing page the day it appears in
+// the game, with no second place to remember.
+function campaignRollCall(): { id: number; levels: number }[] {
+  const byId = new Map<number, number>();
+  for (const l of LEVELS) {
+    const c = l.campaign ?? 1;
+    byId.set(c, (byId.get(c) ?? 0) + 1);
+  }
+  return [...byId.entries()].sort((a, b) => a[0] - b[0]).map(([id, levels]) => ({ id, levels }));
+}
+
+// "Tools" as the player counts them. `select` is the cursor and `demolish` is
+// the eraser — neither is a thing you build with, so neither belongs in a count
+// that reads as "look how much toolkit you get".
+const TOOL_COUNT = TOOL_DEFS.filter((d) => d.id !== 'select' && d.id !== 'demolish').length;
+
+// One icon per campaign — the mechanic that campaign is *about*, so the row
+// reads as a promise rather than decoration. Keyed by id with a fallback,
+// because sprite() throws on an unknown name and an unillustrated campaign must
+// not take the whole page down with it (tests/frontdoor-data.mjs reds instead).
+// `storm` and `wave` deliberately repeat the pressure cards above: campaigns 2
+// and 5 ARE those pressures, and the echo is the promise. `vein` and the shovel
+// are not interchangeable, though — at 34px the shovel is a thin dark shape,
+// while the seam reads as ore in rock, which is what Shaft & Seam is called.
+const CAMP_ICON: Record<number, string> = {
+  1: 'sawmill',
+  2: 'storm',
+  3: 'hoist_post',
+  4: 'vein',
+  5: 'wave',
+};
 
 export interface FrontDoorHooks {
   onPlay: () => void; // enter the game
@@ -37,6 +79,14 @@ export class FrontDoor {
 
   private tr(key: string): string {
     return S[key][getLang() === 'de' ? 1 : 0];
+  }
+
+  // tr() with {placeholder} filling, so every number the copy quotes arrives
+  // from the level table instead of being typed into the string.
+  private trf(key: string, vars: Record<string, string | number>): string {
+    let s = this.tr(key);
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+    return s;
   }
 
   private icon(name: string, cls = ''): string {
@@ -106,9 +156,29 @@ export class FrontDoor {
     });
   }
 
+  // One row of the campaign roll-call. The name is read from i18n's map.terr<n>
+  // — the very string the world map prints — so a campaign rename can never make
+  // the landing page and the level select disagree. The hook is optional at
+  // runtime on purpose: a campaign that ships before its copy shows up as a
+  // titled row rather than throwing out of tr() and blanking the whole page.
+  private campRow(c: { id: number; levels: number }): string {
+    const hookKey = `camp${c.id}Body`;
+    const hook = S[hookKey] ? `<p>${this.tr(hookKey)}</p>` : '';
+    return `
+            <li class="camp">
+              <div class="mech-ic">${this.icon(CAMP_ICON[c.id] ?? 'goal')}</div>
+              <div>
+                <h3>${t(`map.terr${c.id}`)}<span class="camp-count">${this.trf('campLevels', { n: c.levels })}</span></h3>
+                ${hook}
+              </div>
+            </li>`;
+  }
+
   private view(): string {
     const lang = getLang();
     const play = `<button class="big-btn fd-play">▶ ${this.hooks.continueLabel()}</button>`;
+    const camps = campaignRollCall();
+    const size = { c: camps.length, n: LEVELS.length };
     return `
     <header class="fd-topbar">
       <div class="wrap fd-topbar-in">
@@ -233,20 +303,40 @@ export class FrontDoor {
               <div class="mech-ic">${this.icon('wave')}</div>
               <div><h3>${this.tr('worldFloodTitle')}</h3><p>${this.tr('worldFloodBody')}</p></div>
             </article>
+            <article class="mech">
+              <div class="mech-ic">${this.icon('goal')}</div>
+              <div><h3>${this.tr('worldConvoyTitle')}</h3><p>${this.tr('worldConvoyBody')}</p></div>
+            </article>
+            <article class="mech">
+              <div class="mech-ic">${this.icon('tile_platform')}</div>
+              <div><h3>${this.tr('worldBudgetTitle')}</h3><p>${this.tr('worldBudgetBody')}</p></div>
+            </article>
           </div>
         </div>
       </section>
 
       <section class="band">
         <div class="wrap">
+          <h2>${this.tr('campHead')}</h2>
+          <p class="band-intro">${this.trf('campIntro', size)}</p>
+          <ul class="camps">
+            ${camps.map((c) => this.campRow(c)).join('')}
+          </ul>
+        </div>
+      </section>
+
+      <section class="band alt">
+        <div class="wrap">
           <h2>${this.tr('contentHead')}</h2>
           <ul class="feats">
-            <li>${this.icon('goal')}<span>${this.tr('feat1')}</span></li>
+            <li>${this.icon('goal')}<span>${this.trf('feat1', size)}</span></li>
+            <li>${this.icon('tile_ladder')}<span>${this.trf('featTools', { n: TOOL_COUNT })}</span></li>
             <li>${this.icon('boulder')}<span>${this.tr('feat2')}</span></li>
             <li>${this.icon('lantern')}<span>${this.tr('feat3')}</span></li>
             <li>${this.icon('icon_harvest')}<span>${this.tr('feat4')}</span></li>
             <li>${this.icon('crate')}<span>${this.tr('feat5')}</span></li>
             <li>${this.icon('medal_gold')}<span>${this.tr('feat6')}</span></li>
+            <li>${this.icon('icon_select')}<span>${this.tr('featReach')}</span></li>
           </ul>
           <p class="tech-note">${this.tr('techNote')}</p>
         </div>

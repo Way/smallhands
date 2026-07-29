@@ -11,10 +11,14 @@
 // never translated), the group is a Trupp.
 //
 // Content claims (campaign/level counts, mechanics on show) must match what
-// ships in src/game/levels.ts. The count is written down twice and the two
-// copies cannot see each other: feat1 below, and the <meta name="description">
-// in index.html. tests/frontdoor-data.mjs checks both against LEVELS, so a new
-// campaign or level fails there rather than quietly shipping a stale number.
+// ships in src/game/levels.ts. Every number this table quotes is a `{c}` / `{n}`
+// placeholder that frontdoor.ts fills from LEVELS and TOOL_DEFS, so a new
+// campaign, level or tool cannot leave a stale digit behind — which it did
+// twice (card #67 caught "2 campaigns · 9 levels"; campaign 5 shipped and this
+// card caught the next round). The one count that CANNOT be interpolated is the
+// <meta name="description"> in index.html — a static file the table cannot
+// reach — so tests/frontdoor-data.mjs owns that one, and also reds if a hand-
+// written digit reappears here or a new campaign ships without its own hook.
 type Str = [string, string];
 
 export const S: Record<string, Str> = {
@@ -88,8 +92,8 @@ export const S: Record<string, Str> = {
   ],
   worldHead: ['A world that fights back', 'Eine Welt, die sich wehrt'],
   worldIntro: [
-    'The ground is only half the puzzle. Time, weather and water keep moving while your crew works — read them, or they read you.',
-    'Der Boden ist nur die Hälfte des Rätsels. Zeit, Wetter und Wasser laufen weiter, während dein Trupp schuftet. Lies sie, sonst lesen sie dich.',
+    'The ground is only half the puzzle. Clock, weather and water keep moving while your crew works, the caravan keeps hours of its own, and some levels ration your tools. Every one of them runs on a schedule you can read — none of them rolls dice.',
+    'Der Boden ist nur die Hälfte des Rätsels. Uhr, Wetter und Wasser laufen weiter, während dein Trupp schuftet, die Karawane hat ihre eigenen Zeiten, und manche Level rationieren dein Werkzeug. Alles davon folgt einem Plan, den du lesen kannst — gewürfelt wird nie.',
   ],
   worldDayTitle: ['The turning day', 'Der Lauf des Tages'],
   worldDayBody: [
@@ -106,13 +110,57 @@ export const S: Record<string, Str> = {
     'On flooded levels every downpour lifts the water one step and never lets it back down. It swallows low ground, sinks dropped goods and washes wading workers home. Beat the tide to the loot.',
     'Wo die Flut steigt, hebt jeder Regenguss das Wasser um eine Stufe, und es sinkt nie wieder. Es schluckt tiefen Grund, versenkt liegengelassene Waren und spült watende Smallies nach Hause. Sei schneller als das Wasser.',
   ],
+  worldConvoyTitle: ["The caravan's timetable", 'Der Fahrplan der Karawane'],
+  worldConvoyBody: [
+    'On some routes the wagon only stands at the dock for a spell, then rolls on. Nothing new is sent out while it is gone — but a hauler already on the road delivers the moment it pulls back in.',
+    'Auf manchen Routen steht der Wagen nur eine Weile am Verladeplatz, dann zieht er weiter. Solange er fort ist, geht nichts Neues hinaus — wer schon unterwegs ist, liefert genau dann ab, wenn der Wagen wieder einrollt.',
+  ],
+  worldBudgetTitle: ['Rationed tools', 'Knappes Werkzeug'],
+  worldBudgetBody: [
+    'Some levels hand you a handful of bridges or a single hoist. The cap is on what may stand at once, not on what you ever spend — tear one down and the slot comes back, so a span in the wrong place is a mistake, never a dead end.',
+    'Manche Level geben dir nur ein paar Brücken oder einen einzigen Aufzug. Begrenzt ist, was gleichzeitig steht, nicht was du insgesamt verbaust: Reiß eines ab, und der Platz ist wieder frei. Ein Steg an der falschen Stelle ist ein Fehler, nie eine Sackgasse.',
+  ],
+  campHead: ['Where the road goes', 'Wohin die Reise geht'],
+  campIntro: [
+    '{n} levels in {c} campaigns. Each one hands you a single new thing the world does, gives you room to play with it, then asks you to plan around it for real.',
+    '{n} Level in {c} Kampagnen. Jede gibt dir eine neue Eigenheit der Welt an die Hand, lässt dich damit spielen und verlangt dann, dass du wirklich damit planst.',
+  ],
+  campLevels: ['{n} levels', '{n} Level'],
+  // One hook per campaign, keyed by campaign number. The name beside it is NOT
+  // repeated here — frontdoor.ts reads it from i18n's map.terr<n>, the same
+  // string the world map prints, so a campaign rename cannot say two things.
+  camp1Body: [
+    'The verbs: mark a tree, raise a ladder, drop a sawmill and fill the first order sheet on the board.',
+    'Die Grundlagen: einen Baum markieren, eine Leiter stellen, ein Sägewerk setzen und den ersten Auftrag auf der Tafel füllen.',
+  ],
+  camp2Body: [
+    'Bridge the river, read the forecast off the top bar, and outrun a tide that climbs one step with every rainfall and never sinks back.',
+    'Den Fluss überbrücken, die Vorhersage oben in der Leiste lesen und schneller sein als eine Flut, die mit jedem Regen um eine Stufe steigt und nie wieder fällt.',
+  ],
+  camp3Body: [
+    'One law: the heavier car sinks. Send ballast down to bring your planks up — and catch a caravan that only docks on a window.',
+    'Ein Gesetz: Der schwerere Korb sinkt. Schick Ballast hinab, um die Bretter hinaufzuholen — und erwisch eine Karawane, die nur in einem Zeitfenster hält.',
+  ],
+  camp4Body: [
+    'Craft shovels in the Workshop, put Diggers on them, and sink shafts after an iron seam that runs well below daylight.',
+    'Fertige Spaten in der Werkstatt, setz Gräber daran und teufe Schächte einer Eisenader nach, die weit unter dem Tageslicht verläuft.',
+  ],
+  camp5Body: [
+    'Red rock, and a seam that shares its clock with the water table. Cut too deep and the next downpour takes the gallery you just opened.',
+    'Roter Fels und eine Ader, die ihre Uhr mit dem Wasserspiegel teilt. Grab zu tief, und der nächste Guss holt sich den Stollen, den du eben aufgeschlagen hast.',
+  ],
   contentHead: ['Everything in the box', 'Was in der Kiste steckt'],
-  feat1: ['5 hand-crafted campaigns · 22 levels', '5 handgemachte Kampagnen · 22 Level'],
+  feat1: ['{c} hand-crafted campaigns · {n} levels', '{c} handgemachte Kampagnen · {n} Level'],
+  featTools: [
+    '{n} tools, from a ladder rung to a counterweight hoist',
+    '{n} Werkzeuge, von der Leitersprosse bis zum Gegengewichts-Aufzug',
+  ],
   feat2: ['Meadows, cliffs, rising floods & mine shafts', 'Wiesen, Klippen, steigende Fluten & Stollen'],
   feat3: ['Living day-night cycle, rain, storms & lanterns', 'Lebendiger Tag-Nacht-Zyklus, Regen, Stürme & Laternen'],
   feat4: ['Level editor + generator, 6 landscapes', 'Level-Editor + Generator, 6 Landschaften'],
   feat5: ['Daily challenge & shareable seed codes', 'Tages-Challenge & teilbare Seed-Codes'],
   feat6: ['Medals, best times & feats', 'Medaillen, Bestzeiten & Auszeichnungen'],
+  featReach: ['English & German · mouse or touch', 'Deutsch & Englisch · Maus oder Touch'],
   techNote: [
     'Hand-built for the web: TypeScript + Canvas, zero runtime dependencies, procedurally generated pixel art. No installs, no accounts — runs anywhere a browser does.',
     'Von Hand fürs Web gebaut: TypeScript und Canvas, keine Laufzeit-Abhängigkeiten, Pixel-Art, die im Code entsteht. Keine Installation, kein Konto, läuft überall, wo ein Browser läuft.',

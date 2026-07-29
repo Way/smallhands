@@ -1,6 +1,6 @@
 import './style.css';
 import { FEATS, TILE, TOOL_DEFS, bestTier, fmtTime, medalFor, weatherEffects } from './game/types';
-import { detectLang, getLang, setLang, t } from './engine/i18n';
+import { detectLang, getLang, setLang, t, tOr } from './engine/i18n';
 import type { Lang } from './engine/i18n';
 import { BIOMES } from './engine/biomes';
 import type { Biome } from './engine/biomes';
@@ -695,8 +695,10 @@ function bootDaily(d: { seed: string; label: string; difficulty: number }): void
 // Math.random() per instance, so the sky differs between sessions — the cache is
 // what holds a preview still within one.
 //
-// Keyed by String(def.id) and never evicted: 17 campaign levels at SHOT_THUMB is
-// a few megabytes of backing store at worst. If custom levels ever get previews,
+// Keyed by String(def.id) and never evicted: a couple of dozen campaign levels
+// at SHOT_THUMB is a few megabytes of backing store at worst (the count is
+// deliberately not written down here — it was "17" until campaign 5 shipped).
+// If custom levels ever get previews,
 // this needs a namespaced key — their ids are strings and could collide with a
 // campaign level's number — and probably an eviction policy.
 const previewCache = new Map<string, HTMLCanvasElement | null>();
@@ -1210,8 +1212,13 @@ function showWin(): void {
       if ((next.campaign ?? 1) !== (cur.campaign ?? 1)) {
         const unlock = document.createElement('div');
         unlock.className = 'win-stats camp-unlock';
-        const campKey = { 2: 'win.campaign2', 3: 'win.campaign3', 4: 'win.campaign4' }[next.campaign ?? 1] ?? 'win.campaign2';
-        unlock.innerHTML = t(campKey);
+        // Derived, never a hand-kept map: this used to be a literal {2,3,4} that
+        // fell back to campaign 2's line, so shipping campaign 5 meant finishing
+        // Shaft & Seam and being congratulated on unlocking Storm & Tide. tOr
+        // keeps t() from printing a raw key if a campaign ever lands before its
+        // banner does (tests/frontdoor-data.mjs reds on that).
+        const camp = next.campaign ?? 1;
+        unlock.innerHTML = tOr(`win.campaign${camp}`, 'win.campaignNext', { name: t(`map.terr${camp}`) });
         ov.appendChild(unlock);
       }
       const nb = document.createElement('button');

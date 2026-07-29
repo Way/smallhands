@@ -449,6 +449,46 @@ time, and a cue that throws is silence plus a console line nobody reads — plus
 that silently degrades: flagging a resource must emit an order **carrying its kind**, or the
 cue has nothing to pick a material from and quietly falls back to neutral.
 
+## The landing page counts, it doesn't claim (cards #67, #25)
+
+The front door is marketing copy about a game that keeps growing, so its every content
+claim has gone stale at least once: card #67 found "2 hand-crafted campaigns · 9 levels"
+long after there were four and seventeen, and card #25 found the next round — campaign 5
+had shipped with no landing hook, no unlock banner, and two of its five pressures
+undescribed. Three rules exist so the next campaign updates the page by arriving.
+
+- **Numbers in `frontdoor-copy.ts` are `{c}` / `{n}` placeholders, never digits.**
+  `frontdoor.ts` fills them from `LEVELS` and `TOOL_DEFS` (`trf()`), so the drift is
+  *impossible* rather than merely guarded. The copy table stays a pure, import-free data
+  module — the renderer is what reads the level table, which is free because `main.ts`
+  already imports it for the world map. `tests/frontdoor-data.mjs` therefore checks for the
+  **placeholder**, plus that no digit was typed in beside it: the only remaining failure is
+  someone "simplifying" the interpolation away, after which the count is stale the next time
+  a level lands. The one count that cannot be interpolated is `index.html`'s
+  `<meta name="description">` — a static file the table can't reach — so that one is
+  compared against `LEVELS` for real, and must land inside the ~155-char search snippet.
+- **A campaign is keyed by its number on three surfaces, and each is a place it can arrive
+  without its words:** `camp<n>Body` (the landing roll-call hook), `map.terr<n>` (its name —
+  read by *both* the world map and the landing page, so a rename can't make them disagree)
+  and `win.campaign<n>` (the unlock banner). The banner is the one that failed silently:
+  `main.ts` held a literal `{2,3,4}` map with a fallback to campaign 2, so finishing Shaft &
+  Seam congratulated you on unlocking Storm & Tide. It now derives the key and uses `tOr`
+  with a generic `win.campaignNext`, because `t()` prints an unknown key straight to screen.
+  `tests/frontdoor-data.mjs` walks the campaign ids in `LEVELS` and demands all three.
+- **The page describes every pressure, and the pressures are the ones in `LevelDef`.** The
+  "world that fights back" grid ran three cards (day-night · weather · flood) while `convoy`
+  and `toolLimit` shipped undescribed — a pressure the player meets with no warning reads as
+  the game being unfair rather than unread. Five cards now, laid out 3-then-2 via six grid
+  columns; those spans **must** be reset at the mobile breakpoint or they spill into implicit
+  tracks and the row of three renders 16px narrower than the row of two.
+
+`npm run test:frontdoor-data` is the headless guard (placeholders, tool count, per-campaign
+copy on all three surfaces, the meta description); `npm run test:landing-shot` is both a
+layout guard (no horizontal overflow at three widths in both languages, the derived values
+actually reaching the DOM, the 3+2 shape) and the eyeball helper — it writes the three bands
+to `tests/.landing-out/`, which is how Shaft & Seam's icon lost the shovel to `vein`. No
+number settles whether an icon reads at 34px.
+
 ## The wordmark grows out of its baseline (front door)
 
 `fd-logo-raise` in `src/frontdoor.css` is a baseline-anchored vertical squash: `scaleY: 0 → 1`
