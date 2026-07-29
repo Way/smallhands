@@ -30,6 +30,7 @@
     "test:terminology": "node tests/terminology.mjs",
     "test:frontdoor-data": "node tests/frontdoor-data.mjs",
     "test:frontdoor-logo": "node tests/frontdoor-logo-shot.mjs",
+    "test:version": "node tests/version.mjs",
     "test:frontdoor-mobile": "node tests/frontdoor-mobile.mjs",
     "test:audio-smoke": "node tests/audio-smoke.mjs",
     "test:e2e": "node tests/e2e.mjs",

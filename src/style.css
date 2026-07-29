@@ -928,6 +928,7 @@ body.in-game #frontdoor { display: none; }
   gap: 14px;
 }
 .opt-label { font-size: 14px; color: var(--text); }
+.opt-value { font-size: 14px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .opt-note { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: -4px; }
 .seg { display: inline-flex; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.15); }
 .seg-btn {

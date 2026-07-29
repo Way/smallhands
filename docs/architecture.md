@@ -578,3 +578,28 @@ Three of its own assertions are worth knowing before editing it: **room is the c
 and **each language pass asserts it is really in that language** — the German copy is the wider
 of the two, so a toggle that quietly stopped working would leave the sweep passing on English
 twice.
+
+## The version is the commit's date (card #74)
+
+One build-time stamp, three readouts: `vite.config.ts` derives `__VERSION__` (`2026.07.29`, the
+**deployed commit's date**) for the front-door footer and an options-menu row, and `__BUILD__`
+(`__VERSION__` + `'+'` + short sha) for the bug report. It is deliberately never `pkg.version` —
+`0.1.0` has never been bumped, there are no tags, and every push to `main` deploys, so there is
+no discrete release to name and a printed semver would be silently wrong on every day but the
+first. A date-of-*commit* also keeps the bundle byte-stable across rebuilds, which a
+date-of-build would not.
+
+Two things here are one line away from breaking quietly. The footer takes the value through
+**`trf('version', { v: __VERSION__ })`** — the placeholder rule the landing-page section above
+records, with a second reason of its own: `frontdoor-copy.ts` must stay free of build-time
+globals as well as of imports, because two suites load it under plain Node, where `__VERSION__`
+is simply undefined. And **`'dev'` is a failure, not a mode**: git being unavailable ships
+"Version dev" off a build that exits 0 and a page that looks fine, so `vite.config.ts` throws on
+`VERSION === 'dev' && process.env.CI`. No test can own that one — `deploy.yml` runs no `test:*`
+script, and a checkout has git by definition, so the suite only ever runs where the fallback
+cannot fire.
+
+`npm run test:version` is the headless guard (the three surfaces agree, the shape is a date, and
+the options row's *label* is translated rather than a raw key printed to screen). It never
+recomputes the date: a second copy of that derivation drifts, and then goes on passing while the
+screen is wrong.
