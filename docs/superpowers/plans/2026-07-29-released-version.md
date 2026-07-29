@@ -548,7 +548,7 @@ git commit -m "#74 Assert the reported build starts with the version on screen"
 | Spec section | Task |
 |---|---|
 | `__VERSION__` from commit date, `__BUILD__` = version+sha | 1 (Step 4) |
-| `'dev'` / `'dev+nogit'` fallback | 1 (Step 4), asserted 1 (Step 1) |
+| `'dev'` fallback (does *not* reliably pair into `dev+nogit` — see the Review note) | 1 (Step 4); guarded by the CI throw, with Step 1's test as the local second line |
 | `pkg.version` no longer read, comment recording why | 1 (Step 4) |
 | Bug report shape changes to `date+sha` | 1 (Step 4), asserted 3 (Step 1) |
 | Footer line, label in copy table, composed in `frontdoor.ts` | 1 (Steps 6-7) |
