@@ -1570,6 +1570,22 @@ export class Game {
     return `${w.id}:${s}>${k}:${item}`;
   }
 
+  // What a haul INTO the store is worth. Banking is normally the crew's last
+  // job (2) — the caravan and the production lines come first. While the store
+  // sits BELOW the player's floor it is the crew's first job instead, because
+  // that is what the floor asks for: hold this much back, starting now. Without
+  // it a flagged stone lay on the ground with an empty store and a maxed floor
+  // while the haulers finished the caravan's plank order — the floor said what
+  // must not leave, and nothing said what must arrive.
+  //
+  // The floor's default of 0 keeps `spare` at or above zero (a stock reservation
+  // is only ever made against a positive surplus), so a game where nobody touches
+  // the dial never reaches the boost at all. The campaign proofs DO set floors and
+  // their times move both ways — see docs/architecture.md before retuning this.
+  private bankPriority(item: ItemType): number {
+    return this.spare(item) < 0 ? -1 : 2;
+  }
+
   private tryAssignHaul(w: Worker): boolean {
     interface Candidate {
       source: Source;
@@ -1701,7 +1717,7 @@ export class Game {
     // 3. collect loose items
     for (const gi of this.groundItems) {
       if (gi.reserved) continue;
-      cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'stock' }, item: gi.item, priority: 2 });
+      cands.push({ source: { t: 'ground', id: gi.id }, sink: { t: 'stock' }, item: gi.item, priority: this.bankPriority(gi.item) });
     }
     // 4. empty production outputs
     for (const b of this.buildings) {
@@ -1709,7 +1725,7 @@ export class Game {
       for (const k of Object.keys(b.outputs)) {
         const item = k as ItemType;
         if (this.outAvailable(b, item) <= 0) continue;
-        cands.push({ source: { t: 'output', id: b.id }, sink: { t: 'stock' }, item, priority: 2 });
+        cands.push({ source: { t: 'output', id: b.id }, sink: { t: 'stock' }, item, priority: this.bankPriority(item) });
       }
     }
 
@@ -1967,6 +1983,18 @@ export class Game {
             return;
           }
           w.carrying = task.item;
+          // The floor is re-read for the OTHER two sources as well, but here the
+          // answer is a RE-ROUTE, not an abort: the unit is in the hauler's hands
+          // and not in the store, so "leave it where it is" is not on offer. A
+          // loose stone (or a producer's output) dispatched to the caravan before
+          // the player raised the floor used to sail straight past it — the store
+          // at 0, the floor at the maximum, and the crew still shipping every
+          // stone it picked up. It now finishes its walk at the stockpile, which
+          // is where the planner would send it if it were dispatched now.
+          if (task.source.t !== 'stock' && task.sink.t !== 'stock' && this.spare(task.item) < 0) {
+            this.unreserveSink(task.sink, task.item);
+            task.sink = { t: 'stock' };
+          }
           // second leg
           const cells = this.sinkCells(task.sink);
           const path = cells ? findPath(this.world, this.transits, w.cx, w.cy, cells, true) : null;
