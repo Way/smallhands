@@ -95,16 +95,15 @@ if (this.phase === 'muster') { this.tickMuster(dt); this.tickParticles(dt); retu
 either, so the crew that musters is exactly `startWorkers` and nobody joins mid-line-up. A level's
 first second is the first second after Start.
 
-**The one line that makes it possible.** The worker loop reads `else if (w.task) this.tickMove(w, dt)`.
-It becomes:
-
-```ts
-else if (w.task || w.stepIdx < w.path.length) this.tickMove(w, dt)
-```
-
-`tickMove` already calls `arriveAtTaskTarget` only when `w.task` is set (`sim.ts:2170`, `sim.ts:2255`),
-so a worker with a path and no task walks and then stands. There is no second mover, no second set of
+**The mover is the ordinary one.** `tickMuster` calls `tickMove` directly, so the run loop's
+`else if (w.task)` branch is not touched at all — the running game keeps the exact code it has today.
+`tickMove` calls `arriveAtTaskTarget` only when `w.task` is set (`sim.ts:2170`, `sim.ts:2255`), so a
+worker with a path and no task walks and then stands. There is no second mover, no second set of
 movement physics, and every existing rule (ladders, ramps, the fall cap) applies to the walk out.
+
+`begin()` is what makes this safe: it snaps every task-less worker to its cell (`px = cx`, `py = cy`)
+and clears the leftover path, so nobody is left frozen half-way between two tiles by a run loop that
+only moves workers with tasks.
 
 **The line-up.** `startMuster()` runs once, from the constructor, when `held`. It hands worker `i` the
 `i`-th cell of a sequence that grows outward from the town hall's left edge — offsets
@@ -114,9 +113,12 @@ worker with no reachable cell simply stays at the door. On a cramped map (campai
 caravans, a cliff-edge hall) the line-up degrades cleanly to today's picture instead of throwing.
 
 The offsets are **derived from the index, never drawn**. `tests/unit.mjs` counts behavioural draws
-across every swept file and expects exactly the wander's two; a third would red it. Worker `facing`
-is set from the walk direction rather than sampled, which is both prettier and one less `randFx` call
-to explain.
+across every swept file and expects exactly the wander's two; a third would red it.
+
+`spawnWorker`'s `randFx` draw for `facing` **stays exactly as it is**. It looks like a natural thing
+to replace with the walk direction, but `tests/unit.mjs` samples `facing` and `animT` at spawn — before
+the first tick — as its proof that the cosmetic stream diverges on a new seed. Removing that draw
+removes the sample the guard reads. The walk sets `facing` on its own through `tickMove` anyway.
 
 **Starting.** `begin()` sets `phase = 'run'` and clears any leftover muster path, so the first
 `schedule()` after Start dispatches from a clean slate rather than inheriting a half-walked route.
@@ -245,8 +247,10 @@ told apart from a real hauling failure.
   in `stock`, `groundItems`, `w.carrying`, or one of four building buckets (`inputs`, `outputs`,
   `hoistUpper`, `hoistLower` — never the `*In` reservations, which double-count). The test counts all
   of them, asserts the total on every tick, and asserts `objectives[].inbound` returns to zero.
-- **The lift case:** a hauler carrying to the goal, mid-ride, switch shut. `w.cx/cy` must not move
-  during the ride, and the diversion must land after the car does.
+- **The mid-step case:** a hauler carrying to the goal, shut the switch while `w.px !== w.cx`, tick
+  once by a fraction of a step. The task must still be marked and still bound for the wagon — the
+  diversion waits for a whole cell. This is the lift-ride hazard tested through its actual predicate;
+  a scripted lift build would exercise the same line at ten times the cost.
 
 ### `tests/campaign1.mjs`
 
@@ -263,10 +267,20 @@ Eighteen files click `.fd-play` → `.map-node` → `.pop-play` and then expect 
 `vale-visual`, `weather-visual`, `teaser-caption`. The screenshot suites among them would also
 photograph the Start card. `tools/trailer/render-teaser.mjs` stages scenes through the same hook.
 
-Plan: expose `begin()` and `setShipping()` on the `window.__smallhands` hook — which already carries
-`setSpeed`, `setTool` and `startLevel` — and extract the click sequence into a shared `tests/enter.mjs`
-(handling both `click` and `tap`) that the eighteen suites call. Eighteen copies of one brittle
-sequence are the kind of debt worth clearing while it is already being touched.
+The entry sequences are **not** uniform enough to extract: some use `page.click`, one uses
+`page.tap`, one uses `locator().first().click()`, one reaches the popover through `page.evaluate`,
+and two (`i18n`, `version`) join the flow half-way with their own assertions in between. Replacing
+all of them with one helper would rewrite nineteen working call sites to fix a problem none of them
+have.
+
+Plan instead: expose `begin()` and `setShipping()` on the `window.__smallhands` hook — which already
+carries `setSpeed`, `setTool` and `startLevel` — and add a one-line `tests/enter.mjs` helper,
+`beginRun(page)`, that each suite calls after its own entry. `e2e` and `mobile` are the exceptions:
+they press the Start card for real, because somebody has to.
+
+This can land **before** `held: true` does. `begin()` on a running game and `setShipping(true)` on an
+open hatch are both no-ops, so all nineteen sites can be prepared while the suites stay green, and
+the switch-on commit then breaks nothing.
 
 ## Risks
 
