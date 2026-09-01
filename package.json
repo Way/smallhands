@@ -54,8 +54,8 @@
     "trailer": "node tools/trailer/render-teaser.mjs"
   },
   "devDependencies": {
-    "playwright-core": "^1.61.1",
+    "playwright-core": "^1.62.1",
     "typescript": "~7.0.2",
-    "vite": "^8.1.5"
+    "vite": "^8.2.2"
   }
 }

@@ -73,7 +73,7 @@ written against:
   the keep floor). A hauler already walking still delivers on arrival.
 
 **Curve intent.** Campaign 1 must not out-length what follows it: levels 1–4 run roughly
-60 · 90 · 265 · 405 s of sim time in the scripted proofs, and each campaign rises to its own
+63 · 92 · 187 · 367 s of sim time in the scripted proofs, and each campaign rises to its own
 finale. Two spikes were caused by the same mistake — re-teaching the town-hall upgrade on a
 huge map with a level-1-sized crew — so levels 4 and 9 now open at `startThLevel: 2`. Each
 new pressure gets an **introduce → experiment → master** arc (the budget: 6 → 12 → 16; the
@@ -85,7 +85,7 @@ balance pass fails a test that was only ever measuring a tuning knob.
 
 Campaign 5 (ids 18–22) adds **no pressure at all** — every field it uses already existed — so
 its arc is built out of *pairings none of the earlier campaigns made*, and `flood` × `dig` is
-the one it exists for. Its proofs run 154 · 241 · 129 · 190 · 408 s. Level 20 is a deliberate
+the one it exists for. Its proofs run 154 · 241 · 130 · 190 · 401 s. Level 20 is a deliberate
 dip rather than a regression: what escalates across the campaign is the number of schedules a
 player must read at once (one, then two, then three), and the finale is still the longest run
 in the game outside campaign 2's summit. `tests/campaign5.mjs` therefore prints **two** numbers
@@ -136,6 +136,36 @@ its digger** (it stands in the cell it opens, so the second cut drops it into a 
 has lost its support, and an unstandable lip cannot be stepped onto), and the **keep floor
 starves machines** — `spare()` gates every autonomous consumer, so banking stone to protect a
 hoist's ballast also stops haulers loading it into the cars.
+
+## The keep floor is a target, not only a ceiling
+
+`Game.keep[item]` is the player's "hold this much in the store" dial, and `spare()` is the one
+policy every autonomous consumer reads: what is on hand, minus what a hauler already promised
+to carry, minus the floor. That half — **what may not leave** — is old (card #64). The other
+half is that the floor also says **what must arrive**, and the two are one control:
+
+- **Below the floor, banking that item is the crew's FIRST job.** `bankPriority` returns −1
+  while `spare(item) < 0`, so a loose unit (or a producer's output shelf) outranks the caravan
+  and the production lines instead of sitting at the bottom of the list at priority 2. Without
+  it the floor was mute about arrival: a flagged boulder lay on the ground with an empty store
+  and a maxed floor while the haulers finished the caravan's plank order, which reads as the
+  dial doing nothing. The boost cannot starve anything, because it only ever wins while there
+  is loose material left to bank — once the ground is clear the candidates are simply gone.
+  The default floor of 0 keeps `spare` at or above zero (a stock reservation is only made
+  against a positive surplus), so an untouched game never reaches the boost.
+- **Raising the floor turns back a haul already heading out.** The floor is re-read at the
+  moment of pickup, not trusted from dispatch time — but the answer depends on the source. For
+  the `stock` source it is an abort: the unit is in the store and stays there. For a `ground`
+  or `output` source the unit is in the hauler's hands, so "leave it alone" is not on offer and
+  the haul is **re-routed to the stockpile** — where the planner would send it if it were
+  dispatched now. That gap is what the bug report looked like from the outside: the store at 0,
+  the floor at the maximum, and the crew still carrying every stone it picked up to the wagon.
+
+Both are asserted in `tests/unit.mjs`'s reserve block. Note what this does to the campaign
+proofs, which set floors heavily: filling the reserve first *shortens* the levels whose next
+build is waiting on it (level 3: 264 → 187 s) and *lengthens* the one that banks a large
+reserve while its production line is still the bottleneck (level 9: 529 → 603 s). Both are the
+dial working; read the printed times after any change to `bankPriority`.
 
 ## Placement models
 

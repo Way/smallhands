@@ -215,6 +215,60 @@ function findLadderCells(g, count) {
   check('nothing is left promised against the store', g.stockReserved.log === 0);
 }
 
+// ---- Raising the floor also turns a haul already heading OUT back to the store
+// The pickup-time re-read used to cover the `stock` source only, so a hauler
+// already walking to a LOOSE stone (or to a producer's output shelf) carried it
+// straight past the floor to the caravan: the store sat at 0, the floor sat at
+// the maximum, and the crew still shipped every stone it picked up. An abort is
+// the wrong answer here — the unit is not in the store, so there is nothing to
+// leave alone — the haul is RE-ROUTED to the stockpile, which is where the
+// planner would send it now.
+{
+  const g = new Game(LEVELS[2]); // level 3: stone is on the order sheet and reachable
+  g.stock.stone = 0;
+  const spot = g.workers[0];
+  for (let i = 0; i < 6; i++) g.dropItem('stone', spot.cx, spot.cy);
+
+  let dispatched = false;
+  for (let i = 0; i < 60 * 30 && !dispatched; i++) {
+    g.tick(1 / 60);
+    dispatched = g.workers.some(
+      (w) => w.task?.kind === 'haul' && w.task.item === 'stone' && w.task.source.t === 'ground' && w.task.sink.t === 'goal'
+    );
+  }
+  check('a hauler was dispatched with a loose stone for the caravan (setup)', dispatched);
+
+  const stoneObj = () => g.objectives.find((o) => o.item === 'stone');
+  const delivered = stoneObj().delivered; // 0 — the haulers are still walking
+  g.setKeep('stone', 99); // the player changes their mind mid-walk
+  for (let i = 0; i < 60 * 90; i++) g.tick(1 / 60);
+  check('the in-flight loose stone never reaches the caravan', stoneObj().delivered === delivered);
+  check('it is re-routed into the store instead', g.stock.stone >= 6);
+  check('nothing is left promised to the caravan', stoneObj().inbound === 0);
+}
+
+// ---- Below the floor, banking the kept item outranks every other haul -------
+// The floor says what the player wants standing in the store, so filling it is
+// the crew's first job — not its last. Route 3 (loose -> store) is the lowest
+// priority there is, so a stone flagged with an empty store used to lie on the
+// ground while the haulers finished the caravan's plank order. Below the floor
+// that route jumps to the top; at or above it, nothing changes.
+{
+  const g = new Game(LEVELS[2]); // level 3: spear + plank + stone, 6 planks in store
+  g.stock.stone = 0;
+  g.setKeep('stone', 99);
+  const spot = g.workers[0];
+  g.dropItem('stone', spot.cx, spot.cy);
+
+  let first = null;
+  for (let i = 0; i < 60 * 20 && !first; i++) {
+    g.tick(1 / 60);
+    for (const w of g.workers) if (w.task?.kind === 'haul') { first = w.task; break; }
+  }
+  check('the first haul taken is the kept stone, not the caravan\'s planks',
+    !!first && first.item === 'stone' && first.sink.t === 'stock');
+}
+
 // ---- The player's own spend is the release valve, not a leak ----------------
 // Placement/upgrade costs are the player deliberately giving the goods up, so
 // they still spend the whole store — that is the documented purpose of the
