@@ -191,7 +191,7 @@ bug. `tests/held.mjs` **asserts** the default rather than trusting the conventio
   stream's readers and expects the wander's two.
 - **`shipping` gates the route; `keep` gates the item.** They are not two versions of one dial. The
   release sits at the single goal-dispatch decision in `schedule()`, beside `convoyOpen`, so it shuts
-  **all four** routes to the wagon — the store, a loose ground item, and a producer's output shelf.
+  **all three** routes to the wagon — the store, a loose ground item, and a producer's output shelf.
   Gating the stock route alone is the leak the keep floor shipped with. It stays out of
   `acceptingSinkCells` for the same reason the convoy window and the floor do: that function answers
   "could this item *ever* be carried there", and a shut hatch is transient.
@@ -225,13 +225,22 @@ shut hatch, and mass conservation through a turn-back counted by census rather t
 containers); its delivery-release and turn-back fixture is **level 3, not level 2** — level 2's
 caravan sits behind a lift the level does not build until the player does, so nothing is ever
 dispatched to it and a hatch assertion there would pass for the wrong reason regardless of which way
-the gate faces. `npm run test:levelstart` is the browser guard, and its three most valuable
-assertions are the ones for failures that throw nothing: the overlay must not take the pointer, the
-card must survive the options round trip, and the speed control must stay off — disabled, and
-unmoved by Space, which starts the run instead — until the player presses Start.
-`tests/caravan-shot.mjs` carries two frames this feature added — `shut` (the hatch closed at the
-dock) and `shut-wagon-gone` (the lock still standing with the wagon rolled away) — because the suite
-that judges the dock's own artwork could not previously render the state this feature adds.
+the gate faces. It is one of two deliberate exceptions to the claim above that every headless suite
+builds a plain `new Game(def)`: it has to open a held game itself to guard the muster and the hatch
+at all. The other is `tests/campaign1.mjs`'s level 1, which is played through the held door too — the
+one play-to-a-win proof that exercises the entry a real player actually uses (mustered, Started,
+hatch opened) rather than only the sim behind it; tidying it back to a plain `new Game(def)` would
+delete that coverage silently, since every suite would stay green regardless.
+`npm run test:levelstart` is the browser guard, and its three most valuable assertions are the ones
+for failures that throw nothing: the overlay must not take the pointer, the card must survive the
+options round trip, and the speed control must stay off — disabled, and unmoved by Space, which
+starts the run instead — until the player presses Start. That suite also pins an invariant nothing
+else states: **Start does not open the hatch** — `begin()` only flips `phase` and never touches
+`shipping`, so the two locks stay independent, and a level authored shut stays shut until the player
+(or the HUD row) opens it. `tests/caravan-shot.mjs` carries two frames this feature added — `shut`
+(the hatch closed at the dock) and `shut-wagon-gone` (the lock still standing with the wagon rolled
+away) — because the suite that judges the dock's own artwork could not previously render the state
+this feature adds.
 
 ## Placement models
 

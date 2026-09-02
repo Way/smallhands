@@ -142,7 +142,7 @@ open it.** The player opens it deliberately; that is the whole point of the feat
 const goal = this.convoyOpen && this.shipping ? this.goal : null;
 ```
 
-Placing it here rather than at the four candidate pushes below gives the switch every property the
+Placing it here rather than at the three candidate pushes below gives the switch every property the
 convoy window already has: it shuts **all** routes to the wagon — the stock route, loose ground items,
 and producer output shelves. Gating only the stock route is precisely the bug the comment above that
 block records against `keep` ("all planks keep get delivered to target").

@@ -226,7 +226,7 @@ export class Game {
   // leaves at all.
   //
   // Two rules keep it honest, and both are one line away from a silent leak:
-  //  - It gates at the single goal-dispatch decision in schedule(), NOT at the four
+  //  - It gates at the single goal-dispatch decision in schedule(), NOT at the three
   //    candidate pushes under it. Loose ground items and a producer's output shelf
   //    reach the wagon without passing through the store, so a gate on the stock
   //    route alone leaks — the exact bug the keep floor shipped with.
