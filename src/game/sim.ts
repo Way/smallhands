@@ -68,7 +68,10 @@ type Sink =
 
 type Task =
   | { kind: 'harvest'; nodeId: number }
-  | { kind: 'haul'; phase: 'toSource' | 'toSink'; item: ItemType; source: Source; sink: Sink }
+  // `divert` is set by setShipping(false) on a haul bound for the caravan and
+  // acted on by tickMove at the next WHOLE CELL. It is not a second sink: the
+  // sink is rewritten only at the moment the turn actually happens.
+  | { kind: 'haul'; phase: 'toSource' | 'toSink'; item: ItemType; source: Source; sink: Sink; divert?: boolean }
   | { kind: 'construct'; buildingId: number }
   | { kind: 'upgrade' }
   | { kind: 'dig'; tx: number; ty: number }
@@ -662,7 +665,21 @@ export class Game {
   }
 
   setShipping(on: boolean): void {
+    if (this.shipping === on) return;
     this.shipping = on;
+    for (const w of this.workers) {
+      const task = w.task;
+      if (task?.kind !== 'haul') continue;
+      if (on) {
+        // Re-opening before the mark was acted on leaves the haul on its route:
+        // flipping the switch twice in a second must not cost a trip. A haul that
+        // was ALREADY turned stays turned — its sink is the store now, and sending
+        // it back to the wagon would be a third leg for one unit.
+        task.divert = false;
+      } else if (task.sink.t === 'goal') {
+        task.divert = true;
+      }
+    }
   }
 
   toolUnlocked(tool: Tool): boolean {
@@ -2048,7 +2065,10 @@ export class Game {
             // the floor while this hauler is still walking over, and a promise
             // made a second ago must not be what breaks it. `ok = false` aborts
             // and unreserves, so the unit simply stays put (card #64).
-            if (this.stock[task.item] - this.keep[task.item] > 0) {
+            //
+            // A shut hatch aborts a stock-sourced haul exactly the way the keep
+            // floor does: the unit is in the store and simply stays there.
+            if (!(task.sink.t === 'goal' && !this.shipping) && this.stock[task.item] - this.keep[task.item] > 0) {
               this.stock[task.item]--;
               this.stockReserved[task.item] = Math.max(0, this.stockReserved[task.item] - 1);
               ok = true;
@@ -2075,7 +2095,7 @@ export class Game {
           // at 0, the floor at the maximum, and the crew still shipping every
           // stone it picked up. It now finishes its walk at the stockpile, which
           // is where the planner would send it if it were dispatched now.
-          if (task.source.t !== 'stock' && task.sink.t !== 'stock' && this.spare(task.item) < 0) {
+          if (task.source.t !== 'stock' && this.sinkRefused(task)) {
             this.unreserveSink(task.sink, task.item);
             task.sink = { t: 'stock' };
           }
@@ -2247,6 +2267,16 @@ export class Game {
   // ---- movement ---------------------------------------------------------------------
 
   private tickMove(w: Worker, dt: number): void {
+    // A haul turned back by the delivery switch re-routes at a WHOLE CELL, never
+    // mid-step. The equality is exact rather than approximate: at every step
+    // boundary tickMove assigns px/py and cx/cy from one value (see the walk
+    // branch below). During a lift ride or a rope slide py travels while cy stays
+    // at the base, so this simply waits for the car to land — turning there would
+    // re-path from cx/cy and snap the rider back down the mast, with nothing in
+    // the log to say why.
+    if (w.task?.kind === 'haul' && w.task.divert && w.px === w.cx && w.py === w.cy) {
+      this.divertToStock(w);
+    }
     if (w.stepIdx >= w.path.length) {
       // arrived
       w.px = w.cx;
@@ -2343,6 +2373,46 @@ export class Game {
       w.py += (dy / len) * speed;
       w.animT += dt * (step.kind === 'fall' ? 2 : 6);
     }
+  }
+
+  // Every reason a haul must not continue to its sink, in one place, re-read at the
+  // moment it matters rather than trusted from dispatch time. Two readers: the
+  // pickup below and divertToStock. Adding the next gate HERE is what keeps it from
+  // reaching only half the routes, which is the mistake the keep floor made.
+  private sinkRefused(task: Extract<Task, { kind: 'haul' }>): boolean {
+    if (task.sink.t === 'stock') return false;
+    if (task.sink.t === 'goal' && !this.shipping) return true;
+    return this.spare(task.item) < 0;
+  }
+
+  // Turn a haul bound for the caravan back into the store. Follows the keep floor's
+  // precedent ("raising the floor turns back a haul already heading out"), not the
+  // convoy's "stops dispatch, not cargo": the reason a player shuts the hatch is
+  // that they still need the material, and a switch that lets a dozen units finish
+  // their walk does not deliver on that.
+  private divertToStock(w: Worker): void {
+    const task = w.task;
+    if (task?.kind !== 'haul') return;
+    task.divert = false;
+    if (task.sink.t === 'stock') return;
+    if (task.phase === 'toSource') {
+      // Nothing in hand yet — the unit is still at its source, so there is nothing
+      // to carry home. Drop the job; abortTask unreserves both ends, and the next
+      // schedule() re-dispatches the unit to the store if that is where it belongs.
+      this.abortTask(w);
+      return;
+    }
+    this.unreserveSink(task.sink, task.item); // returns objectives[].inbound to truth
+    task.sink = { t: 'stock' };
+    const cells = this.sinkCells(task.sink);
+    const path = cells ? findPath(this.world, this.transits, w.cx, w.cy, cells, w.carrying !== null) : null;
+    if (!path) {
+      this.abortTask(w); // drops what they hold where they stand — the sim's fallback everywhere
+      return;
+    }
+    task.phase = 'toSink';
+    w.path = path.steps;
+    w.stepIdx = 0;
   }
 
   private repath(w: Worker): void {

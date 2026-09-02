@@ -109,5 +109,100 @@ check('opening the hatch ships the store', shut.objectives.some((o) => o.deliver
 // the default is open — the fifteen scripted suites depend on it
 check('shipping defaults to open', new Game(L1).shipping === true);
 
+// ---- turning back a haul already under way ---------------------------------
+// The keep floor sets the precedent ("raising the floor turns back a haul already
+// heading out"), not the convoy's "stops dispatch, not cargo": the reason a player
+// shuts the hatch is that they still need the material.
+//
+// Mass is counted by CENSUS, never by reading two containers. tests/hoist.mjs paid
+// for this lesson: a unit lives in stock, loose on the ground, in a worker's hands,
+// or in one of four building buckets — and NOT in the *In reservations, which are
+// inbound promises that double-count the hauler already holding it.
+// L3 is already declared above by the delivery-release block; do not redeclare it.
+function census(g, item) {
+  let n = g.stock[item];
+  for (const gi of g.groundItems) if (gi.item === item) n++;
+  for (const w of g.workers) if (w.carrying === item) n++;
+  for (const b of g.buildings) {
+    n += b.inputs[item] ?? 0;
+    n += b.outputs[item] ?? 0;
+    n += b.hoistUpper[item] ?? 0;
+    n += b.hoistLower[item] ?? 0;
+  }
+  for (const o of g.objectives) if (o.item === item) n += o.delivered;
+  return n;
+}
+
+// prove the census itself counts the store and a worker's hands
+{
+  const g = new Game(L3);
+  const before = census(g, 'plank');
+  check('census counts the starting store', before === (L3.startStock?.plank ?? 0));
+  step(g, 30);
+  check('census is conserved while planks are carried', census(g, 'plank') === before);
+}
+
+// find a hauler carrying a PLANK to the wagon, then shut the hatch.
+//
+// The item is pinned to plank on purpose. Level 3 carries a miner AND three veins,
+// so its stone and iron censuses legitimately GROW while a node is harvested, and a
+// strict-equality mass check on either would flap. Nothing on level 3 can make a
+// plank — the sawmill is a tool the player must build, the level pre-builds none,
+// and no scripted player builds one here — so the plank census is fixed at
+// startStock for the whole run.
+{
+  const g = new Game(L3);
+  const goalHaul = () =>
+    g.workers.find(
+      (w) =>
+        w.task?.kind === 'haul' &&
+        w.task.sink.t === 'goal' &&
+        w.task.phase === 'toSink' &&
+        w.carrying === 'plank'
+    );
+  let w = null;
+  for (let i = 0; i < 30 * 120 && !w; i++) {
+    g.tick(1 / 30);
+    w = goalHaul();
+  }
+  check('found a hauler carrying a plank to the wagon', w !== null);
+
+  const item = 'plank';
+  check('no sawmill exists, so the plank census is fixed', !g.buildings.some((b) => b.kind === 'sawmill'));
+  const mass = census(g, item);
+  g.setShipping(false);
+
+  // the mark waits for a whole cell: mid-step it is set but not yet acted on.
+  // This is the lift-ride hazard tested through its own predicate — during a ride
+  // py travels while cy stays behind, and re-pathing there would snap the rider
+  // down to the foot of the mast with nothing in the log.
+  if (w.px !== w.cx || w.py !== w.cy) {
+    g.tick(1 / 600);
+    check('a mid-step haul is marked but not yet turned', w.task.sink.t === 'goal' && w.task.divert === true);
+  }
+
+  for (let i = 0; i < 30 * 60; i++) {
+    g.tick(1 / 30);
+    if (census(g, item) !== mass) break;
+  }
+  check('mass is conserved through the turn', census(g, item) === mass);
+  check('nothing reached the wagon after the hatch shut', g.objectives.every((o) => o.delivered === 0));
+  check('the goal reservations are released', g.objectives.every((o) => o.inbound === 0));
+  check('no task is still bound for the wagon', g.workers.every((x) => x.task?.kind !== 'haul' || x.task.sink.t !== 'goal'));
+}
+
+// re-opening before the mark is acted on leaves the haul on its route
+{
+  const g = new Game(L3);
+  let w = null;
+  for (let i = 0; i < 30 * 120 && !w; i++) {
+    g.tick(1 / 30);
+    w = g.workers.find((x) => x.task?.kind === 'haul' && x.task.sink.t === 'goal' && x.task.phase === 'toSink');
+  }
+  g.setShipping(false);
+  g.setShipping(true);
+  check('flipping twice leaves the haul alone', w.task.sink.t === 'goal' && !w.task.divert);
+}
+
 console.log(failures ? `\n${failures} failure(s)` : '\nall ok');
 process.exit(failures ? 1 : 0);
