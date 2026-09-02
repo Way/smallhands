@@ -16,6 +16,7 @@
     "test:terrain": "node tests/terrain.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:hoist": "node tests/hoist.mjs",
+    "test:held": "node tests/held.mjs",
     "test:caravan": "node tests/caravan.mjs",
     "test:caravan-shot": "node tests/caravan-shot.mjs",
     "test:campaign1": "node tests/campaign1.mjs",

@@ -201,6 +201,20 @@ export class Game {
   // (it scales the tick accumulator, so a tick is always exactly dt). Don't add
   // a speed field here — nothing in the sim could read it.
   paused = false;
+
+  // A level opens HELD (see docs/superpowers/specs/2026-09-02-level-start-and-
+  // delivery-release-design.md): the crew musters out of the town hall, lines up
+  // in front of it, and nothing else in the world moves until the player presses
+  // Start. `time` does not advance, so the medal clock, the weather schedule, the
+  // convoy window and the rising tide all begin at Start rather than at the moment
+  // the level was built.
+  //
+  // The default is 'run', deliberately. About fifteen headless suites build
+  // `new Game(def)` and tick straight into a scripted playthrough; a muster default
+  // would stall every one of them, and the failure would read as a hauling bug.
+  // `main.ts` opts in with { held: true }, and tests/held.mjs asserts the default
+  // rather than trusting the convention.
+  phase: 'muster' | 'run' = 'run';
   demolishCount = 0; // for the "No Demolish" feat
 
   // weather: index + elapsed time within the level's looping schedule
@@ -269,7 +283,7 @@ export class Game {
   // and `new Game(level, seed)` replays that exact run.
   readonly seed: string;
 
-  constructor(level: LevelDef, seed: string | number = level.id) {
+  constructor(level: LevelDef, seed: string | number = level.id, opts?: { held?: boolean }) {
     this.seed = String(seed);
     this.rand = seededRandom(this.seed);
     this.randFx = seededRandom(`${this.seed}:fx`);
@@ -287,6 +301,10 @@ export class Game {
     this.objectives = level.objectives.map((o) => ({ ...o, delivered: 0, inbound: 0 }));
     const startWorkers = level.startWorkers ?? 4;
     for (let i = 0; i < startWorkers; i++) this.spawnWorker(true);
+    if (opts?.held) {
+      this.phase = 'muster';
+      this.startMuster();
+    }
   }
 
   // ---- level construction helpers (used by LevelDef.build) ----------------
@@ -1168,6 +1186,51 @@ export class Game {
       spawnT: initial ? 0 : 0.6,
     });
     if (!initial) this.onEvent({ type: 'spawn' });
+  }
+
+  // The muster line: worker i walks to the i-th usable cell of a run that grows
+  // outward from the town hall's left edge. The offsets are DERIVED FROM THE INDEX,
+  // never drawn — `tests/unit.mjs` counts the behavioural stream's readers and
+  // expects the wander's two, so a die rolled here reds the determinism guard.
+  //
+  // A cell with no floor, or one the worker cannot reach, is skipped rather than
+  // forced. On a cramped map (a buried caravan, a hall on a cliff edge) the line
+  // degrades to the crew standing at the door, which is exactly the picture the
+  // game had before this existed — never an exception, never a throw.
+  private startMuster(): void {
+    const th = this.townhall;
+    const floor = th.y + FOOTPRINTS.townhall.h - 1;
+    const offsets = [0, 1, 2, 3, -1, 4, -2, 5, -3, 6, -4, 7];
+    let next = 0;
+    for (const w of this.workers) {
+      while (next < offsets.length) {
+        const spot = settle(this.world, th.x + offsets[next], floor);
+        next++;
+        if (!spot) continue;
+        if (spot.x === w.cx && spot.y === w.cy) break; // already standing on it
+        const path = findPath(this.world, this.transits, w.cx, w.cy, new Set([this.world.key(spot.x, spot.y)]), false);
+        if (!path) continue;
+        w.path = path.steps;
+        w.stepIdx = 0;
+        break;
+      }
+    }
+  }
+
+  // Start the run. Every task-less worker is snapped to its cell and its leftover
+  // muster path cleared: the run loop only moves workers that HOLD a task, so a
+  // worker left half-way between two tiles by a mid-walk Start would freeze there
+  // until the scheduler happened to hand it a job.
+  begin(): void {
+    if (this.phase !== 'muster') return;
+    this.phase = 'run';
+    for (const w of this.workers) {
+      if (w.task) continue;
+      w.path = [];
+      w.stepIdx = 0;
+      w.px = w.cx;
+      w.py = w.cy;
+    }
   }
 
   private abortTask(w: Worker): void {
@@ -2614,6 +2677,23 @@ export class Game {
     if (this.lookEvents.length > 200) this.lookEvents.splice(0, this.lookEvents.length - 200);
     if (this.paused || this.won) {
       // still animate particles so the win moment sparkles
+      this.tickParticles(dt);
+      return;
+    }
+    // A held level: the crew musters out and lines up, and nothing else moves.
+    // `tickMove` is the ordinary mover — there is no second set of movement
+    // physics here, and every existing rule (ladders, ramps, the fall cap)
+    // applies to the walk out. `spawnTimer` is not touched either, so the crew
+    // that musters is exactly `startWorkers`.
+    if (this.phase === 'muster') {
+      for (const w of this.workers) {
+        if (w.spawnT > 0) {
+          w.spawnT -= dt;
+          continue;
+        }
+        if (w.stepIdx < w.path.length) this.tickMove(w, dt);
+        else w.animT += dt;
+      }
       this.tickParticles(dt);
       return;
     }
