@@ -907,6 +907,11 @@ export class Hud {
       for (const o of g.objectives) parts.push(o.delivered, o.amount);
       // the caravan's dock line counts down inside the readout — per second
       if (g.level.convoy) parts.push(g.convoyOpen ? 'in' : 'out', Math.ceil(g.convoyRemaining));
+      // shipping flips both the button's label and the hover hint's text — fold
+      // it into the signature or a pinned panel goes stale the moment the switch
+      // is flipped from anywhere but this panel's own button (the HUD row, the
+      // __smallhands hook)
+      parts.push(g.shipping ? 'open' : 'shut');
     }
     return parts.join('|');
   }

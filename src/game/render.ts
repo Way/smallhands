@@ -1178,9 +1178,18 @@ export class Renderer {
     // A shut hatch, drawn on the DOCK and not on the wagon: on a convoy level the
     // wagon drives away, and the sign that says "not now" has to stay behind. That
     // is the split the two sprites exist for.
+    //
+    // Hung on the order board's own post, just under its frame — found by
+    // rendering candidates and looking, not by arithmetic off the sprite grid.
+    // The board and the lock are close to the same size, so anywhere ON the
+    // board's face buries the chalked slate under a solid icon; sitting just
+    // below the frame, on the post that already carries the board to the
+    // ground, reads as a padlock actually fixed to the dock's own furniture
+    // instead of a badge floating in the sky above it (the original py - 19
+    // was well above even the progress bar, in open air).
     if (!game.shipping) {
-      const lx = px + 3;
-      const ly = py - 19;
+      const lx = px + 2;
+      const ly = py + 16;
       ctx.strokeStyle = '#2a1c16';
       ctx.lineWidth = 1.5;
       ctx.beginPath();

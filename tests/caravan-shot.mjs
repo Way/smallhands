@@ -67,6 +67,19 @@ const shots = {
   'convoy-leaving': 'g.level.convoy = { open: 12, closed: 12 }; g.time = 12.5',
   'convoy-gone': 'g.level.convoy = { open: 12, closed: 12 }; g.time = 18',
   'convoy-returning': 'g.level.convoy = { open: 12, closed: 12 }; g.time = 24.6',
+  // The delivery release's lock: beginRun above already opens the hatch, so
+  // without these two frames this suite — the tool this repo's own docs name
+  // for judging the dock's own artwork — could never show the one state the
+  // lock feature adds. 'shut' is the wagon parked at the dock with the hatch
+  // closed; 'shut-wagon-gone' proves the lock is drawn on the DOCK and not
+  // the wagon (card #71's whole reason for two sprites) by also rolling the
+  // wagon out on a convoy window.
+  // Reset convoy explicitly: without it 'shut' would inherit whatever convoy
+  // state 'convoy-returning' left running (these mutations apply to the same
+  // live game in sequence) and show a mid-roll wagon by accident instead of
+  // the plain parked baseline every load-* shot uses.
+  shut: 'g.setShipping(false); g.level.convoy = undefined',
+  'shut-wagon-gone': 'g.setShipping(false); g.level.convoy = { open: 12, closed: 12 }; g.time = 18',
 };
 for (const [name, src] of Object.entries(shots)) {
   const clip = await frame(src);
