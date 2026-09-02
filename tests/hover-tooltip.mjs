@@ -16,6 +16,7 @@
 // pointer path with synthetic PointerEvents.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -46,6 +47,7 @@ await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForFunction(() => window.__smallhands);
 await page.waitForTimeout(300);
 
@@ -62,6 +64,8 @@ const result = await page.evaluate(async () => {
   const TILE = 16;
 
   startLevel(0);
+  window.__smallhands.begin();
+  window.__smallhands.setShipping(true);
   const game = window.__smallhands.game;
   setSpeed(0); // freeze the sim: only our explicit stock edits move affordability
   const zero = () => {

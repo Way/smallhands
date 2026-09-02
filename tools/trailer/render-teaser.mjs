@@ -159,8 +159,7 @@ function buildScenes(copy) {
       fade: { in: 10, out: 0 },
       cam: { from: [10, 19, 3], to: [30, 17.5, 3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(0);
+        window.__H.start(0);
         window.__H.markAll();
         window.__H.runSteps(
           [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 33, 17) }],
@@ -177,8 +176,7 @@ function buildScenes(copy) {
       fade: { in: 0, out: 0 },
       cam: { from: [14, 18.5, 3], to: [24, 16.5, 3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(1);
+        window.__H.start(1);
         window.__H.markAll();
         window.__H.runSteps(
           [
@@ -210,8 +208,7 @@ function buildScenes(copy) {
       // at zoom 3 a 22-row map spends half the frame on empty sky
       cam: { from: [22, 15.5, 3.5], to: [29, 15.5, 3.5] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(12); // The Buried Seam — iron and the caravan sealed under the meadow
+        window.__H.start(12); // The Buried Seam — iron and the caravan sealed under the meadow
         window.__H.markAll();
         // A shovel first: the workshop turns a plank and an iron into one, and a
         // Digger claims it only once a reachable order is standing.
@@ -243,8 +240,7 @@ function buildScenes(copy) {
       fade: { in: 6, out: 0 },
       cam: { from: [25, 17, 3], to: [31, 17.5, 3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(9); // The Turning Wheel — ballast cycles both ways
+        window.__H.start(9); // The Turning Wheel — ballast cycles both ways
         window.__H.markAll();
         window.__H.countEvents();
         window.__H.runSteps(
@@ -276,8 +272,7 @@ function buildScenes(copy) {
       // the pan travels with it and leaves the dock in frame behind it
       cam: { from: [38, 12.5, 2.6], to: [43, 12.5, 2.6] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(10); // Ballast Ridge — the caravan docks 40 s, then is away 20 s
+        window.__H.start(10); // Ballast Ridge — the caravan docks 40 s, then is away 20 s
         window.__H.markAll();
         window.__H.countEvents();
         // The ridge's own boulders need no machine, so stone reaches the bed without
@@ -316,8 +311,7 @@ function buildScenes(copy) {
       fade: { in: 6, out: 0 },
       cam: { from: [28, 13, 2.4], to: [42, 13, 2.4] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(11); // The High Forge — clear 60 s -> storm 20 s; gusts seize the lifts
+        window.__H.start(11); // The High Forge — clear 60 s -> storm 20 s; gusts seize the lifts
         window.__H.markAll();
         window.__H.runSteps(
           [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 8, 22) }],
@@ -338,8 +332,7 @@ function buildScenes(copy) {
       fade: { in: 6, out: 0 },
       cam: { from: [27, 22, 2.4], to: [40, 21, 2.4] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(7); // The Rising Tide — each downpour lifts the water one row
+        window.__H.start(7); // The Rising Tide — each downpour lifts the water one row
         window.__H.markAll();
         window.__H.runSteps(
           [{ when: (g) => g.stock.log >= 3, do: (g) => g.placeBuilding('sawmill', 6, 19) }],
@@ -365,8 +358,7 @@ function buildScenes(copy) {
       // because the subject is row 23 of 26 and no camera move can lift the floor.
       cam: { from: [38, 18.5, 3], to: [42.5, 18.5, 3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(17); // The Seeping Floor — redrock, and a rich drift below the water table
+        window.__H.start(17); // The Seeping Floor — redrock, and a rich drift below the water table
         window.__H.markAll();
         // Sink a shaft to the deep drift (row 23) and ladder it down to row 22, so
         // miners can reach the ore at all: nobody drops six rows for free (MAX_FALL
@@ -402,8 +394,7 @@ function buildScenes(copy) {
       fade: { in: 6, out: 0 },
       cam: { from: [14, 16, 2.3], to: [40, 15, 2.3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(16); // The Waning Light — noon slides to dusk; lanterns hold the light
+        window.__H.start(16); // The Waning Light — noon slides to dusk; lanterns hold the light
         window.__H.markAll();
         // Each level's ground sits at a different row, so find the surface at
         // runtime: the first air cell with solid ground directly beneath it.
@@ -446,9 +437,8 @@ function buildScenes(copy) {
       camFromTownhall: { from: [3 + i * 5, -1.5, 2], to: [17 + i * 5, -2.5, 2] },
       setupArgs: { index: i },
       setup: ({ index }) => {
-        const SH = window.__smallhands;
         const data = window.__biomeLevels[index];
-        SH.startCustomLevel(data, {});
+        window.__H.startCustom(data, {});
         window.__H.markAll();
         window.__H.ff(25);
       },
@@ -465,8 +455,7 @@ function buildScenes(copy) {
       // second of travel would silently freeze.
       cam: { from: [38, 15, 3], to: [42.5, 15, 3] },
       setup: () => {
-        const SH = window.__smallhands;
-        SH.startLevel(0);
+        window.__H.start(0);
         window.__H.markAll();
         window.__H.countEvents();
         window.__H.runSteps(

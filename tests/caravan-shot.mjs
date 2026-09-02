@@ -2,6 +2,7 @@
 // load levels and at both convoy states, cropped tight, into tests/.caravan-out/.
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { beginRun } from './enter.mjs';
 
 const CHROME = process.env.CHROME_PATH;
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
@@ -17,6 +18,7 @@ await page.waitForTimeout(800);
 await page.click('.fd-play');
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 await page.waitForTimeout(400);
 

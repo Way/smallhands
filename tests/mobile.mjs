@@ -14,6 +14,7 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 import { bundleExports } from './bundle.mjs';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -116,6 +117,7 @@ const nodeBox = await node.boundingBox();
 check('map node is a 44px+ touch target', atLeast(nodeBox, 44));
 await node.tap();
 await page.tap('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(500);
 check('level started', await page.evaluate(() => !!window.__smallhands?.game));
 
@@ -386,7 +388,12 @@ check('build % updates in 1% steps (not frozen in a 5% bucket)', (await hintPct(
 // hover fallback — and the glyph box is deliberately only 24px so it fits the
 // pill's row. The 44px disc therefore comes from an invisible ::after inset, so
 // assert the behaviour: a tap OUTSIDE the box, inside the disc, still opens it.
-await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
+await page.evaluate((i) => {
+  const S = window.__smallhands;
+  S.startLevel(i);
+  S.begin();
+  S.setShipping(true);
+}, wxIdx);
 await page.waitForTimeout(500);
 const wxOpen = () => page.evaluate(() => {
   const p = document.querySelector('.weather-pop');

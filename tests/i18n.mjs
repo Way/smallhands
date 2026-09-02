@@ -1,6 +1,7 @@
 // i18n smoke: switch to German via the options menu, verify surfaces re-render.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -45,6 +46,7 @@ check('level 1 name is German', firstName === 'Erste Schritte');
 
 // start level 1: HUD in German
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(600);
 const deliver = await page.textContent('.objectives h3 span');
 check('HUD "Deliver" header is German', deliver === 'Liefern');

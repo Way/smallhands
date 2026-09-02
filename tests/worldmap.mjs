@@ -4,6 +4,7 @@
 // The unified front door serves the game at `/`; `.fd-play` enters it.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -215,6 +216,7 @@ await page.waitForTimeout(150);
 await page.click('.map-node:not(:disabled)');
 await page.waitForTimeout(150);
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForFunction(() => window.__smallhands, { timeout: 8000 });
 const booted = await page.evaluate(() => ({
   hasGame: !!window.__smallhands.game,

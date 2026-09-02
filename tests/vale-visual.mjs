@@ -14,6 +14,7 @@
 //   node tests/vale-visual.mjs               # override host via BASE_URL=...
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { beginRun } from './enter.mjs';
 
 const CHROME = process.env.CHROME_PATH;
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
@@ -47,6 +48,8 @@ async function renderBiome(biome) {
     const data = sh.generateVerifiedLevel({ seed, difficulty: 2 });
     data.biome = b;
     sh.startCustomLevel(data, { playtest: true });
+    sh.begin();
+    sh.setShipping(true);
     sh.setSpeed(0); // pause the sim so workers hold still for the shot
   }, [SEED, biome]);
   await page.waitForTimeout(600);
@@ -76,6 +79,7 @@ async function bootFresh() {
   await page.click('.fd-play');
   await page.click('.map-node:not(:disabled)');
   await page.click('.map-popover .pop-play');
+  await beginRun(page);
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 }
 

@@ -12,6 +12,7 @@
 // Requires the production build served at http://localhost:4173/ (npm run preview).
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -65,6 +66,7 @@ await page.waitForTimeout(600);
 await page.locator('.map-node').first().click();
 await page.waitForTimeout(400);
 await page.locator('.pop-play').first().click();
+await beginRun(page);
 await page.waitForTimeout(900);
 
 const hooked = await page.evaluate(() => {

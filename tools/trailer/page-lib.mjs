@@ -143,6 +143,19 @@ export const pageLib = () => {
       const n = Math.round(seconds * 60);
       for (let i = 0; i < n; i++) g.tick(1 / 60);
     },
+    // The teaser stages levels straight through startLevel/startCustomLevel, which
+    // open HELD. A teaser is a recording of the game running, so every scene begins
+    // at once and ships from the first frame.
+    start(idx) {
+      window.__smallhands.startLevel(idx);
+      window.__smallhands.begin();
+      window.__smallhands.setShipping(true);
+    },
+    startCustom(data, opts) {
+      window.__smallhands.startCustomLevel(data, opts ?? {});
+      window.__smallhands.begin();
+      window.__smallhands.setShipping(true);
+    },
     // Ordered scripted steps, campaign-test style, but retried until each
     // placement succeeds (stock arrives over time). Runs at most maxSec.
     runSteps(steps, maxSec) {

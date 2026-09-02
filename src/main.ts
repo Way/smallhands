@@ -1430,6 +1430,11 @@ function startGame(def: LevelDef): void {
     startLevel,
     setSpeed,
     setTool,
+    // Start a held level and open the caravan's hatch. Both are no-ops on a level
+    // that is already running with an open hatch, which is what lets the browser
+    // suites and the trailer call them unconditionally.
+    begin: () => game?.begin(),
+    setShipping: (on: boolean) => game?.setShipping(on),
     findPath,
     editor,
     generateVerifiedLevel,

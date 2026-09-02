@@ -20,6 +20,7 @@
 //   node tests/biome-hills.mjs               # override host via BASE_URL=...
 import { chromium } from 'playwright-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { beginRun } from './enter.mjs';
 
 const CHROME = process.env.CHROME_PATH;
 const BASE = process.env.BASE_URL || 'http://localhost:4188/';
@@ -93,6 +94,8 @@ async function startCase(seed, biome, kind, night) {
     data.world = { ...(data.world || {}), weather: [{ kind: k, duration: 9999 }] };
     if (n) data.world.night = true;
     sh.startCustomLevel(data, { playtest: true });
+    sh.begin();
+    sh.setShipping(true);
     sh.setSpeed(0); // hold the workers still for the shot
   }, [seed, biome, kind, night]);
 }
@@ -116,6 +119,7 @@ try {
   await page.click('.fd-play');
   await page.click('.map-node:not(:disabled)');
   await page.click('.map-popover .pop-play');
+  await beginRun(page);
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 
   const got = {};
@@ -131,7 +135,12 @@ try {
   // The two hand-authored redrock levels the card names, straight from the
   // campaign — different terrain shapes and camera than a generated map.
   for (const [label, idx] of [['lvl18', 17], ['lvl22', 21]]) {
-    await page.evaluate((i) => { window.__smallhands.startLevel(i); window.__smallhands.setSpeed(0); }, idx);
+    await page.evaluate((i) => {
+      window.__smallhands.startLevel(i);
+      window.__smallhands.begin();
+      window.__smallhands.setShipping(true);
+      window.__smallhands.setSpeed(0);
+    }, idx);
     got[label] = await shot(label);
   }
 

@@ -16,6 +16,7 @@
 //   export CHROME_PATH=~/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-mac-arm64/chrome-headless-shell
 //   BASE_URL=http://localhost:<p>/ node tests/restart-scenery.mjs
 import { chromium } from 'playwright-core';
+import { beginRun } from './enter.mjs';
 
 const CHROME = process.env.CHROME_PATH;
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
@@ -37,6 +38,7 @@ await page.waitForTimeout(800);
 await page.click('.fd-play');
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 
 // Freeze the render clock (constant rAF timestamp) so sway can't perturb the
@@ -64,6 +66,8 @@ const start = (seed, biome) => page.evaluate(([seed, biome]) => {
   const d = sh.generateVerifiedLevel({ seed, difficulty: 2 });
   d.biome = biome;
   sh.startCustomLevel(d, { playtest: true });
+  sh.begin();
+  sh.setShipping(true);
   sh.setSpeed(0); // pause so workers hold still
 }, [seed, biome]);
 

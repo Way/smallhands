@@ -8,6 +8,7 @@
 //  3. Round-trips a level through the share-code encoder.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -94,6 +95,7 @@ console.log('editor: exit lands on level select');
 // start campaign level 1 so the debug hook exists
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(400);
 
 const genResult = await page.evaluate(() => {
@@ -114,6 +116,8 @@ const genResult = await page.evaluate(() => {
   for (let d = 1; d <= 5; d++) {
     const data = sh.generateVerifiedLevel({ seed: 'boot-test', difficulty: d });
     sh.startCustomLevel(data, {});
+    sh.begin();
+    sh.setShipping(true);
     const g = window.__smallhands.game;
     const kinds = g.buildings.map((b) => b.kind);
     if (!kinds.includes('townhall') || !kinds.includes('goal')) {
@@ -170,6 +174,8 @@ const ropeResult = await page.evaluate(() => {
   data.nodes = [];
   sh.editor.close();
   sh.startCustomLevel(data, {});
+  sh.begin();
+  sh.setShipping(true);
   const g = window.__smallhands.game;
   g.stock.log = 20;
   g.stock.plank = 10;
@@ -250,6 +256,7 @@ if (!(await page.$('.map-popover .medal-row'))) await fail('medal slots missing 
 console.log('medals: trophy shelf and popover medal slots visible on level select');
 // head back into a level so the soak section has its debug hook
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(400);
 
 // simulate 60s of a generated level at speed to ensure no runtime errors
@@ -257,6 +264,8 @@ await page.evaluate(() => {
   const sh = window.__smallhands;
   const data = sh.generateVerifiedLevel({ seed: 'soak-test', difficulty: 3 });
   sh.startCustomLevel(data, {});
+  sh.begin();
+  sh.setShipping(true);
   const g = window.__smallhands.game;
   for (const n of g.nodes) n.marked = true;
   for (let i = 0; i < 60 * 60; i++) g.tick(1 / 60);

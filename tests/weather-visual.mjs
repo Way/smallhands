@@ -10,6 +10,7 @@
 //   export CHROME_PATH=~/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-mac-arm64/chrome-headless-shell
 //   node tests/weather-visual.mjs            # override host via BASE_URL=...
 import { chromium } from 'playwright-core';
+import { beginRun } from './enter.mjs';
 
 const CHROME = process.env.CHROME_PATH;
 const BASE = process.env.BASE_URL || 'http://localhost:4173/';
@@ -29,10 +30,16 @@ try {
   await page.click('.fd-play'); // Play -> level select
   await page.click('.map-node:not(:disabled)'); // boot any unlocked level to get the debug hook
   await page.click('.map-popover .pop-play');
+  await beginRun(page);
   await page.waitForFunction(() => !!window.__smallhands, { timeout: 8000 });
 
   // Jump straight to the weather level (index 5 = id 6, Monsoon Hollow).
-  await page.evaluate(() => window.__smallhands.startLevel(5));
+  await page.evaluate(() => {
+    const S = window.__smallhands;
+    S.startLevel(5);
+    S.begin();
+    S.setShipping(true);
+  });
   await page.waitForTimeout(300);
 
   const info = await page.evaluate(() => {

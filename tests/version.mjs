@@ -16,6 +16,7 @@
 // bundle nobody is served.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -103,6 +104,7 @@ await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(600);
 // No report-e2e.mjs-style 1500ms "play a little" pause here, deliberately: the
 // Build line is stamped at collection time regardless of run depth, so an

@@ -9,6 +9,7 @@
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 import { bundleExports } from './bundle.mjs';
+import { beginRun } from './enter.mjs';
 
 // the real formatter and the real glyph tables, so this can't drift from what
 // the HUD renders — a new WeatherKind (or a new day/night band) must not be able
@@ -71,6 +72,7 @@ await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(400);
 
 // ---- the clock is on screen and reads the world's time of day ---------------
@@ -110,7 +112,12 @@ console.log(`     (1× ${(t1b - t1a).toFixed(2)}s vs 4× ${(t4b - t4a).toFixed(2
 check('4× runs the score timer markedly faster than 1×', ratio > 2.5 && ratio < 5.5);
 
 // ---- restart resets the score timer; the day clock still reads noon ---------
-await page.evaluate(() => window.__smallhands.startLevel(0));
+await page.evaluate(() => {
+  const S = window.__smallhands;
+  S.startLevel(0);
+  S.begin();
+  S.setShipping(true);
+});
 await page.waitForTimeout(200);
 check('restart resets the score timer', (await gameTime()) < 1);
 check('restart clock still shows the day time of day', (await clockText()) === '12:00');
@@ -153,7 +160,12 @@ check('day map: exactly one sky glyph on the pill', isl.count === 1 && isl.glyph
 check('day map: the glyph is a passive span (no forecast to open)', isl.tag === 'SPAN');
 check('day map: no forecast popover and no legacy weather zone', !isl.popBuilt && !isl.legacy);
 
-await page.evaluate((i) => window.__smallhands.startLevel(i), wxIdx);
+await page.evaluate((i) => {
+  const S = window.__smallhands;
+  S.startLevel(i);
+  S.begin();
+  S.setShipping(true);
+}, wxIdx);
 await page.waitForTimeout(400);
 isl = await island();
 check('weather map: still exactly one sky glyph', isl.count === 1 && isl.glyphs === 1);

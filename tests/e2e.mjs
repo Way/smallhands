@@ -7,6 +7,7 @@
 // it marks resources and places buildings, then the simulation does the rest.
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 
@@ -37,6 +38,7 @@ await page.click('.fd-play');
 await page.waitForTimeout(300);
 await page.click('.map-node:not(:disabled)');
 await page.click('.map-popover .pop-play');
+await beginRun(page);
 await page.waitForTimeout(400);
 
 async function waitForWin(label, pollFn, maxPolls) {
@@ -155,6 +157,8 @@ console.log('Level 2: The Cliff Shrine');
 await page.waitForTimeout(2200);
 await page.evaluate(() => {
   window.__smallhands.startLevel(1);
+  window.__smallhands.begin();
+  window.__smallhands.setShipping(true);
   const { game, setSpeed } = window.__smallhands;
   for (const n of game.nodes) n.marked = true;
   game.placeLift(23, 20);

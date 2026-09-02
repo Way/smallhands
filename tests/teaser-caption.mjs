@@ -24,6 +24,7 @@ import { chromium } from 'playwright-core';
 import { readFileSync } from 'node:fs';
 import { pageLib } from '../tools/trailer/page-lib.mjs';
 import { COPY } from '../tools/trailer/copy.mjs';
+import { beginRun } from './enter.mjs';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 // The render's own frame. The rule is resolution-independent (it is measured), but
@@ -57,12 +58,22 @@ const probe = ({ deck, seeds }) => {
   // authored. Those cuts hide the HUD but still carry a caption spanning all three,
   // so a generated dock of a different height would move the band under live text.
   const boots = [
-    ...Array.from({ length: 60 }, (_, i) => ({ generated: false, run: () => window.__smallhands.startLevel(i) })),
+    ...Array.from({ length: 60 }, (_, i) => ({
+      generated: false,
+      run: () => {
+        const S = window.__smallhands;
+        S.startLevel(i);
+        S.begin();
+        S.setShipping(true);
+      },
+    })),
     ...seeds.map((seed) => ({
       generated: true,
       run: () => {
         const SH = window.__smallhands;
         SH.startCustomLevel(SH.generateVerifiedLevel({ seed, difficulty: 2 }), {});
+        SH.begin();
+        SH.setShipping(true);
       },
     })),
   ];
@@ -143,6 +154,7 @@ try {
     await page.evaluate(() => document.querySelector('.fd-play').click());
     await page.evaluate(() => document.querySelector('.map-node:not(:disabled)').click());
     await page.evaluate(() => document.querySelector('.map-popover .pop-play').click());
+    await beginRun(page);
     await page.waitForFunction(() => !!window.__smallhands);
     await page.evaluate(pageLib);
     // a fallback font measures differently, and it is the label widths that decide
