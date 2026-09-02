@@ -766,9 +766,10 @@ two boots) flap.
 | `tests/vale-visual.mjs` | 49 | `sh.startCustomLevel(data, { playtest: true });` |
 | `tests/weather-visual.mjs` | 35 | `window.__smallhands.startLevel(5)` |
 
-Three of these need the surrounding expression reshaped rather than a line inserted:
+Five of these need the surrounding expression reshaped rather than a line inserted:
 
-`tests/clock.mjs:113` and `tests/weather-visual.mjs:35` are one-expression arrows — give them a body:
+`tests/clock.mjs:113`, `tests/clock.mjs:156`, `tests/weather-visual.mjs:35` and `tests/mobile.mjs:389`
+are one-expression arrows — give each a body:
 
 ```js
 await page.evaluate(() => {
