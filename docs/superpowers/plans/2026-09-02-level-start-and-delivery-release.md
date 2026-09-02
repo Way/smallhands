@@ -670,7 +670,9 @@ This lands **before** `held: true` does. `begin()` on a running game and `setShi
 - Modify: `src/main.ts` (the `__smallhands` hook, ~line 1422)
 - Create: `tests/enter.mjs`
 - Modify — **19 world-map entry points** (Step 3a), one line each: `tests/audio-smoke.mjs:67`, `tests/autopause.mjs:42`, `tests/biome-hills.mjs:118`, `tests/caravan-shot.mjs:19`, `tests/clock.mjs:73`, `tests/drag-tooltip.mjs:42`, `tests/e2e.mjs:39`, `tests/editor-generator.mjs:96`, `tests/editor-generator.mjs:252`, `tests/hover-tooltip.mjs:48`, `tests/i18n.mjs:47`, `tests/mobile.mjs:118`, `tests/report-e2e.mjs:56`, `tests/restart-scenery.mjs:39`, `tests/teaser-caption.mjs:145`, `tests/vale-visual.mjs:78`, `tests/version.mjs:105`, `tests/weather-visual.mjs:31`, `tests/worldmap.mjs:217`
-- Modify — **16 hook re-stage points** (Step 3b), listed in the table there. Seven files appear in both lists; they need both edits.
+- Modify — **16 hook re-stage points** (Step 3b), listed in the table there. Eleven files appear in
+  both lists and need both edits: `biome-hills`, `clock`, `drag-tooltip`, `e2e`, `editor-generator`,
+  `hover-tooltip`, `mobile`, `restart-scenery`, `teaser-caption`, `vale-visual`, `weather-visual`.
 - Modify: `tools/trailer/page-lib.mjs`, `tools/trailer/render-teaser.mjs`
 
 **Interfaces:**
