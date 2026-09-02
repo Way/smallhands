@@ -2281,7 +2281,7 @@ export class Game {
       // arrived
       w.px = w.cx;
       w.py = w.cy;
-      if (w.task && !w.working) this.arriveAtTaskTarget(w);
+      this.settleArrival(w);
       return;
     }
     const step = w.path[w.stepIdx];
@@ -2366,7 +2366,7 @@ export class Game {
       w.stepIdx++;
       w.animT += dt * 6;
       if (w.stepIdx >= w.path.length) {
-        if (w.task && !w.working) this.arriveAtTaskTarget(w);
+        this.settleArrival(w);
       }
     } else {
       w.px += (dx / len) * speed;
@@ -2395,6 +2395,9 @@ export class Game {
     if (task?.kind !== 'haul') return;
     task.divert = false;
     if (task.sink.t === 'stock') return;
+    // The one gate, read here as well as at the pickup: a mark set before the player
+    // re-opened the hatch must not turn a haul that is now allowed to continue.
+    if (!this.sinkRefused(task)) return;
     if (task.phase === 'toSource') {
       // Nothing in hand yet — the unit is still at its source, so there is nothing
       // to carry home. Drop the job; abortTask unreserves both ends, and the next
@@ -2413,6 +2416,22 @@ export class Game {
     task.phase = 'toSink';
     w.path = path.steps;
     w.stepIdx = 0;
+  }
+
+  // The top-of-tickMove divert check only fires on ENTRY to the function, when the
+  // worker is already at rest. It misses a worker that was mid-step when the hatch
+  // shut and whose FINAL step lands later in that same tickMove call — the walk
+  // branch used to call arriveAtTaskTarget directly at that point, delivering to a
+  // sink the player had just closed. Route every arrival (the top "already arrived"
+  // branch and the walk branch's step completion) through here instead: both call
+  // sites land on a whole cell by construction (px/py were just set from cx/cy), so
+  // the lift-ride hazard the top check guards against does not apply to either.
+  private settleArrival(w: Worker): void {
+    if (w.task?.kind === 'haul' && w.task.divert) {
+      this.divertToStock(w);
+      return;
+    }
+    if (w.task && !w.working) this.arriveAtTaskTarget(w);
   }
 
   private repath(w: Worker): void {

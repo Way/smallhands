@@ -167,28 +167,74 @@ function census(g, item) {
   }
   check('found a hauler carrying a plank to the wagon', w !== null);
 
-  const item = 'plank';
-  check('no sawmill exists, so the plank census is fixed', !g.buildings.some((b) => b.kind === 'sawmill'));
-  const mass = census(g, item);
-  g.setShipping(false);
+  // `check` only counts a failure, it does not abort — without this guard a timed-out
+  // search would go on to dereference a null `w` below and kill the file with a raw
+  // TypeError instead of a clean `N failure(s)` line.
+  if (w) {
+    const item = 'plank';
+    check('no sawmill exists, so the plank census is fixed', !g.buildings.some((b) => b.kind === 'sawmill'));
 
-  // the mark waits for a whole cell: mid-step it is set but not yet acted on.
-  // This is the lift-ride hazard tested through its own predicate — during a ride
-  // py travels while cy stays behind, and re-pathing there would snap the rider
-  // down to the foot of the mast with nothing in the log.
-  if (w.px !== w.cx || w.py !== w.cy) {
+    // Walk the worker off its cell in small steps rather than hoping the run happens
+    // to catch one mid-step: the sim is deterministic, so a conditional here either
+    // always runs or never does — and it never did. (docs/architecture.md: "scan for
+    // such an instant, don't pin a seed to it".)
+    for (let i = 0; i < 100 && w.px === w.cx && w.py === w.cy; i++) g.tick(1 / 600);
+    check('the worker is mid-step', w.px !== w.cx || w.py !== w.cy);
+
+    const mass = census(g, item);
+    g.setShipping(false);
+
+    // A 1/600s tick cannot complete a step at WALK_SPEED, so this catches the mark
+    // before either whole-cell arrival point (tickMove's top-of-tick check, and
+    // settleArrival at the two places tickMove lands a worker) has any chance to act
+    // on it: the mark is set but the haul has not yet turned. This is the lift-ride
+    // hazard tested through its own predicate — during a ride py travels while cy
+    // stays behind, and re-pathing there would snap the rider down to the foot of
+    // the mast with nothing in the log.
     g.tick(1 / 600);
     check('a mid-step haul is marked but not yet turned', w.task.sink.t === 'goal' && w.task.divert === true);
-  }
 
-  for (let i = 0; i < 30 * 60; i++) {
-    g.tick(1 / 30);
-    if (census(g, item) !== mass) break;
+    for (let i = 0; i < 30 * 60; i++) {
+      g.tick(1 / 30);
+      if (census(g, item) !== mass) break;
+    }
+    check('mass is conserved through the turn', census(g, item) === mass);
+    check('nothing reached the wagon after the hatch shut', g.objectives.every((o) => o.delivered === 0));
+    check('the goal reservations are released', g.objectives.every((o) => o.inbound === 0));
+    check('no task is still bound for the wagon', g.workers.every((x) => x.task?.kind !== 'haul' || x.task.sink.t !== 'goal'));
+
+    // A worker mid-route (not on its last step) never proves the arrival-point divert:
+    // completing an ordinary step just advances stepIdx, it never calls
+    // arriveAtTaskTarget. Only a worker mid-step on its FINAL leg reaches the walk
+    // branch's step-completion call, the one place besides tickMove's top-of-tick
+    // check that can hand a haul to arriveAtTaskTarget — and it must turn the mark
+    // into a reroute there too, not let a landing slip through in the same tick.
+    const g2 = new Game(L3);
+    const plankObj2 = () => g2.objectives.find((o) => o.item === 'plank');
+    let w2 = null;
+    for (let i = 0; i < 30 * 120 && !w2; i++) {
+      g2.tick(1 / 30);
+      w2 = g2.workers.find(
+        (x) =>
+          x.task?.kind === 'haul' &&
+          x.task.sink.t === 'goal' &&
+          x.task.phase === 'toSink' &&
+          x.carrying === 'plank' &&
+          x.stepIdx === x.path.length - 1 &&
+          (x.px !== x.cx || x.py !== x.cy)
+      );
+    }
+    check('found a hauler mid-step on its final leg to the wagon', w2 !== null);
+    if (w2) {
+      const deliveredBefore = plankObj2().delivered;
+      g2.setShipping(false);
+      // Tick through the landing at a normal rate: whichever tick this step
+      // completes on, the arrival-point divert must catch it before
+      // arriveAtTaskTarget can deposit into the objective.
+      for (let i = 0; i < 30 * 5; i++) g2.tick(1 / 30);
+      check('a haul on its final step still turns back, not delivers', plankObj2().delivered === deliveredBefore);
+    }
   }
-  check('mass is conserved through the turn', census(g, item) === mass);
-  check('nothing reached the wagon after the hatch shut', g.objectives.every((o) => o.delivered === 0));
-  check('the goal reservations are released', g.objectives.every((o) => o.inbound === 0));
-  check('no task is still bound for the wagon', g.workers.every((x) => x.task?.kind !== 'haul' || x.task.sink.t !== 'goal'));
 }
 
 // re-opening before the mark is acted on leaves the haul on its route
@@ -199,9 +245,12 @@ function census(g, item) {
     g.tick(1 / 30);
     w = g.workers.find((x) => x.task?.kind === 'haul' && x.task.sink.t === 'goal' && x.task.phase === 'toSink');
   }
-  g.setShipping(false);
-  g.setShipping(true);
-  check('flipping twice leaves the haul alone', w.task.sink.t === 'goal' && !w.task.divert);
+  check('found a hauler heading to the wagon', w !== null);
+  if (w) {
+    g.setShipping(false);
+    g.setShipping(true);
+    check('flipping twice leaves the haul alone', w.task.sink.t === 'goal' && !w.task.divert);
+  }
 }
 
 console.log(failures ? `\n${failures} failure(s)` : '\nall ok');
