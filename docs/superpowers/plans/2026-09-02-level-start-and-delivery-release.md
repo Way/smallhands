@@ -1612,10 +1612,17 @@ default rather than trusting the convention.
   "could this item *ever* be carried there", and a shut hatch is transient.
 - **Shutting the hatch turns cargo back, and it turns back at a whole cell.** This follows the keep
   floor's precedent, not the convoy's "stops dispatch, not cargo" — the reason a player shuts it is
-  that they still need the material. `setShipping(false)` marks the tasks; `tickMove` acts on the
-  mark only while `w.px === w.cx && w.py === w.cy`. The equality is exact because every step boundary
-  assigns both from one value; during a lift ride `py` travels while `cy` stays at the base, and
-  re-pathing there would snap the rider down to the foot of the mast with nothing in the log.
+  that they still need the material. `setShipping(false)` marks the tasks, and `tickMove` acts on the
+  mark at **three** points, all of them whole cells: the top of the tick, guarded by
+  `w.px === w.cx && w.py === w.cy`, and both arrivals, which go through `settleArrival`. The guard's
+  equality is exact because every step boundary assigns px/py and cx/cy from one value; during a lift
+  ride `py` travels while `cy` stays at the base, and re-pathing there would snap the rider down to
+  the foot of the mast with nothing in the log. The two arrival points need no such guard — they are
+  whole cells by construction — and they are not optional: the walk branch calls `arriveAtTaskTarget`
+  from *inside* the same tick that the top-of-tick check already skipped, so without them a hauler on
+  its final step delivers to a shut wagon. That gap made the suite assert an absolute the code did
+  not guarantee, and it held only because no hauler on the fixture's seed happened to be on its last
+  step at that instant.
 - **Every surface is derived.** The Start card is rebuilt by `syncReadyOverlay()` from
   `game.phase`, because `showOptions`, the report overlay and a language change all call
   `clearOverlay()` — a card created once and left there is removed by the options menu, and the level
