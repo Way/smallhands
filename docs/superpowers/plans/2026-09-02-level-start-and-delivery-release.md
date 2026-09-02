@@ -381,7 +381,7 @@ git add src/game/sim.ts tests/held.mjs
 git commit -m "feat(sim): a delivery release gates every route to the caravan
 
 Game.shipping joins the convoy window at the one goal-dispatch decision
-in schedule(), so it shuts all four routes to the wagon — the store, a
+in schedule(), so it shuts all three routes to the wagon — the store, a
 loose ground item and a producer's output shelf — rather than only the
 store route, which is the leak the keep floor shipped with.
 
@@ -1606,7 +1606,7 @@ default rather than trusting the convention.
   stream's readers and expects the wander's two.
 - **`shipping` gates the route; `keep` gates the item.** They are not two versions of one dial. The
   release sits at the single goal-dispatch decision in `schedule()`, beside `convoyOpen`, so it shuts
-  **all four** routes to the wagon — the store, a loose ground item, and a producer's output shelf.
+  **all three** routes to the wagon — the store, a loose ground item, and a producer's output shelf.
   Gating the stock route alone is the leak the keep floor shipped with. It stays out of
   `acceptingSinkCells` for the same reason the convoy window and the floor do: that function answers
   "could this item *ever* be carried there", and a shut hatch is transient.
