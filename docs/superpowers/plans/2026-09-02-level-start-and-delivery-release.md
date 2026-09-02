@@ -1254,7 +1254,9 @@ Append to `tests/levelstart.mjs`, before `await browser.close();`:
 
 ```js
 // ---- the delivery switch ----------------------------------------------------
-await page.evaluate(() => window.__smallhands.startLevel(1)); // level 2: the order wants what you start with
+await page.evaluate(() => window.__smallhands.startLevel(2)); // level 3: 6 planks in store, 6 on the sheet,
+// and the caravan at grade. NOT level 2, whose caravan sits on the shrine ledge behind a lift that does not
+// exist at t=0 — nothing is ever dispatched there, so every hatch assertion would pass for the wrong reason.
 await page.waitForTimeout(300);
 check('a held level opens with the hatch shut', await page.evaluate(() => window.__smallhands.game.shipping === false));
 await page.click('.ready-btn');
