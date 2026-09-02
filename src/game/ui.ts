@@ -116,6 +116,7 @@ export interface HudCallbacks {
   onUpgrade: () => void;
   onMenu: () => void;
   onRestart: () => void;
+  onShipping: (on: boolean) => void;
   onOptions: () => void;
   onReport: () => void;
 }
@@ -179,6 +180,8 @@ export class Hud {
   // the caravan's dock window (LevelDef.convoy) — one live row under the order
   private convoyRow: HTMLElement | null = null;
   private convoySig = '';
+  private shipRow: HTMLElement | null = null;
+  private shipSig = '';
   // remaining-count badges for budgeted tools (LevelDef.toolLimit)
   private toolLimits = new Map<Tool, HTMLElement>();
   private toolLimitSig = '';
@@ -272,6 +275,15 @@ export class Hud {
       this.convoyRow = el('div', 'convoy-row', obj);
       this.convoyRow.title = t('convoy.title');
     }
+    // The delivery release, under the order it gates. This is where the player is
+    // already looking when they ask why nothing arrives, so the answer and the
+    // control are the same element.
+    this.shipRow = el('div', 'ship-row', obj);
+    this.shipRow.title = t('ship.title');
+    this.shipRow.onclick = () => {
+      this.cbs.onShipping(!this.game.shipping);
+      this.livePanel?.render(); // the wagon's own panel carries the same switch
+    };
     this.collapsible(obj, h);
 
     // right column (right track): the crew panel — staff roles + Town-Hall
@@ -925,7 +937,7 @@ export class Hud {
       this.renderHoistBody(tip, b, interactive);
       return;
     }
-    this.renderMiscBody(tip, b);
+    this.renderMiscBody(tip, b, interactive);
   }
 
   // Producer (sawmill/forge/workshop): recipe, what it is holding right now, live
@@ -1091,8 +1103,9 @@ export class Hud {
     }
   }
 
-  // Lift / rope / goal — live readouts, no controls (same in hover and pinned).
-  private renderMiscBody(tip: HTMLElement, b: Building): void {
+  // Lift / rope — live readouts, no controls. Goal also carries the delivery
+  // release: the real button when pinned, a "▸ Click…" hint pointing at it on hover.
+  private renderMiscBody(tip: HTMLElement, b: Building, interactive: boolean): void {
     const g = this.game;
     if (b.kind === 'lift') {
       el('div', 'tt-desc', tip).textContent = t('inspect.lift', { n: b.y - b.liftTopY });
@@ -1119,6 +1132,20 @@ export class Hud {
         el('div', 'tt-desc', tip).innerHTML = t(g.convoyOpen ? 'convoy.docked' : 'convoy.away', {
           n: Math.max(0, Math.ceil(g.convoyRemaining)),
         });
+      }
+      // The same switch as the HUD row — the wagon is the other place the player
+      // asks the question. Both read Game.shipping; neither keeps a copy.
+      if (interactive) {
+        const btn = el('button', 'tt-btn', tip);
+        btn.textContent = t(g.shipping ? 'ship.btnHold' : 'ship.btnOpen');
+        btn.onclick = () => {
+          this.cbs.onShipping(!g.shipping);
+          this.livePanel?.render();
+        };
+      } else {
+        const verb = t(this.hoverOk ? 'producer.verbClick' : 'producer.verbTap');
+        const key = g.shipping ? 'ship.btnHold' : 'ship.btnOpen';
+        el('div', 'tt-desc tt-action', tip).textContent = `▸ ${t(key)} (${verb})`;
       }
     }
   }
@@ -1453,6 +1480,14 @@ export class Hud {
         this.convoySig = sig;
         this.convoyRow.classList.toggle('away', !g.convoyOpen);
         this.convoyRow.innerHTML = t(g.convoyOpen ? 'convoy.docked' : 'convoy.away', { n: rem });
+      }
+    }
+    if (this.shipRow) {
+      const sig = g.shipping ? 'on' : 'off';
+      if (sig !== this.shipSig) {
+        this.shipSig = sig;
+        this.shipRow.classList.toggle('shut', !g.shipping);
+        this.shipRow.innerHTML = t(g.shipping ? 'ship.on' : 'ship.off');
       }
     }
     this.workerPop.textContent = `${g.workers.length}/${g.maxWorkers}`;

@@ -365,6 +365,16 @@ export const D: Record<string, [string, string]> = {
   ],
   'convoy.docked': ['🐎 <b>Caravan loading</b> — leaves in {n}s', '🐎 <b>Karawane lädt</b> — fährt in {n} s'],
   'convoy.away': ['🐎 <b>Caravan on the road</b> — back in {n}s', '🐎 <b>Karawane unterwegs</b> — zurück in {n} s'],
+  // The delivery release. The row is its own button, so the copy has to say both
+  // what is true now and what a click does.
+  'ship.on': ['📦 <b>Delivery open</b> — click to hold goods back', '📦 <b>Lieferung offen</b> — klicken, um Ware zu halten'],
+  'ship.off': ['🔒 <b>Delivery held</b> — click to load the caravan', '🔒 <b>Lieferung gehalten</b> — klicken, um die Karawane zu beladen'],
+  'ship.title': [
+    'The road to the caravan. While it is held, nothing is dispatched to the wagon and goods already on their way turn back to the store. Your keep dials still decide how much of each good stays home.',
+    'Die Straße zur Karawane. Solange sie gehalten wird, geht nichts zum Wagen, und Ware, die schon unterwegs ist, kehrt ins Lager um. Wie viel von jedem Gut zu Hause bleibt, entscheiden weiter deine Halten-Regler.',
+  ],
+  'ship.btnOpen': ['Open the delivery', 'Lieferung freigeben'],
+  'ship.btnHold': ['Hold the delivery', 'Lieferung halten'],
   'hud.paused': ['Paused', 'Pausiert'],
   'hud.clockTitle': [
     'Time of day on this map. Some maps start at night, where smallies only work in lantern light.',

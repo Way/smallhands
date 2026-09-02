@@ -1174,6 +1174,23 @@ export class Renderer {
     ctx.fillRect(px + 2, py - 6, fw - 4, 4);
     ctx.fillStyle = '#e0b060';
     ctx.fillRect(px + 2, py - 6, (fw - 4) * (total ? done / total : 0), 4);
+
+    // A shut hatch, drawn on the DOCK and not on the wagon: on a convoy level the
+    // wagon drives away, and the sign that says "not now" has to stay behind. That
+    // is the split the two sprites exist for.
+    if (!game.shipping) {
+      const lx = px + 3;
+      const ly = py - 19;
+      ctx.strokeStyle = '#2a1c16';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(lx + 4, ly + 4, 2.6, Math.PI, 0); // shackle
+      ctx.stroke();
+      ctx.fillStyle = '#e0b060';
+      ctx.fillRect(lx, ly + 4, 8, 6); // body
+      ctx.fillStyle = '#2a1c16';
+      ctx.fillRect(lx + 3.5, ly + 6, 1, 2); // keyhole
+    }
   }
 
   // Crates standing in the wagon's open rear, one slice of the order sheet each.

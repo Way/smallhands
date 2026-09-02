@@ -323,6 +323,7 @@ export class Game {
     for (let i = 0; i < startWorkers; i++) this.spawnWorker(true);
     if (opts?.held) {
       this.phase = 'muster';
+      this.shipping = false;
       this.startMuster();
     }
   }

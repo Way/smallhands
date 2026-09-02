@@ -263,6 +263,16 @@ body.in-game #frontdoor { display: none; }
   cursor: help;
 }
 .convoy-row.away { color: var(--warn, #ffc94d); }
+.ship-row {
+  margin-top: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+}
+.ship-row:hover { background: rgba(255, 255, 255, 0.11); }
+.ship-row.shut { color: var(--danger); background: rgba(200, 70, 55, 0.14); }
 
 /* ---- weather forecast (lives in the island's weather-pop) ---- */
 .wx-flood {

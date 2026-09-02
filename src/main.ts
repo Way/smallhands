@@ -1332,6 +1332,7 @@ function attachHud(): void {
       audio.click();
     },
     onUpgrade: () => game!.startThUpgrade(),
+    onShipping: setShipping,
     onMenu: () => {
       if (playtesting && currentCustom) {
         openEditor(currentCustom);
@@ -1500,7 +1501,7 @@ function startGame(def: LevelDef): void {
     // control come down too — a suite calling this hook instead of clicking .ready-btn
     // must land in the same state a real click would.
     begin: () => beginRun(),
-    setShipping: (on: boolean) => game?.setShipping(on),
+    setShipping,
     findPath,
     editor,
     generateVerifiedLevel,
@@ -1736,6 +1737,17 @@ function setSpeed(s: number): void {
 // returns to the rate you were running at rather than snapping back to 1×.
 function togglePause(): void {
   setSpeed(speed === 0 ? lastRate : 0);
+}
+
+// The delivery release. Both the HUD's onShipping callback and the __smallhands
+// debug hook call this — never game.setShipping directly — so a suite that flips
+// the hook lands in the same state a real click would (the HUD row synced, the
+// click sound played). This is the same defect class Task 5 hit with `begin`.
+function setShipping(on: boolean): void {
+  game?.setShipping(on);
+  // opening is the neutral surface; holding is a latch falling shut
+  audio.click(on ? 'wood' : 'metal');
+  hud?.update();
 }
 
 // ---- touch placement: tap to aim, one big ✓ to commit ------------------------------

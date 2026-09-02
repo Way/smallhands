@@ -122,6 +122,30 @@ await page.waitForTimeout(300);
 await beginRun(page);
 check('the hook starts a held level too', await page.evaluate(() => window.__smallhands.game.phase === 'run'));
 
+// ---- the delivery switch ----------------------------------------------------
+await page.evaluate(() => window.__smallhands.startLevel(1)); // level 2: the order wants what you start with
+await page.waitForTimeout(300);
+check('a held level opens with the hatch shut', await page.evaluate(() => window.__smallhands.game.shipping === false));
+await page.click('.ready-btn');
+await page.waitForTimeout(300);
+check('Start does not open the hatch', await page.evaluate(() => window.__smallhands.game.shipping === false));
+
+check('the HUD says the hatch is shut', (await page.locator('.ship-row.shut').count()) === 1);
+await page.waitForTimeout(2500);
+check(
+  'a shut hatch delivers nothing',
+  await page.evaluate(() => window.__smallhands.game.objectives.every((o) => o.delivered === 0))
+);
+
+await page.click('.ship-row');
+await page.waitForTimeout(120);
+check('the HUD row opens the hatch', await page.evaluate(() => window.__smallhands.game.shipping === true));
+check('the row stops reading shut', (await page.locator('.ship-row.shut').count()) === 0);
+
+await page.click('.ship-row');
+await page.waitForTimeout(120);
+check('the HUD row shuts it again', await page.evaluate(() => window.__smallhands.game.shipping === false));
+
 await browser.close();
 console.log(failed ? '\nFAILURES' : '\nall ok');
 process.exit(failed ? 1 : 0);
