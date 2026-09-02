@@ -171,11 +171,14 @@ dial working; read the printed times after any change to `bankPriority`.
 
 Two locks, one constructor option: `new Game(def, seed, { held: true })` sets
 `phase = 'muster'` **and** `shipping = false`. `main.ts`'s `startGame` is the only caller that
-passes it — the front-door backdrop, the editor's live sandbox and every headless suite build a
-plain `new Game(def)` and get today's behaviour. That inverted default is deliberate and is the
-single most load-bearing decision here: about fifteen play-to-a-win suites tick straight into a
-scripted run, and a locked default would stall all of them with a failure that reads as a hauling
-bug. `tests/held.mjs` **asserts** the default rather than trusting the convention.
+passes it — the front-door backdrop, the editor's live sandbox and every headless suite but two
+build a plain `new Game(def)` and get today's behaviour. The two exceptions are deliberate:
+`tests/held.mjs` has to open a held game itself to guard the muster and the hatch at all, and
+`tests/campaign1.mjs`'s level 1 plays through the held door as the one play-to-a-win proof that
+exercises the entry a real player uses. That inverted default is still the single most
+load-bearing decision here: about fifteen play-to-a-win suites tick straight into a scripted run,
+and a locked default would stall every one of them with a failure that reads as a hauling bug.
+`tests/held.mjs` **asserts** the default rather than trusting the convention.
 
 - **The muster freezes the world, not just the crew.** `tick` returns early on `phase === 'muster'`
   after moving workers and particles, so `time` never advances — and with it the weather schedule,
@@ -225,12 +228,11 @@ shut hatch, and mass conservation through a turn-back counted by census rather t
 containers); its delivery-release and turn-back fixture is **level 3, not level 2** — level 2's
 caravan sits behind a lift the level does not build until the player does, so nothing is ever
 dispatched to it and a hatch assertion there would pass for the wrong reason regardless of which way
-the gate faces. It is one of two deliberate exceptions to the claim above that every headless suite
-builds a plain `new Game(def)`: it has to open a held game itself to guard the muster and the hatch
-at all. The other is `tests/campaign1.mjs`'s level 1, which is played through the held door too — the
-one play-to-a-win proof that exercises the entry a real player actually uses (mustered, Started,
-hatch opened) rather than only the sim behind it; tidying it back to a plain `new Game(def)` would
-delete that coverage silently, since every suite would stay green regardless.
+the gate faces. `tests/campaign1.mjs`'s level 1 is the other named exception above — it plays
+through the held door as the one play-to-a-win proof that exercises the entry a real player
+actually uses (mustered, Started, hatch opened) rather than only the sim behind it. Tidying it
+back to a plain `new Game(def)` would delete that coverage silently, since every other suite would
+stay green regardless.
 `npm run test:levelstart` is the browser guard, and its three most valuable assertions are the ones
 for failures that throw nothing: the overlay must not take the pointer, the card must survive the
 options round trip, and the speed control must stay off — disabled, and unmoved by Space, which

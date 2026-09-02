@@ -22,10 +22,13 @@ const step = (g, seconds) => {
 };
 
 // ---- the default is 'run' ---------------------------------------------------
-// This is the guard for tests/campaign1-5, unit, hoist, digging, ramp, terrain,
-// caravan and the editor soak: they all build `new Game(def)` and tick straight
-// into a scripted playthrough. A muster default would stall every one of them,
-// and the failure would read as a hauling bug.
+// This is the guard for tests/campaign2-5, unit, hoist, digging, ramp, terrain,
+// caravan and the editor soak, plus three of tests/campaign1.mjs's four levels:
+// they all build `new Game(def)` and tick straight into a scripted playthrough.
+// (Campaign1's level 1 is the deliberate exception — it plays through the held
+// door itself, as the one play-to-a-win proof of the entry a real player uses.)
+// A muster default would stall every one of them, and the failure would read
+// as a hauling bug.
 const plain = new Game(L1);
 check('default phase is run', plain.phase === 'run');
 step(plain, 2);
