@@ -140,6 +140,32 @@ function playedGame() {
   check('clockString renders hour-of-day', clockString(3.5) === '03:30' && clockString(24) === '00:00');
 }
 
+// ---- the delivery release state is stamped correctly --------------------------------
+{
+  // Level 3 (LEVELS[2]) is the standard fixture for delivery tests. Test both
+  // the open state (default) and the held state (shipping = false).
+  const heldGame = new Game(LEVELS[2]);
+  heldGame.setShipping(false);
+  const heldData = collectReport(heldGame, CONTEXT);
+  const heldMd = formatReport(heldData);
+
+  // Held state must render the held text, not the open text
+  check(
+    'a held hatch renders "held" in the run table',
+    heldMd.includes('held (nothing is dispatched to the caravan)') && heldData.run.shipping === false
+  );
+
+  // Open state (default) must render the open text
+  const openGame = new Game(LEVELS[2]);
+  const openData = collectReport(openGame, CONTEXT);
+  const openMd = formatReport(openData);
+
+  check(
+    'an open hatch renders "open" in the run table',
+    openMd.includes('| delivery | open |') && openData.run.shipping === true
+  );
+}
+
 // ---- the snapshot code round-trips ----------------------------------------------
 {
   const { g, lx, ly, mill, forge } = playedGame();
