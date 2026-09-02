@@ -17,7 +17,17 @@ const { Game, LEVELS, t } = await bundleExports(`
 let failures = 0;
 
 function runLevel(def, steps, maxTime) {
-  const g = new Game(def);
+  // Level 1 is played through the door a real player uses: the level opens held,
+  // and the crew is mustered out and the caravan opened before anything else. The
+  // other levels build the game plainly, so the proofs stay a proof of the SIM.
+  // Without at least one of them passing this way, a scripted run could stay green
+  // while every real player is stuck behind a shut hatch.
+  const held = def.id === 1;
+  const g = new Game(def, undefined, { held });
+  if (held) {
+    g.begin();
+    g.setShipping(true);
+  }
   const pending = [...steps];
   const dt = 1 / 30;
   while (g.time < maxTime && !g.won) {

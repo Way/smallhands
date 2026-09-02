@@ -167,6 +167,72 @@ build is waiting on it (level 3: 264 → 187 s) and *lengthens* the one that ban
 reserve while its production line is still the bottleneck (level 9: 529 → 603 s). Both are the
 dial working; read the printed times after any change to `bankPriority`.
 
+## A level opens held (level start & the delivery release)
+
+Two locks, one constructor option: `new Game(def, seed, { held: true })` sets
+`phase = 'muster'` **and** `shipping = false`. `main.ts`'s `startGame` is the only caller that
+passes it — the front-door backdrop, the editor's live sandbox and every headless suite build a
+plain `new Game(def)` and get today's behaviour. That inverted default is deliberate and is the
+single most load-bearing decision here: about fifteen play-to-a-win suites tick straight into a
+scripted run, and a locked default would stall all of them with a failure that reads as a hauling
+bug. `tests/held.mjs` **asserts** the default rather than trusting the convention.
+
+- **The muster freezes the world, not just the crew.** `tick` returns early on `phase === 'muster'`
+  after moving workers and particles, so `time` never advances — and with it the weather schedule,
+  the convoy window, the rising tide, the day→night clock and the medal time all begin at Start
+  rather than at the moment the level was built. `spawnTimer` does not decrement either, so the crew
+  that musters is exactly `startWorkers`. The mover is the ordinary `tickMove`; the run loop is not
+  touched, and `begin()` snaps every task-less worker onto its cell so nobody is left frozen between
+  two tiles by a loop that only moves workers holding a task.
+- **The line-up is derived from the worker's index.** Offsets grow outward from the town hall's left
+  edge, each `settle`d and each checked with `findPath`; an unusable cell is skipped, and a worker
+  with no reachable cell simply stays at the door. On a cramped map the line degrades to the picture
+  the game had before this existed. No die is rolled: `tests/unit.mjs` counts the behavioural
+  stream's readers and expects the wander's two.
+- **`shipping` gates the route; `keep` gates the item.** They are not two versions of one dial. The
+  release sits at the single goal-dispatch decision in `schedule()`, beside `convoyOpen`, so it shuts
+  **all four** routes to the wagon — the store, a loose ground item, and a producer's output shelf.
+  Gating the stock route alone is the leak the keep floor shipped with. It stays out of
+  `acceptingSinkCells` for the same reason the convoy window and the floor do: that function answers
+  "could this item *ever* be carried there", and a shut hatch is transient.
+- **Shutting the hatch turns cargo back, and it turns back at a whole cell.** This follows the keep
+  floor's precedent, not the convoy's "stops dispatch, not cargo" — the reason a player shuts it is
+  that they still need the material. `setShipping(false)` marks the tasks, and `tickMove` acts on the
+  mark at **three** points, all of them whole cells: the top of the tick, guarded by
+  `w.px === w.cx && w.py === w.cy`, and both arrivals, which go through `settleArrival`. The guard's
+  equality is exact because every step boundary assigns px/py and cx/cy from one value; during a lift
+  ride `py` travels while `cy` stays at the base, and re-pathing there would snap the rider down to
+  the foot of the mast with nothing in the log. The two arrival points need no such guard — they are
+  whole cells by construction — and they are not optional: the walk branch calls `arriveAtTaskTarget`
+  from *inside* the same tick that the top-of-tick check already skipped, so without them a hauler on
+  its final step delivers to a shut wagon. That gap made the suite assert an absolute the code did
+  not guarantee, and it held only because no hauler on the fixture's seed happened to be on its last
+  step at that instant. `sinkRefused` — the one place that answers "must this haul turn back" — has
+  two readers: the pickup, consulted once a ground- or output-sourced unit is already in the
+  hauler's hands to decide whether its sink still holds, and `divertToStock`, consulted again
+  before it acts on its own mark — so a hatch the player re-opened before the mark fired lets the
+  haul continue instead of turning back on a stale reason.
+- **Every surface is derived.** The Start card is rebuilt by `syncReadyOverlay()` from
+  `game.phase`, because `showOptions`, the report overlay and a language change all call
+  `clearOverlay()` — a card created once and left there is removed by the options menu, and the level
+  is then stuck in muster with no way to start it. The lock is drawn on `goal_dock`, never on `goal`,
+  because the wagon drives away on a convoy level and the sign has to stay — it is hung on the order
+  board's own post rather than floating in the sky above the dock, which is where it first landed
+  before it was judged against a render and moved down.
+
+`npm run test:held` is the headless guard (the defaults, the frozen clock, the derived line-up, the
+shut hatch, and mass conservation through a turn-back counted by census rather than by two
+containers); its delivery-release and turn-back fixture is **level 3, not level 2** — level 2's
+caravan sits behind a lift the level does not build until the player does, so nothing is ever
+dispatched to it and a hatch assertion there would pass for the wrong reason regardless of which way
+the gate faces. `npm run test:levelstart` is the browser guard, and its three most valuable
+assertions are the ones for failures that throw nothing: the overlay must not take the pointer, the
+card must survive the options round trip, and the speed control must stay off — disabled, and
+unmoved by Space, which starts the run instead — until the player presses Start.
+`tests/caravan-shot.mjs` carries two frames this feature added — `shut` (the hatch closed at the
+dock) and `shut-wagon-gone` (the lock still standing with the wagon rolled away) — because the suite
+that judges the dock's own artwork could not previously render the state this feature adds.
+
 ## Placement models
 
 The sim (`src/game/sim.ts`) places things into the world through **three intentionally
