@@ -335,6 +335,7 @@ await page.click('.daily-drawer .daily-row .lv-action-btn');
 await page.waitForFunction(() => window.__smallhands?.game, { timeout: 15000 });
 const replayed = await page.evaluate(() => window.__smallhands.game.level.name);
 check('replay boots the logged day', /\d{4}-\d{2}-\d{2}/.test(replayed));
+await beginRun(page);
 
 // ...and with that run in progress, cancelling the abandon confirm must leave the
 // logbook where it was instead of dropping the player on a bare map.

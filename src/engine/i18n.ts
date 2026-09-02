@@ -328,6 +328,12 @@ export const D: Record<string, [string, string]> = {
   ],
 
   // ---- HUD -----------------------------------------------------------------------
+  // The Start card. The card addresses the CREW (the group), never the species —
+  // see docs/architecture.md's terminology table, which tests/terminology.mjs walks.
+  'ready.title': ['Your crew is ready', 'Dein Trupp steht bereit'],
+  'ready.sheet': ['The caravan wants', 'Die Karawane will'],
+  'ready.btn': ['▶ Start', '▶ Los'],
+  'ready.hint': ['Look around first — drag to pan, scroll to zoom', 'Sieh dich erst um — ziehen zum Schwenken, scrollen zum Zoomen'],
   'hud.deliver': ['Deliver', 'Liefern'],
   'hud.crew': ['Crew', 'Trupp'],
   'crew.idle': ['{n} idle', '{n} frei'],

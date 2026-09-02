@@ -1312,6 +1312,13 @@ export class Hud {
     this.hidePlacementNeeds(); // stale badge from the previous tool; re-shows on next hover
   }
 
+  // A pause button on a level that has not begun is a control with nothing to do,
+  // and pressing it would freeze the muster with no way to read why.
+  setHeld(held: boolean): void {
+    this.speedTrigger.toggleAttribute('disabled', held);
+    this.root.classList.toggle('held', held);
+  }
+
   setSpeed(s: number): void {
     // the rate stays lit while paused: ⏸ then ▶ resumes at that rate, so the
     // buttons show what you'd get back, not a rate nothing is running at

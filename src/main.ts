@@ -323,6 +323,8 @@ function resumeGame(): void {
   inLevel = true;
   syncMusic();
   setSpeed(prevSpeed > 0 ? prevSpeed : 1);
+  syncReadyOverlay(); // the options/report overlay took the card with it
+  hud?.setHeld(game?.phase === 'muster');
   // touch: restore the armed tool's bar (dropped when the map took over) —
   // buildings park their draft ghost again, everything else re-shows its hint
   if (COARSE) {
@@ -349,6 +351,7 @@ function inPlayableGame(): boolean {
 
 function autoPauseOnFocusLoss(): void {
   if (autoPaused || !inPlayableGame()) return;
+  if (game?.phase === 'muster') return; // already held; a resume dialog on top of the Start card is two dialogs
   if (speed === 0) return; // already paused by the player — nothing to freeze
   autoPaused = true;
   autoPausedSpeed = speed;
@@ -1384,6 +1387,64 @@ function attachHud(): void {
   });
   hud.setSpeed(speed);
   hud.setActiveTool(hover.tool);
+  // A language change calls attachHud() on a live game (applyLanguage, main.ts:417),
+  // and the Hud constructor does root.innerHTML = '' — so BOTH the speed lock and
+  // the card have to be re-derived here, not only the lock. syncReadyOverlay
+  // removes before it creates, so calling it twice during startGame is harmless.
+  hud.setHeld(game!.phase === 'muster');
+  syncReadyOverlay();
+}
+
+// The Start card is DERIVED, never held. showOptions, the report overlay and a
+// language change all call clearOverlay(), which removes every .overlay — so the
+// card cannot simply be created once and left there. Everything that clears
+// overlays calls this afterwards, and the card is on screen exactly while the
+// level is. Same rule as the wagon in caravan-look.ts: the picture reads the
+// state, it does not remember it.
+function syncReadyOverlay(): void {
+  uiRoot.querySelector('.ready-overlay')?.remove();
+  if (!game || game.phase !== 'muster') return;
+  const ov = document.createElement('div');
+  ov.className = 'overlay ready-overlay';
+  const card = document.createElement('div');
+  card.className = 'panel ready-card';
+  const title = document.createElement('div');
+  title.className = 'ready-title';
+  title.textContent = t('ready.title');
+  const name = document.createElement('div');
+  name.className = 'ready-name';
+  name.textContent = t(game.level.name);
+  const desc = document.createElement('div');
+  desc.className = 'ready-desc';
+  desc.textContent = t(game.level.desc);
+  const sheet = document.createElement('div');
+  sheet.className = 'ready-sheet';
+  for (const o of game.objectives) {
+    const s = document.createElement('span');
+    s.textContent = `${t(`item.${o.item}`)} ${o.amount}`;
+    sheet.appendChild(s);
+  }
+  const btn = document.createElement('button');
+  btn.className = 'big-btn ready-btn';
+  btn.textContent = t('ready.btn');
+  btn.onclick = () => beginRun();
+  const hint = document.createElement('div');
+  hint.className = 'ready-hint';
+  hint.textContent = t('ready.hint');
+  for (const n of [title, name, desc, sheet, btn, hint]) card.appendChild(n);
+  ov.appendChild(card);
+  uiRoot.appendChild(ov);
+  btn.focus();
+}
+
+// Start the run: the sim leaves the muster, the card goes, and the speed control
+// comes back to life.
+function beginRun(): void {
+  if (!game || game.phase !== 'muster') return;
+  game.begin();
+  audio.click();
+  syncReadyOverlay();
+  hud?.setHeld(false);
 }
 
 function startGame(def: LevelDef): void {
@@ -1393,7 +1454,7 @@ function startGame(def: LevelDef): void {
   // Fresh seed per attempt: the sim's randomness is seeded (card #65) so tests can
   // replay a run exactly, but a real play session should still feel different every
   // time — two runs of the same level get different idle strolls and particle fans.
-  game = new Game(def, randomSeed());
+  game = new Game(def, randomSeed(), { held: true });
   speed = 1;
   cam.zoom = defaultZoom();
   const c = def.camera ?? { x: 0, y: 0 };
@@ -1406,11 +1467,13 @@ function startGame(def: LevelDef): void {
   attachHud();
   setTool('select');
   hud!.setSpeed(speed);
+  hud!.setHeld(true);
 
   game.onEvent = handleEvent;
   running = true;
   inLevel = true;
   syncMusic();
+  syncReadyOverlay();
 
   // one gentle, once-per-session nudge: the worlds are wide, landscape shows more
   if (COARSE && window.innerHeight > window.innerWidth && !rotateHintShown) {
@@ -1432,8 +1495,11 @@ function startGame(def: LevelDef): void {
     setTool,
     // Start a held level and open the caravan's hatch. Both are no-ops on a level
     // that is already running with an open hatch, which is what lets the browser
-    // suites and the trailer call them unconditionally.
-    begin: () => game?.begin(),
+    // suites and the trailer call them unconditionally. Routes through beginRun()
+    // rather than game.begin() directly so the Start card and the disabled speed
+    // control come down too — a suite calling this hook instead of clicking .ready-btn
+    // must land in the same state a real click would.
+    begin: () => beginRun(),
     setShipping: (on: boolean) => game?.setShipping(on),
     findPath,
     editor,
@@ -2259,6 +2325,15 @@ window.addEventListener('keydown', (e) => {
   // keys) so nothing runs or retools behind the overlay — the pointer overlay
   // alone doesn't block the keyboard.
   if (uiRoot.querySelector('.resume-overlay')) return;
+  // A held level has one key: Start. No tool keys (nothing can be paid for yet)
+  // and no pause (there is nothing running to pause).
+  if (game.phase === 'muster') {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      beginRun();
+    }
+    return;
+  }
   const def = TOOL_DEFS.find((d) => d.key === e.key);
   if (def && (!game.level.allowedTools || game.level.allowedTools.includes(def.id))) {
     setTool(def.id);

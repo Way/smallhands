@@ -37,6 +37,7 @@
     "test:e2e": "node tests/e2e.mjs",
     "test:mobile": "node tests/mobile.mjs",
     "test:autopause": "node tests/autopause.mjs",
+    "test:levelstart": "node tests/levelstart.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:drag-tooltip": "node tests/drag-tooltip.mjs",
     "test:hover-tooltip": "node tests/hover-tooltip.mjs",
