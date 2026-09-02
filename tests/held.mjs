@@ -80,5 +80,34 @@ for (let i = 0; i < 30 * 20 && !tookWork; i++) {
 check('the crew takes work after begin', tookWork);
 check('begin on a running game is a no-op', (held.begin(), held.phase === 'run'));
 
+// ---- the delivery release --------------------------------------------------
+// Level 3 is the reported bug in its purest form: it has enough starting stock
+// that the crew immediately begins hauling to the caravan, so a 250-second run
+// shows delivery with shipping = true and nothing with shipping = false.
+const L3 = LEVELS[2];
+
+const openHatch = new Game(L3);
+step(openHatch, 250);
+check(
+  'control: an open hatch ships the starting stock',
+  openHatch.objectives.some((o) => o.delivered > 0)
+);
+
+const shut = new Game(L3);
+shut.setShipping(false);
+check('setShipping(false) shuts the hatch', shut.shipping === false);
+step(shut, 250);
+check('a shut hatch delivers nothing', shut.objectives.every((o) => o.delivered === 0));
+check('a shut hatch reserves nothing', shut.objectives.every((o) => o.inbound === 0));
+check('the starting stock stays in store', shut.stock.plank >= (L3.startStock?.plank ?? 0));
+
+// opening it lets the same store flow
+shut.setShipping(true);
+step(shut, 250);
+check('opening the hatch ships the store', shut.objectives.some((o) => o.delivered > 0));
+
+// the default is open — the fifteen scripted suites depend on it
+check('shipping defaults to open', new Game(L1).shipping === true);
+
 console.log(failures ? `\n${failures} failure(s)` : '\nall ok');
 process.exit(failures ? 1 : 0);

@@ -215,6 +215,23 @@ export class Game {
   // `main.ts` opts in with { held: true }, and tests/held.mjs asserts the default
   // rather than trusting the convention.
   phase: 'muster' | 'run' = 'run';
+
+  // The caravan's hatch — the player's own release, separate from the keep floor.
+  // `keep` is a ceiling on ONE ITEM the player is saving up; this says the ROAD is
+  // shut, which is a property of the route and not of any item. The two compose:
+  // keep decides how much of a good stays home, shipping decides whether anything
+  // leaves at all.
+  //
+  // Two rules keep it honest, and both are one line away from a silent leak:
+  //  - It gates at the single goal-dispatch decision in schedule(), NOT at the four
+  //    candidate pushes under it. Loose ground items and a producer's output shelf
+  //    reach the wagon without passing through the store, so a gate on the stock
+  //    route alone leaks — the exact bug the keep floor shipped with.
+  //  - It stays OUT of acceptingSinkCells. That function answers "could this item
+  //    EVER be carried there"; the convoy window and the keep floor are excluded
+  //    there because they are transient, and so is this.
+  shipping = true;
+
   demolishCount = 0; // for the "No Demolish" feat
 
   // weather: index + elapsed time within the level's looping schedule
@@ -642,6 +659,10 @@ export class Game {
 
   setKeep(item: ItemType, n: number): void {
     this.keep[item] = Math.max(0, Math.min(99, Math.floor(n)));
+  }
+
+  setShipping(on: boolean): void {
+    this.shipping = on;
   }
 
   toolUnlocked(tool: Tool): boolean {
@@ -1666,7 +1687,7 @@ export class Game {
     // to it — the crew fills the stockpile instead and empties it into the next
     // dock window. A hauler already walking when it rolls out still delivers on
     // arrival: cargo in hand is never thrown away, it just catches the tail.
-    const goal = this.convoyOpen ? this.goal : null;
+    const goal = this.convoyOpen && this.shipping ? this.goal : null;
     if (goal) {
       for (const o of this.objectives) {
         if (o.delivered + o.inbound >= o.amount) continue;
