@@ -280,25 +280,31 @@ Append to `tests/held.mjs`, before the final `console.log`:
 
 ```js
 // ---- the delivery release --------------------------------------------------
-// Level 2 is the reported bug in its purest form: startStock is
-// { log: 4, plank: 6, stone: 4 } and the order sheet wants stone and planks, so
-// today the crew empties the store into the caravan on the first schedule().
-const L2 = LEVELS[1];
+// Level 3 is the reported bug in its purest form: startStock is
+// { log: 6, plank: 6, stone: 2 }, the order sheet wants 6 planks, and the caravan
+// stands at the west edge AT GRADE (levels.ts: `goal(g, 0)`) — so the crew empties
+// the store into it on the first schedule().
+//
+// NOT level 2, which looks like the obvious fixture and is not one: its caravan sits
+// up on the shrine ledge (`goal(g, 28)`), reachable only by a lift that is the
+// level's own new-verb lesson and does not exist at t=0. Nothing is ever dispatched
+// there, so a shut-hatch assertion on level 2 would pass for the wrong reason.
+const L3 = LEVELS[2];
 
-const openHatch = new Game(L2);
+const openHatch = new Game(L3);
 step(openHatch, 200);
 check(
   'control: an open hatch ships the starting stock',
   openHatch.objectives.some((o) => o.delivered > 0)
 );
 
-const shut = new Game(L2);
+const shut = new Game(L3);
 shut.setShipping(false);
 check('setShipping(false) shuts the hatch', shut.shipping === false);
 step(shut, 200);
 check('a shut hatch delivers nothing', shut.objectives.every((o) => o.delivered === 0));
 check('a shut hatch reserves nothing', shut.objectives.every((o) => o.inbound === 0));
-check('the starting planks stay in store', shut.stock.plank >= (L2.startStock?.plank ?? 0));
+check('the starting planks stay in store', shut.stock.plank >= (L3.startStock?.plank ?? 0));
 
 // opening it lets the same store flow
 shut.setShipping(true);
@@ -412,6 +418,7 @@ Append to `tests/held.mjs`, before the final `console.log`:
 // for this lesson: a unit lives in stock, loose on the ground, in a worker's hands,
 // or in one of four building buckets — and NOT in the *In reservations, which are
 // inbound promises that double-count the hauler already holding it.
+// L3 is already declared above by the delivery-release block; do not redeclare it.
 function census(g, item) {
   let n = g.stock[item];
   for (const gi of g.groundItems) if (gi.item === item) n++;
@@ -428,22 +435,23 @@ function census(g, item) {
 
 // prove the census itself counts the store and a worker's hands
 {
-  const g = new Game(L2);
+  const g = new Game(L3);
   const before = census(g, 'plank');
-  check('census counts the starting store', before === (L2.startStock?.plank ?? 0));
+  check('census counts the starting store', before === (L3.startStock?.plank ?? 0));
   step(g, 30);
   check('census is conserved while planks are carried', census(g, 'plank') === before);
 }
 
 // find a hauler carrying a PLANK to the wagon, then shut the hatch.
 //
-// The item is pinned to plank on purpose. Level 2 carries a miner in startRoles,
-// so its stone census legitimately GROWS while a boulder is harvested, and a
-// strict-equality mass check on stone would flap. Nothing on level 2 can make a
-// plank — the sawmill is a tool the player must build, and no scripted player
-// builds one here — so the plank census is fixed at startStock for the whole run.
+// The item is pinned to plank on purpose. Level 3 carries a miner AND three veins,
+// so its stone and iron censuses legitimately GROW while a node is harvested, and a
+// strict-equality mass check on either would flap. Nothing on level 3 can make a
+// plank — the sawmill is a tool the player must build, the level pre-builds none,
+// and no scripted player builds one here — so the plank census is fixed at
+// startStock for the whole run.
 {
-  const g = new Game(L2);
+  const g = new Game(L3);
   const goalHaul = () =>
     g.workers.find(
       (w) =>
@@ -485,7 +493,7 @@ function census(g, item) {
 
 // re-opening before the mark is acted on leaves the haul on its route
 {
-  const g = new Game(L2);
+  const g = new Game(L3);
   let w = null;
   for (let i = 0; i < 30 * 120 && !w; i++) {
     g.tick(1 / 30);
