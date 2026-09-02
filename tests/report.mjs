@@ -103,6 +103,13 @@ function playedGame() {
     'the run table stamps the seed that replays the run',
     md.includes(`| seed | \`${g.seed}\``) && data.run.seed === g.seed
   );
+  // "Nothing is being delivered" is the report this feature will produce. Without
+  // the switch in the run table, such a report cannot be told apart from a real
+  // hauling failure.
+  check(
+    'the run table stamps the delivery release',
+    md.includes('| delivery |') && data.run.shipping === g.shipping
+  );
   check('every worker gets a row', data.workers.length === g.workers.length);
   check('a paused producer is called out', md.includes('ready (PAUSED)'));
   check('a blueprint shows progress against its build time', md.includes(`blueprint 3.5/${BUILD_TIME.forge}s`));

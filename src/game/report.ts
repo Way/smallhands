@@ -70,6 +70,7 @@ export interface ReportData {
   };
   run: {
     seed: string; // replays this exact run: new Game(level, seed)
+    shipping: boolean; // the player's delivery release — a shut hatch looks exactly like broken hauling
     time: number;
     clock: string;
     timeOfDay: number;
@@ -263,6 +264,7 @@ export function collectReport(game: Game, context: ReportContext): ReportData {
     },
     run: {
       seed: game.seed,
+      shipping: game.shipping,
       time: round2(game.time),
       clock: clockString(game.timeOfDay),
       timeOfDay: round2(game.timeOfDay),
@@ -400,6 +402,7 @@ export function formatReport(d: ReportData): string {
   push(`| | |`);
   push(`|---|---|`);
   push(`| seed | \`${run.seed}\` (replays this run) |`);
+  push(`| delivery | ${run.shipping ? 'open' : 'held (nothing is dispatched to the caravan)'} |`);
   push(`| elapsed | ${run.time}s |`);
   push(`| clock | ${run.clock} (hour ${run.timeOfDay}, night ${run.nightAmount}) |`);
   push(`| speed | ${c.speed}× ${run.paused ? '(paused)' : ''} |`);
