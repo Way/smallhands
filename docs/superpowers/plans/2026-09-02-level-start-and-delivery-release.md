@@ -435,7 +435,13 @@ function census(g, item) {
   check('census is conserved while planks are carried', census(g, 'plank') === before);
 }
 
-// find a hauler carrying a plank to the wagon, then shut the hatch
+// find a hauler carrying a PLANK to the wagon, then shut the hatch.
+//
+// The item is pinned to plank on purpose. Level 2 carries a miner in startRoles,
+// so its stone census legitimately GROWS while a boulder is harvested, and a
+// strict-equality mass check on stone would flap. Nothing on level 2 can make a
+// plank — the sawmill is a tool the player must build, and no scripted player
+// builds one here — so the plank census is fixed at startStock for the whole run.
 {
   const g = new Game(L2);
   const goalHaul = () =>
@@ -444,16 +450,17 @@ function census(g, item) {
         w.task?.kind === 'haul' &&
         w.task.sink.t === 'goal' &&
         w.task.phase === 'toSink' &&
-        w.carrying !== null
+        w.carrying === 'plank'
     );
   let w = null;
   for (let i = 0; i < 30 * 120 && !w; i++) {
     g.tick(1 / 30);
     w = goalHaul();
   }
-  check('found a hauler carrying to the wagon', w !== null);
+  check('found a hauler carrying a plank to the wagon', w !== null);
 
-  const item = w.carrying;
+  const item = 'plank';
+  check('no sawmill exists, so the plank census is fixed', !g.buildings.some((b) => b.kind === 'sawmill'));
   const mass = census(g, item);
   g.setShipping(false);
 
@@ -950,7 +957,7 @@ check(
 // ---- the speed control is off ------------------------------------------------
 check(
   'the speed control is disabled while held',
-  await page.evaluate(() => !!document.querySelector('.hud .speed-trigger')?.hasAttribute('disabled'))
+  await page.evaluate(() => !!document.querySelector('.island .speed-trigger')?.hasAttribute('disabled'))
 );
 await page.keyboard.press(' ');
 await page.waitForTimeout(60);
@@ -983,7 +990,7 @@ await page.click('.ready-btn');
 await page.waitForTimeout(300);
 check('the Start card is gone', (await page.locator('.ready-overlay').count()) === 0);
 check('the level runs', await page.evaluate(() => window.__smallhands.game.phase === 'run'));
-check('the speed control is live again', await page.evaluate(() => !document.querySelector('.hud .speed-trigger')?.hasAttribute('disabled')));
+check('the speed control is live again', await page.evaluate(() => !document.querySelector('.island .speed-trigger')?.hasAttribute('disabled')));
 await page.waitForTimeout(600);
 check('the run clock moves', (await page.evaluate(() => window.__smallhands.game.time)) > 0.3);
 
@@ -1144,7 +1151,12 @@ In `resumeGame` (~line 320), after `setSpeed(prevSpeed > 0 ? prevSpeed : 1);`:
 In `attachHud` (~line 1290), at the very end of the function, after `hud.setActiveTool(hover.tool);`:
 
 ```ts
-  hud.setHeld(game!.phase === 'muster'); // a language change rebuilds the HUD from scratch
+  // A language change calls attachHud() on a live game (applyLanguage, main.ts:417),
+  // and the Hud constructor does root.innerHTML = '' — so BOTH the speed lock and
+  // the card have to be re-derived here, not only the lock. syncReadyOverlay
+  // removes before it creates, so calling it twice during startGame is harmless.
+  hud.setHeld(game!.phase === 'muster');
+  syncReadyOverlay();
 ```
 
 - [ ] **Step 7: Suppress auto-pause and re-route the keyboard**
