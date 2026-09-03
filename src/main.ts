@@ -1418,6 +1418,9 @@ function syncReadyOverlay(): void {
   const desc = document.createElement('div');
   desc.className = 'ready-desc';
   desc.textContent = t(game.level.desc);
+  const sheetLabel = document.createElement('div');
+  sheetLabel.className = 'ready-sheet-label';
+  sheetLabel.textContent = t('ready.sheet');
   const sheet = document.createElement('div');
   sheet.className = 'ready-sheet';
   for (const o of game.objectives) {
@@ -1432,7 +1435,7 @@ function syncReadyOverlay(): void {
   const hint = document.createElement('div');
   hint.className = 'ready-hint';
   hint.textContent = t('ready.hint');
-  for (const n of [title, name, desc, sheet, btn, hint]) card.appendChild(n);
+  for (const n of [title, name, desc, sheetLabel, sheet, btn, hint]) card.appendChild(n);
   ov.appendChild(card);
   uiRoot.appendChild(ov);
   btn.focus();

@@ -943,6 +943,12 @@ body.in-game #frontdoor { display: none; }
 .ready-title { font-size: 20px; font-weight: 800; color: var(--accent); }
 .ready-name { font-size: 16px; font-weight: 700; }
 .ready-desc { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+.ready-sheet-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
 .ready-sheet { display: flex; gap: 14px; align-items: center; justify-content: center; }
 .ready-sheet span { display: inline-flex; align-items: center; gap: 4px; }
 .ready-hint { font-size: 12px; color: var(--text-dim); }

@@ -1348,7 +1348,6 @@ export class Hud {
   // and pressing it would freeze the muster with no way to read why.
   setHeld(held: boolean): void {
     this.speedTrigger.toggleAttribute('disabled', held);
-    this.root.classList.toggle('held', held);
   }
 
   setSpeed(s: number): void {

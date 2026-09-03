@@ -210,11 +210,15 @@ and a locked default would stall every one of them with a failure that reads as 
   from *inside* the same tick that the top-of-tick check already skipped, so without them a hauler on
   its final step delivers to a shut wagon. That gap made the suite assert an absolute the code did
   not guarantee, and it held only because no hauler on the fixture's seed happened to be on its last
-  step at that instant. `sinkRefused` — the one place that answers "must this haul turn back" — has
-  two readers: the pickup, consulted once a ground- or output-sourced unit is already in the
-  hauler's hands to decide whether its sink still holds, and `divertToStock`, consulted again
-  before it acts on its own mark — so a hatch the player re-opened before the mark fired lets the
-  haul continue instead of turning back on a stale reason.
+  step at that instant. `sinkRefused` answers "must this haul turn back" for the two routes where
+  the item is already in hand: the pickup, consulted once a ground- or output-sourced unit is
+  already in the hauler's hands to decide whether its sink still holds, and `divertToStock`,
+  consulted again before it acts on its own mark — so a hatch the player re-opened before the
+  mark fired lets the haul continue instead of turning back on a stale reason. The stock-source
+  pickup is a deliberate third gate, not a third reader of `sinkRefused`: it checks the hatch
+  inline against raw `stock - keep`, because `sinkRefused`'s fallthrough reads `spare()`
+  (`stock - stockReserved - keep`), and subtracting `stockReserved` there would quietly tighten
+  the keep floor's own guarantee for stock-sourced hauls.
 - **Every surface is derived.** The Start card is rebuilt by `syncReadyOverlay()` from
   `game.phase`, because `showOptions`, the report overlay and a language change all call
   `clearOverlay()` — a card created once and left there is removed by the options menu, and the level

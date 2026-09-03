@@ -2069,6 +2069,10 @@ export class Game {
             //
             // A shut hatch aborts a stock-sourced haul exactly the way the keep
             // floor does: the unit is in the store and simply stays there.
+            //
+            // Deliberately inline, not `!this.sinkRefused(task)`: see that
+            // method's comment for why routing this through it would change
+            // the keep floor's behaviour.
             if (!(task.sink.t === 'goal' && !this.shipping) && this.stock[task.item] - this.keep[task.item] > 0) {
               this.stock[task.item]--;
               this.stockReserved[task.item] = Math.max(0, this.stockReserved[task.item] - 1);
@@ -2376,10 +2380,21 @@ export class Game {
     }
   }
 
-  // Every reason a haul must not continue to its sink, in one place, re-read at the
-  // moment it matters rather than trusted from dispatch time. Two readers: the
-  // pickup below and divertToStock. Adding the next gate HERE is what keeps it from
-  // reaching only half the routes, which is the mistake the keep floor made.
+  // Every reason an IN-HAND haul must not continue to its sink, re-read at the
+  // moment it matters rather than trusted from dispatch time. Two readers, both
+  // downstream of pickup: the ground/output branch below (once the item is
+  // already in the hauler's hands) and divertToStock. Adding the next gate HERE
+  // reaches those two routes.
+  //
+  // It is deliberately NOT a third reader: the stock-source pickup (above, in
+  // the `task.source.t === 'stock'` branch) gates the hatch inline against
+  // `this.stock[item] - this.keep[item] > 0`, not against `spare()`'s
+  // `stock - stockReserved - keep`. Routing that check through sinkRefused
+  // would start subtracting stockReserved from a decision that today
+  // deliberately doesn't, silently tightening the keep floor's own guarantee
+  // (a haul that proceeds today could abort whenever stockReserved pushes
+  // spare below zero). A gate added here still needs a companion at the
+  // stock-source pickup to cover all three routes.
   private sinkRefused(task: Extract<Task, { kind: 'haul' }>): boolean {
     if (task.sink.t === 'stock') return false;
     if (task.sink.t === 'goal' && !this.shipping) return true;
